@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 // TopicWheel — dispatches SELECT_TOPIC only. Per Izzat's visual-direction
 // correction (2026-08-11, second round): the Bidang Wheel stays VERTICAL
 // and on the LEFT at every viewport width, including mobile — moving it to
 // a horizontal top bar was explicitly rejected (it ate reading space and
-// made Quick look like an ordinary mobile feed). A narrow vertical wheel
-// also directly answers "how do you navigate 24 Bidang" without a
-// horizontal menu that reads as a website nav bar.
+// made Quick look like an ordinary mobile feed).
 //
 // Per Izzat's THIRD round correction: writing-mode: vertical-rl REMOVED —
 // labels read normal horizontal text.
@@ -18,57 +16,81 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // Per Izzat's FIFTH round correction: continuous scale/opacity falloff by
 // distance from center — the classic iOS-picker-wheel visual cue.
 //
-// Per Izzat's SIXTH round correction (2026-08-11, after reviewing a
-// separate design handoff for the same wheel concept — see
-// docs/mobile-composition-study.md and the reference component's
-// README): "setiap kali scroll, hanya SATU bidang bergerak" — one scroll
-// gesture must move exactly one Bidang, never skip 2-3 at once. The
-// PREVIOUS implementation used native browser scroll (scrollTop +
-// CSS scroll-snap), which lets momentum/inertia carry a single fling
-// through several snap points — the browser decides how far, not us.
-// FIXED by removing native scrolling entirely: position is now a fully
-// controlled `translateY` driven by React state (`currentIndex`), exactly
-// matching the reference design's architecture (controlled `offset`,
-// snap-to-nearest computed in JS, not left to native scroll physics).
+// Per Izzat's SIXTH round correction: native browser scroll removed
+// entirely; position is a fully controlled `translateY` driven by state.
 //
-// SEVENTH round correction (2026-08-12): the per-tick throttle above was
-// still wrong — a real physical trackpad/mouse-wheel scroll fires MANY
-// wheel events over ~300-500ms, and a 180ms throttle window is shorter
-// than that, so several of those events still landed as separate
-// "accepted" ticks, each moving one step — net result was still a
-// multi-item jump for one gesture. Replaced throttle-per-event with
-// GESTURE-level debounce: every wheel event during a continuous gesture
-// only updates a live visual offset (so the wheel still tracks the
-// motion smoothly); the index only actually changes ONCE, on a timer
-// that keeps resetting until the gesture pauses (~180ms of silence) —
-// at which point it commits exactly ±1 step from wherever the gesture
-// started, regardless of how many wheel events fired in between.
-// Pointer drag is unchanged and intentionally different: a deliberate
-// LONG drag can still cross several items (matches the reference
-// component's drag model), but a wheel/trackpad gesture never can.
+// Per Izzat's SEVENTH round correction: per-tick throttle replaced with
+// gesture-level debounce so one physical scroll gesture commits exactly
+// one index step.
+//
+// EIGHTH round rebuild (2026-08-12) — "reka enjin wheel yg sebenar", two
+// real bugs found and fixed together:
+//
+// (a) Track height/item spacing were measured once on mount and cached in
+//     refs — stale forever after a real mobile browser's usable viewport
+//     height changed later (address bar collapse, orientation, keyboard).
+//     FIXED: ResizeObserver + window resize/orientationchange listeners,
+//     measurements held in React state so every real layout change forces
+//     a fresh, correct re-render — not a one-time snapshot.
+//
+// (b) Even with correct measurement, an item near the list's start/end
+//     (e.g. "Semua", or the last Bidang) mathematically CANNOT be
+//     centered in a tall track — there simply aren't enough real items
+//     above/below it to fill the space. This is not a bug in the
+//     centering math; it's a structural mismatch between a short list and
+//     a tall track. FIXED per the reference design handoff's own spec
+//     ("renders categories tripled for infinite-feel scroll"): the list
+//     is rendered as 3 concatenated copies, and the selection is always
+//     positioned in the MIDDLE copy — so every item, including the first
+//     and last logical Bidang, always has real neighbour items (from the
+//     adjacent copies) to fill space above and below it. Selection logic
+//     itself still clamps at the true first/last Bidang (wrap-around
+//     remains OPEN, undecided) — this only fixes the visual space-filling
+//     problem, not the selection boundary behaviour.
 export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   const allValues = useMemo(() => [null, ...topics], [topics]); // null = "Semua"
   const currentIndex = Math.max(0, allValues.indexOf(selectedTopic));
+  // Middle-copy index: where the selection actually renders in the tripled list.
+  const middleIndex = allValues.length + currentIndex;
+  const tripledValues = useMemo(() => [...allValues, ...allValues, ...allValues], [allValues]);
+
   const trackRef = useRef(null);
-  const itemStepRef = useRef(34); // px per item (line-height + gap); measured on mount
+  const listRef = useRef(null);
+  const [trackHeight, setTrackHeight] = useState(0);
+  const [itemStep, setItemStep] = useState(34); // px per item (line-height + gap); refined continuously below
+
   const wheelGesture = useRef(null); // { startIndex, accumDeltaY } while a wheel gesture is in progress
   const wheelDebounceTimer = useRef(null);
-  const [wheelVisualOffsetPx, setWheelVisualOffsetPx] = useState(0); // live tracking offset while a wheel gesture is uncommitted
+  const [wheelVisualOffsetPx, setWheelVisualOffsetPx] = useState(0);
   const drag = useRef(null); // { startY, startIndex } while a pointer drag is active
-  const [dragOffsetPx, setDragOffsetPx] = useState(0); // live visual offset while dragging, reset on release
-  const trackHeightRef = useRef(190); // matches .bidang-wheel__track's CSS height; re-measured on mount
+  const [dragOffsetPx, setDragOffsetPx] = useState(0);
 
-  // Measure real per-item spacing (font size / gap can change with content)
-  // and the track's own height, instead of hardcoding either, so the
-  // centering transform math stays correct regardless of CSS tweaks.
-  useEffect(() => {
+  // Continuous measurement: ResizeObserver fires whenever the track's real
+  // rendered size changes for ANY reason (mobile browser chrome show/hide,
+  // orientation change, keyboard opening, font/layout settling) — not just
+  // once at mount. This is what actually fixes the real-phone drift.
+  useLayoutEffect(() => {
     const track = trackRef.current;
     if (!track) return;
-    trackHeightRef.current = track.clientHeight;
-    const items = track.querySelectorAll('.bidang-wheel__item');
-    if (items.length >= 2) {
-      itemStepRef.current = items[1].offsetTop - items[0].offsetTop;
-    }
+
+    const measure = () => {
+      setTrackHeight(track.clientHeight);
+      const items = listRef.current?.querySelectorAll('.bidang-wheel__item');
+      if (items && items.length >= 2) {
+        setItemStep(items[1].offsetTop - items[0].offsetTop);
+      }
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(track);
+    window.addEventListener('orientationchange', measure);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('orientationchange', measure);
+      window.removeEventListener('resize', measure);
+    };
   }, [allValues]);
 
   const clampIndex = i => Math.max(0, Math.min(allValues.length - 1, i));
@@ -110,7 +132,7 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
 
   const endDrag = () => {
     if (!drag.current) return;
-    const steps = Math.round(-dragOffsetPx / itemStepRef.current);
+    const steps = Math.round(-dragOffsetPx / itemStep);
     selectIndex(drag.current.startIndex + steps);
     drag.current = null;
     setDragOffsetPx(0);
@@ -122,11 +144,13 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
     selectIndex(currentIndex + (e.key === 'ArrowDown' ? 1 : -1));
   };
 
-  // Aligns item[currentIndex]'s own vertical center with the track's
-  // vertical center — computed fully in px so it doesn't depend on
-  // percentage-translateY's confusing "relative to own box" semantics.
+  // Aligns the MIDDLE copy's selected item center with the track's
+  // vertical center — computed fully in px, from continuously-fresh
+  // measurements. Using middleIndex (not currentIndex) is what guarantees
+  // real neighbour items exist above/below even at the true first/last
+  // logical Bidang.
   const centerOffset =
-    trackHeightRef.current / 2 - (currentIndex * itemStepRef.current + itemStepRef.current / 2) + dragOffsetPx + wheelVisualOffsetPx;
+    trackHeight / 2 - (middleIndex * itemStep + itemStep / 2) + dragOffsetPx + wheelVisualOffsetPx;
 
   return (
     <div className="bidang-wheel" aria-label="Bidang">
@@ -142,18 +166,20 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
         tabIndex={0}
       >
         <div
+          ref={listRef}
           className="bidang-wheel__list"
-          style={{ transform: `translateY(${centerOffset}px)`, transition: (drag.current || wheelGesture.current) ? 'none' : 'transform 150ms ease-out' }}
+          style={{ transform: `translateY(${centerOffset}px)`, transition: 'none' }}
         >
-          {allValues.map((value, i) => {
-            const dist = Math.min(3, Math.abs(i - currentIndex) - (dragOffsetPx ? Math.abs(dragOffsetPx) / itemStepRef.current : 0));
+          {tripledValues.map((value, domIndex) => {
+            const dist = Math.min(3, Math.abs(domIndex - middleIndex) - (dragOffsetPx ? Math.abs(dragOffsetPx) / itemStep : 0));
             const t = Math.max(0, Math.min(1, dist / 3));
             return (
               <div
-                key={value ?? '__all__'}
+                key={domIndex}
                 data-value={value ?? ''}
-                className={`bidang-wheel__item${i === currentIndex ? ' bidang-wheel__item--active' : ''}`}
+                className={`bidang-wheel__item${domIndex === middleIndex ? ' bidang-wheel__item--active' : ''}`}
                 style={{ opacity: 1 - t * 0.75, transform: `scale(${1 - t * 0.28})` }}
+                aria-hidden={domIndex !== middleIndex}
               >
                 {value ?? 'Semua'}
               </div>

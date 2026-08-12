@@ -27,7 +27,7 @@
    itself from ever scrolling/bouncing — only .bidang-wheel__track's own
    internal transform may move, per its dedicated pointer handlers. */
 html, body {
-  height: 100%;
+  height: 100dvh; /* dynamic viewport height — tracks real usable height as mobile browser chrome shows/hides, unlike 100%/100vh which can lag or lock to the wrong value */
   margin: 0;
   overflow: hidden;
   overscroll-behavior: none;
