@@ -1,32 +1,38 @@
 import StoryCard from './StoryCard.jsx';
 
-// Renders state.activeSet, filtered by the currently selected topic per
-// contract §3 (topic filters discovery, but membership itself is fully
-// engine-controlled — this component never decides which stories exist in
-// the Active Set, only which of them are currently shown).
+// Renders state.activeSet, filtered by the currently selected topic — the
+// Bidang wheel's whole purpose is to change which stories are visible.
 //
-// Keyboard: per keyboard-interaction-contract.md §B — ↑/↓ move roving DOM
-// focus among the visible cards AND dispatch SELECT_STORY (selection only,
-// never opens Brief — that's Enter's job, handled per-card). Per the
-// contract's wrap-around item (still OPEN), this stops at the ends rather
-// than wrapping — the conservative default until Izzat decides otherwise.
-export default function ActiveSetList({ activeSet, sourceNames, highlightedStoryId, onSelect, onOpen, onRelease }) {
-  // BUG FIX (2026-08-12): this component was filtering activeSet by
-  // selectedTopic, directly contradicting the already-locked principle
-  // stated in the comment above (and in state/model.js's own comments):
-  // Bidang/topic selection filters discovery/backlog, it must NEVER
-  // filter or resize the Active Set itself. That filtering caused two
-  // real bugs Izzat caught live: (1) a single matching card would stretch
-  // to fill the whole screen and appear oddly centered, since flex:1
-  // divides available height by however many cards happen to match; and
-  // (2) swiping a card away appeared to disturb unrelated cards, because
-  // the filtered view could reshuffle entirely on release. The Active Set
-  // is always all 10 (or whatever activeSetCapacity is) slots, unfiltered
-  // — full stop.
-  const visible = activeSet;
+// HISTORY: an earlier version of this filter was removed as a "bug" after
+// two real problems Izzat caught live: (1) a single matching card would
+// stretch to fill the whole screen, because cards used flex:1 which
+// divides available height by however many happen to be VISIBLE — filter
+// down to one match and it balloons; (2) swiping a card away appeared to
+// disturb unrelated cards, since the filtered view could reshuffle
+// entirely on release. Re-added (2026-08-12) per Izzat's explicit
+// correction — "kalau tak tukar berita, apa fungsi wheel?" (if it doesn't
+// change the news, what's the wheel even for?) — with the actual CSS bug
+// fixed this time: each of the activeSetCapacity slots always gets an
+// EQUAL, FIXED share of height via CSS grid (ActiveSetList--grid rows),
+// whether or not that slot's card is currently visible. Filtering to
+// fewer matches now just leaves empty grid rows — nothing stretches, and
+// unrelated slots never reflow, because the underlying state.activeSet
+// (all 10 engine-controlled slots) is completely untouched by this view
+// filter — Stable Spatial Slots still governs the real data underneath.
+export default function ActiveSetList({ activeSet, sourceNames, highlightedStoryId, selectedTopic, activeSetCapacity, onSelect, onOpen, onRelease }) {
+  const visible = selectedTopic == null
+    ? activeSet
+    : activeSet.filter(slot => slot._cluster?.topic === selectedTopic);
 
   if (visible.length === 0) {
-    return <div className="active-set-list active-set-list--empty">Tiada berita buat masa ini.</div>;
+    return (
+      <div
+        className="active-set-list active-set-list--empty"
+        style={{ '--capacity': activeSetCapacity }}
+      >
+        Tiada berita untuk Bidang ini buat masa ini.
+      </div>
+    );
   }
 
   const handleKeyDown = e => {
@@ -43,7 +49,11 @@ export default function ActiveSetList({ activeSet, sourceNames, highlightedStory
   };
 
   return (
-    <div className="active-set-list" onKeyDown={handleKeyDown}>
+    <div
+      className="active-set-list"
+      onKeyDown={handleKeyDown}
+      style={{ '--capacity': activeSetCapacity }}
+    >
       {visible.map(slot => {
         const cluster = slot._cluster;
         const rep = cluster?.representation ?? cluster?.canonical;

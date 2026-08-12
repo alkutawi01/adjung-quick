@@ -111,6 +111,8 @@ export default function App() {
         <ActiveSetList
           activeSet={state.activeSet}
           sourceNames={sourceNames}
+          selectedTopic={state.userContext.selectedTopic}
+          activeSetCapacity={state.activeSetCapacity}
           highlightedStoryId={state.selection.highlightedStoryId}
           onSelect={id => dispatch(selectStory(id))}
           onOpen={id => dispatch(openBrief(id))}
