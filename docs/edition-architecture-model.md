@@ -176,6 +176,52 @@ Arabic edition needs the Wheel (and likely other chrome) mirrored — noted as
 new Sesi 6 scope, not previously tracked anywhere in the Core Reading UI
 Contract.
 
+## Edition Display Transformations (LOCKED framework, 2026-08-12)
+
+Resolves the Arabic Culture/Entertainment contradiction and the ms-MY
+Economy/Business question with one reusable mechanism instead of ad hoc
+per-case decisions. Four transformation types, applied at the Edition
+Classification layer — **never at Story Understanding**, which always keeps
+the full, un-merged subject list:
+
+1. **Merge** — multiple universal subjects collapse to one edition display
+   term. *`Business + Economy` → ms-MY `Bisnes`.*
+2. **Split** — one universal subject expands to multiple edition entries.
+   (Not used yet in v1, but the mechanism stays available — e.g. a future
+   edition splitting `Culture` into finer categories.)
+3. **Rename** — same subject, edition-appropriate label. *`Entertainment` →
+   `Hiburan` (ms-MY) / `ثقافة وفنون`-as-part-of (ar).*
+4. **Hide** — a universal subject exists but a given edition simply doesn't
+   surface it as a Wheel entry (e.g. `Lifestyle` not yet drafted for ms-MY).
+
+**Principle: Edition merge ≠ Universal merge.** A display-layer merge never
+deletes the underlying distinction. `field: Business` and `field: Economy`
+both still exist as facts about a story; only the ms-MY *Wheel* shows one
+`Bisnes` entry for both.
+
+### Locked v1 transformations
+
+| Universal | ms-MY display | English display | Arabic display |
+|---|---|---|---|
+| Business + Economy | **Merge** → `Bisnes` | Rename ×2 → `Business`, `Economy` (kept separate — Guardian's real nav splits them) | Rename → `اقتصاد` (Arabic sources show no real split either) |
+| Culture + Entertainment | Rename ×2 → `Budaya`, `Hiburan` (kept separate — ms-MY editorial call, Izzat's ruling) | Rename ×2 → `Culture`, `Entertainment` (BBC keeps both) | **Merge** → `ثقافة وفنون` (conservative v1 choice — stronger evidence from BBC Arabic + AJ Arabic; Al Araby's contradicting evidence noted but not followed, see below) |
+| Health + Science | Rename ×2 → `Kesihatan`, `Sains` | Rename ×2 → `Health`, `Science` | **Merge** → `صحة وعلوم` (BBC Arabic evidence) |
+
+**On the Al Araby contradiction specifically:** deliberately NOT resolved by
+majority vote — "taxonomy edition bukan masalah statistik semata-mata, ia
+editorial identity" (ChatGPT). The real question is which real outlet Quick's
+Arabic edition wants to resemble, not which pattern has more votes. `ثقافة
+وفنون` is the v1 choice because it has support from the two largest/most
+comparable reference outlets and keeps the Arabic Wheel simpler — but this is
+an editorial choice being made *knowingly*, and could reverse if Izzat prefers
+Al Araby's more granular model.
+
+### Human Rights (AJ English) — confirmed as Attribute, not Subject
+
+Cross-cuts too many subjects (Politics, Crime, Conflict, Law) to be one
+Subject. Lives in the Event/Attribute dimension as `Humanitarian` (already
+in `universal-classification-model.md`'s attribute list).
+
 ## Document audit
 
 | Document | Status | Why |
@@ -201,8 +247,9 @@ Contract.
 | Sesi | Focus | Output |
 |---|---|---|
 | 1 | **Architecture Migration** (this doc) | Architecture freeze. No code. |
-| 2 | Edition Taxonomy Design | **Bottom-up, corrected 2026-08-12**: start from each edition's real reference portals' actual navigation categories (ms-MY: Astro Awani, Bernama, Harian Metro, BH; en: BBC, CNN, Al Jazeera English; ar: Al Jazeera Arabic, BBC Arabic) — not from the Story Understanding subject list downward. Question is "what is this edition's real editorial experience?", not "what's the universal Bidang?". Map to Story Understanding signals only after each edition's real taxonomy is captured. |
-| 3 | Classification Engine v2 | `story → signals → edition classifier → edition placement`, replacing the single `story → field` model |
+| 2 | Edition Taxonomy Design | **DONE, see `docs/sesi2-edition-taxonomy-design.md`.** Bottom-up from 8 real reference outlets' actual navigation. |
+| 2.5 | **Source Feed Discovery & Source Registry Upgrade** — pulled forward 2026-08-12 | Triggered by Izzat's discovery that Harian Metro (and, verified, Utusan/Kosmo) publish separate RSS feeds per section — Quick was only ingesting each source's general mixed feed. This is an input-quality problem, more fundamental than classification: "classifier lemah kerana RSS tiada desk" turned out to actually be "kita ambil feed yang salah." Output: `docs/category-feeds-discovery.md` findings formalized into a Source Registry v2 (audit only — enumerate every source's available category feeds + declared category) and a **Source Evidence Priority** order: publisher-declared category feed > URL category path > RSS `<category>` tag > content rules > Unclassified. No production/`sources.js` change yet — audit first. |
+| 3 | Classification Engine v2 | `story → signals → edition classifier → edition placement`, replacing the single `story → field` model. Now informed by Sesi 2.5's evidence priority. |
 | 4 | Benchmark, redone | Re-label the 190-item corpus per-edition, not globally |
 | 5 | Production Ingestion | RSS → source desk → rules → confidence, now edition-aware |
 | 6 | UI Adaptation | Wheel reads current edition's taxonomy; RTL layout for Arabic |
