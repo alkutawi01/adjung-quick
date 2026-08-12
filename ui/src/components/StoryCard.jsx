@@ -42,7 +42,7 @@ export default function StoryCard({ story, sourceName, highlighted, onSelect, on
 
   const handlePointerDown = e => {
     drag.current = { startX: e.clientX, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer already gone — ignore */ }
   };
 
   const handlePointerMove = e => {

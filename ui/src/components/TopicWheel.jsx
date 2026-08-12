@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 // TopicWheel — dispatches SELECT_TOPIC only. Per Izzat's visual-direction
 // correction (2026-08-11, second round): the Bidang Wheel stays VERTICAL
@@ -105,24 +105,52 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   // "1 scroll = 1 line" requirement. Live visual offset tracks the raw
   // motion while the gesture is in progress so it still feels responsive,
   // but only the debounce timer actually commits the index change.
-  const handleWheel = e => {
-    e.preventDefault();
-    if (!wheelGesture.current) wheelGesture.current = { startIndex: currentIndex, accumDeltaY: 0 };
-    wheelGesture.current.accumDeltaY += e.deltaY;
-    setWheelVisualOffsetPx(-wheelGesture.current.accumDeltaY * 0.4); // damped — visual hint only, not 1:1 tracking
-    if (wheelDebounceTimer.current) clearTimeout(wheelDebounceTimer.current);
-    wheelDebounceTimer.current = setTimeout(() => {
-      const gesture = wheelGesture.current;
-      wheelGesture.current = null;
-      setWheelVisualOffsetPx(0);
-      if (!gesture || gesture.accumDeltaY === 0) return;
-      selectIndex(gesture.startIndex + (gesture.accumDeltaY > 0 ? 1 : -1));
-    }, 180); // gesture "pause" detection — resets on every event, only fires after motion stops
-  };
+  // BUG FOUND 2026-08-12 (real device testing, "gagal lg."): React attaches
+  // onWheel as a PASSIVE listener by default (perf optimisation), so
+  // e.preventDefault() inside a JSX-bound handler is silently a no-op —
+  // confirmed via console: "Unable to preventDefault inside passive event
+  // listener invocation." The browser's native page/element scroll was
+  // firing at the same time as this custom transform logic the entire time,
+  // which is what actually caused the drift/skip Izzat saw — not the
+  // debounce or centering math. FIXED: attach the wheel listener
+  // imperatively via addEventListener with { passive: false } so
+  // preventDefault genuinely takes effect. currentIndex/selectIndex are
+  // read through refs so this effect doesn't need to re-attach every render.
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
+  const selectIndexRef = useRef(selectIndex);
+  selectIndexRef.current = selectIndex;
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const onWheelNative = e => {
+      e.preventDefault();
+      if (!wheelGesture.current) wheelGesture.current = { startIndex: currentIndexRef.current, accumDeltaY: 0 };
+      wheelGesture.current.accumDeltaY += e.deltaY;
+      setWheelVisualOffsetPx(-wheelGesture.current.accumDeltaY * 0.4); // damped — visual hint only, not 1:1 tracking
+      if (wheelDebounceTimer.current) clearTimeout(wheelDebounceTimer.current);
+      wheelDebounceTimer.current = setTimeout(() => {
+        const gesture = wheelGesture.current;
+        wheelGesture.current = null;
+        setWheelVisualOffsetPx(0);
+        if (!gesture || gesture.accumDeltaY === 0) return;
+        selectIndexRef.current(gesture.startIndex + (gesture.accumDeltaY > 0 ? 1 : -1));
+      }, 180); // gesture "pause" detection — resets on every event, only fires after motion stops
+    };
+    track.addEventListener('wheel', onWheelNative, { passive: false });
+    return () => track.removeEventListener('wheel', onWheelNative);
+  }, []);
 
   const handlePointerDown = e => {
     drag.current = { startY: e.clientY, startIndex: currentIndex };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // BUG FOUND 2026-08-12: setPointerCapture threw NotFoundError in real
+    // testing ("No active pointer with the given id is found") — can happen
+    // if the pointer was already released/invalidated by the time this
+    // runs (fast taps, synthesized drag events). Capture is a nice-to-have
+    // (keeps the drag tracking even if the pointer leaves the element) —
+    // its failure must never break the drag gesture itself.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer already gone — ignore */ }
   };
 
   const handlePointerMove = e => {
@@ -157,7 +185,6 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
       <nav
         className="bidang-wheel__track"
         ref={trackRef}
-        onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
