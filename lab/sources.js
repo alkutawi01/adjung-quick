@@ -49,4 +49,54 @@ export const RSS_SOURCES = [
   // --- Arabic (proposed — verify before treating as permanent) ---
   { id: 'rss-bbc-arabic', name: 'BBC Arabic', url: 'https://feeds.bbci.co.uk/arabic/rss.xml', language: 'ar', trustScore: 90 },
   { id: 'rss-aljazeera-ar', name: 'Al Jazeera Arabic', url: 'https://www.aljazeera.net/aljazeerarss/89b3e91e-3a0c-4622-8e5c-4c3bb2f1a340/73d0e1b4-532f-45ef-b135-bfdff8b4177f', language: 'ar', trustScore: 88 },
+
+  // --- ms-MY category feeds (added 2026-08-12, Izzat) ---
+  // Directly addresses the coverage gap found when the Wheel went live: only
+  // 2 of 13 Politik clusters had Malay-language coverage, so the ms-MY
+  // edition's Bidang rendered nearly empty. These are PUBLISHER-DECLARED
+  // categories = Strong evidence (Tier 1, docs/evidence-quality-matrix-contract.md),
+  // the most reliable class we have — and Astro Awani's own category names
+  // (Politik/Bisnes/Sukan/Hiburan/Dunia/Gaya Hidup) map almost 1:1 onto the
+  // ms-MY taxonomy, so they need almost no interpretation.
+  // All verified live 2026-08-12: HTTP 200, 25 items each.
+  { id: 'rss-awani-politik', name: 'Astro Awani — Politik', url: 'https://www.astroawani.com/rss/politics/public', language: 'ms', trustScore: 90, knownCategory: 'politik' },
+  { id: 'rss-awani-nasional', name: 'Astro Awani — Nasional', url: 'https://www.astroawani.com/rss/national/public', language: 'ms', trustScore: 90, knownCategory: 'malaysia' },
+  { id: 'rss-awani-bisnes', name: 'Astro Awani — Bisnes', url: 'https://www.astroawani.com/rss/business/public', language: 'ms', trustScore: 90, knownCategory: 'bisnes' },
+  { id: 'rss-awani-sukan', name: 'Astro Awani — Sukan', url: 'https://www.astroawani.com/rss/sports/public', language: 'ms', trustScore: 90, knownCategory: 'sukan' },
+  { id: 'rss-awani-hiburan', name: 'Astro Awani — Hiburan', url: 'https://www.astroawani.com/rss/entertainment/public', language: 'ms', trustScore: 90, knownCategory: 'hiburan' },
+  { id: 'rss-awani-gayahidup', name: 'Astro Awani — Gaya Hidup', url: 'https://www.astroawani.com/rss/lifestyle/public', language: 'ms', trustScore: 90, knownCategory: 'gaya hidup' },
+  { id: 'rss-awani-dunia', name: 'Astro Awani — Dunia', url: 'https://www.astroawani.com/rss/international/public', language: 'ms', trustScore: 90, knownCategory: 'dunia' },
+
+  // RTM (berita.rtm.gov.my). Verified live: HTTP 200, 50 items each. Note
+  // these are served through rss.app, a third-party bridge rather than RTM's
+  // own infrastructure — so treat availability as less guaranteed than a
+  // publisher-hosted feed, and re-verify if items stop arriving.
+  // Jenayah and Pilihan Raya are categories no other Malay source gives us
+  // this cleanly.
+  { id: 'rss-rtm-nasional', name: 'RTM — Berita Nasional', url: 'https://rss.app/feeds/0q20i5CxKfD3ppJ9.xml', language: 'ms', trustScore: 88, knownCategory: 'malaysia' },
+  { id: 'rss-rtm-ekonomi', name: 'RTM — Berita Ekonomi', url: 'https://rss.app/feeds/JCAvoTk2CKzZ7VrK.xml', language: 'ms', trustScore: 88, knownCategory: 'ekonomi' },
+  { id: 'rss-rtm-dunia', name: 'RTM — Berita Dunia', url: 'https://rss.app/feeds/WAg4LOY6T5L7Le9m.xml', language: 'ms', trustScore: 88, knownCategory: 'dunia' },
+  { id: 'rss-rtm-jenayah', name: 'RTM — Berita Jenayah', url: 'https://rss.app/feeds/C74Hu88HWR0XDAe0.xml', language: 'ms', trustScore: 88, knownCategory: 'jenayah' },
+  { id: 'rss-rtm-sukan', name: 'RTM — Berita Sukan', url: 'https://rss.app/feeds/xdgz2Wiw03ZfQbD8.xml', language: 'ms', trustScore: 88, knownCategory: 'sukan' },
+  { id: 'rss-rtm-hiburan', name: 'RTM — Berita Hiburan', url: 'https://rss.app/feeds/6YsTj9HrPlT7416Q.xml', language: 'ms', trustScore: 88, knownCategory: 'hiburan' },
+
+  // JAKIM (islam.gov.my). The ONLY source we have for the Agama Bidang,
+  // which renders completely empty today. Verified 2026-08-12: valid RSS
+  // (Joomla), 10 items — but ONLY when fetched from a browser. Node's fetch
+  // fails outright ("fetch failed"), the same symptom already documented for
+  // Bernama's Malay feed. Likely TLS/User-Agent filtering at their end, not
+  // a bad URL. Added anyway so the source is registered and the problem is
+  // visible in the pipeline rather than forgotten — expect these two to be
+  // skipped by lab/rss.js until that fetch issue is solved.
+  { id: 'rss-jakim-berita', name: 'JAKIM — Berita', url: 'https://www.islam.gov.my/ms/berita?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama' },
+  { id: 'rss-jakim-kenyataan', name: 'JAKIM — Kenyataan Media', url: 'https://www.islam.gov.my/ms/kenyataan-media?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama' },
+
+  // DELIBERATELY NOT ADDED: Astro Awani's English feeds
+  // (/rss/{category}/en/public, same 10 categories). Those are Malaysian
+  // news in English — which is exactly what en-global must NOT be, per
+  // Izzat's positioning decision (docs/edition-source-profile-model.md):
+  // "saya tak nak Adjung Quick kelihatan seperti portal berasal dari
+  // Malaysia." They are a strong candidate for a future ms-EN edition, or
+  // as Asia coverage within en-global once per-edition Source Profiles
+  // exist — not as general English sources today.
 ];
