@@ -86,6 +86,36 @@ publisher-declared-feed-strength. Not a blocker, just a different tier.
   hand-picking slugs.
 - Astro Awani: no change — keep relying on URL-path Tier-1 inference.
 
+## Bernama re-discovered (Izzat, 2026-08-12)
+
+`lab/sources.js` had Bernama marked DISABLED ("every guessed URL variant
+returns 404 — appears to have retired public RSS"). Wrong — the working URL
+was simply `bernama.com/en/rssfeed.php` (English) / `bernama.com/bm/rssfeed.php`
+(Malay), not the patterns previously guessed. Both verified live 2026-08-12.
+
+**Real, distinct evidence pattern**: Bernama embeds category as a **title
+prefix** on every item — `"World : Bangladesh To Have Strong Presence..."`,
+`"Business : SME Financing Conditions..."`, `"Sukan : Malaysia Sertai
+Sulung..."`. Not a separate feed per category (like Harian Metro) and not a
+URL path (like Astro Awani) — a third distinct evidence shape: **parse the
+category prefix off `title`, strip it before using the title itself.**
+Add to Source Evidence Priority as a variant of tier 1 (publisher-declared),
+not a new tier.
+
+Also found via a third-party aggregator (`aimadani.com/data-sources`, itself
+running a Malaysian RSS registry) confirming Bernama EN operational and
+listing several more real, currently-working Malaysian sources not yet in
+`lab/sources.js`: Harapan Daily, Malay Mail, Media Selangor (ms), plus two
+Tamil-language outlets (Makkal Osai, Vanakkam Malaysia) — relevant if Quick
+ever adds a Tamil edition, not acted on now. That same registry lists
+`rss.app`-proxied Astro Awani/Berita Harian/Bernama(BM) feeds as discontinued
+— doesn't contradict our findings, since we're using each site's own direct
+feed, not a third-party proxy.
+
+**Not yet done:** re-enabling Bernama in `lab/sources.js`, adding the
+title-prefix parsing to the evidence pipeline, or adding any of the newly
+found sources. Flagged for Sesi 3A/5, not acted on out of sequence.
+
 ## Explicitly not done (Sesi 3+ or later)
 
 - No `lab/sources.js` change.
