@@ -142,28 +142,43 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
     return () => track.removeEventListener('wheel', onWheelNative);
   }, []);
 
+  // BUG FOUND 2026-08-12 (real device, Izzat's report "tetap pilih Semua
+  // walaupun discroll"): the track shrank to a fixed 238px window in the
+  // previous fix. A normal thumb drag easily carries the finger outside
+  // that small element almost immediately — and setPointerCapture (which
+  // was supposed to keep delivering pointermove/pointerup to the track
+  // regardless) can silently fail on real touch too (the same NotFoundError
+  // seen in testing). Once that happens, pointerup never reaches the
+  // track's own handler, so endDrag() never runs — the list still LOOKS
+  // like it's spinning in real time (dragOffsetPx tracks live), but the
+  // gesture never commits, so on release it just snaps back to whatever
+  // was last actually selected (Semua, at cold start). FIXED: track the
+  // drag with window-level pointermove/pointerup listeners instead of
+  // relying on the small element retaining the pointer — this is correct
+  // regardless of whether capture succeeds, and regardless of how far the
+  // finger drifts outside the track's bounds.
   const handlePointerDown = e => {
-    drag.current = { startY: e.clientY, startIndex: currentIndex };
-    // BUG FOUND 2026-08-12: setPointerCapture threw NotFoundError in real
-    // testing ("No active pointer with the given id is found") — can happen
-    // if the pointer was already released/invalidated by the time this
-    // runs (fast taps, synthesized drag events). Capture is a nice-to-have
-    // (keeps the drag tracking even if the pointer leaves the element) —
-    // its failure must never break the drag gesture itself.
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer already gone — ignore */ }
-  };
+    const startY = e.clientY;
+    const startIndex = currentIndexRef.current;
+    drag.current = { startY, startIndex };
+    let localOffset = 0;
 
-  const handlePointerMove = e => {
-    if (!drag.current) return;
-    setDragOffsetPx(e.clientY - drag.current.startY);
-  };
-
-  const endDrag = () => {
-    if (!drag.current) return;
-    const steps = Math.round(-dragOffsetPx / itemStep);
-    selectIndex(drag.current.startIndex + steps);
-    drag.current = null;
-    setDragOffsetPx(0);
+    const onMove = ev => {
+      localOffset = ev.clientY - startY;
+      setDragOffsetPx(localOffset);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      const steps = Math.round(-localOffset / itemStep);
+      selectIndexRef.current(startIndex + steps);
+      drag.current = null;
+      setDragOffsetPx(0);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   const handleKeyDown = e => {
@@ -186,9 +201,6 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
         className="bidang-wheel__track"
         ref={trackRef}
         onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
         onKeyDown={handleKeyDown}
         tabIndex={0}
       >

@@ -40,32 +40,41 @@ export default function StoryCard({ story, sourceName, highlighted, onSelect, on
     return () => cancelAnimationFrame(id);
   }, []);
 
+  // Per the same real-device bug found in TopicWheel (window-level
+  // pointer tracking instead of relying on setPointerCapture, which can
+  // silently fail on real touch): track the swipe via window listeners so
+  // a fast/long swipe that carries the finger outside this card's own
+  // bounds still commits correctly on release.
   const handlePointerDown = e => {
-    drag.current = { startX: e.clientX, moved: false };
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer already gone — ignore */ }
-  };
+    const startX = e.clientX;
+    drag.current = { startX, moved: false };
+    let localDx = 0;
 
-  const handlePointerMove = e => {
-    if (!drag.current) return;
-    const dx = e.clientX - drag.current.startX;
-    if (Math.abs(dx) > 4) drag.current.moved = true; // distinguish drag from click
-    setDragX(dx);
-  };
-
-  const handlePointerUp = () => {
-    if (!drag.current) return;
-    const wasDrag = drag.current.moved;
-    drag.current = null;
-    if (Math.abs(dragX) > SWIPE_THRESHOLD_PX) {
-      setExiting(true);
-      setTimeout(() => onRelease(story.storyId), EXIT_ANIMATION_MS);
-      return;
-    }
-    setDragX(0);
-    // A short drag that didn't cross the threshold and barely moved still
-    // counts as a tap/click — but real drags (moved=true, under threshold)
-    // should NOT also trigger selection on release.
-    if (!wasDrag) onSelect(story.storyId);
+    const onMove = ev => {
+      localDx = ev.clientX - startX;
+      if (Math.abs(localDx) > 4) drag.current.moved = true; // distinguish drag from click
+      setDragX(localDx);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      const wasDrag = drag.current?.moved;
+      drag.current = null;
+      if (Math.abs(localDx) > SWIPE_THRESHOLD_PX) {
+        setExiting(true);
+        setTimeout(() => onRelease(story.storyId), EXIT_ANIMATION_MS);
+        return;
+      }
+      setDragX(0);
+      // A short drag that didn't cross the threshold and barely moved still
+      // counts as a tap/click — but real drags (moved=true, under threshold)
+      // should NOT also trigger selection on release.
+      if (!wasDrag) onSelect(story.storyId);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   const transform = exiting
@@ -83,9 +92,6 @@ export default function StoryCard({ story, sourceName, highlighted, onSelect, on
       data-story-id={story.storyId}
       aria-label={story.title}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={() => { drag.current = null; setDragX(0); }}
       onDoubleClick={() => onOpen(story.storyId)}
       onKeyDown={e => {
         // Per keyboard-interaction-contract.md §C: Enter opens the Brief.
