@@ -93,6 +93,29 @@ export const RSS_SOURCES = [
   { id: 'rss-jakim-berita', name: 'JAKIM — Berita', url: 'https://www.islam.gov.my/ms/berita?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama' },
   { id: 'rss-jakim-kenyataan', name: 'JAKIM — Kenyataan Media', url: 'https://www.islam.gov.my/ms/kenyataan-media?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama' },
 
+  // Niche-authority sources for Bidang with no dedicated Malay news desk
+  // (docs/empty-bidang-policy.md: fix the source registry, never infer the
+  // Bidang from keywords). All verified 2026-08-12 through lab/rss.js itself,
+  // not a raw fetch — that distinction mattered: a raw `<item>` regex showed
+  // KPM as empty, while the real parser finds 329 entries, because KPM
+  // publishes Atom `<entry>` rather than RSS `<item>`.
+  { id: 'rss-mosti', name: 'MOSTI', url: 'https://www.mosti.gov.my/feed/', language: 'ms', trustScore: 85, knownCategory: 'sains', sourceType: 'authority_niche' },
+  { id: 'rss-kpm', name: 'Kementerian Pendidikan', url: 'https://www.moe.gov.my/feed', language: 'ms', trustScore: 85, knownCategory: 'pendidikan', sourceType: 'authority_niche' },
+  // Amanz — a real Malay tech newsroom (not a ministry), so unlike MOSTI/KPM
+  // it publishes daily and won't leave the Bidang looking stale. 30 items
+  // verified. Tagged 'teknologi' rather than 'sains': its output is device
+  // and product coverage, and per docs/empty-bidang-policy.md we place by
+  // what a source actually publishes, not by what we wish filled the gap.
+  { id: 'rss-amanz', name: 'Amanz', url: 'https://cms.amanz.my/feed/', language: 'ms', trustScore: 85, knownCategory: 'teknologi', sourceType: 'specialised' },
+
+  // NOTE: Bernama's Malay feed (rss-bernama-bm, registered above at line ~21)
+  // was RECOVERED by the same change — it answers HTTP 500 while serving
+  // valid RSS, so it was being discarded before lab/rss.js started trusting
+  // the payload over the status code. No new entry needed; it simply works
+  // now. It carries no knownCategory on purpose: Bernama encodes the category
+  // as a TITLE PREFIX ("Dunia : ...", "Sukan : ..."), handled per-item by
+  // classification/lib/bernama-prefix.mjs.
+
   // DELIBERATELY NOT ADDED: Astro Awani's English feeds
   // (/rss/{category}/en/public, same 10 categories). Those are Malaysian
   // news in English — which is exactly what en-global must NOT be, per

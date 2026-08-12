@@ -113,11 +113,33 @@ export async function fetchFeed(source) {
       headers: { 'User-Agent': 'AdjungQuickLab/0.1 (+editorial-ranking-laboratory)' },
       signal: AbortSignal.timeout(15000),
     });
-    if (!res.ok) {
-      return { source, ok: false, error: `HTTP ${res.status}`, items: [] };
-    }
+    // Trust the PAYLOAD, not the status code. Bernama's Malay feed returns
+    // HTTP 500 while serving perfectly valid RSS (verified 2026-08-12: 10
+    // real items, "Dunia : Transit Melalui Selat Hormuz..."). Rejecting on
+    // status alone silently discarded a working publisher feed. So: if the
+    // body parses into items, use them and record the anomaly; only give up
+    // when a bad status ALSO yields nothing parseable.
     const xml = await res.text();
     const items = parseRssXml(xml, source);
+
+    if (!res.ok) {
+      if (items.length === 0) {
+        return { source, ok: false, error: `HTTP ${res.status}`, items: [] };
+      }
+      return {
+        source, ok: true, items,
+        // Surfaced rather than swallowed — a feed serving good data behind a
+        // 500 is worth knowing about, since it may break differently later.
+        anomaly: `HTTP ${res.status} but ${items.length} items parsed`,
+      };
+    }
+
+    // 200 with an empty body is its own failure mode, distinct from a
+    // network error — several ministry feeds (KPM, UKM) answer 200 with zero
+    // items, which is a dead feed, not a healthy one.
+    if (items.length === 0) {
+      return { source, ok: false, error: 'HTTP 200 but no items parsed', items: [] };
+    }
     return { source, ok: true, items };
   } catch (err) {
     return { source, ok: false, error: err.message, items: [] };
