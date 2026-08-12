@@ -1,8 +1,17 @@
-# Quick Bidang Taxonomy (v1)
+# Quick Bidang Taxonomy — ms-MY Edition Draft
 
-> **15 Bidang.** `Bisnes` and `Bencana` were both added 2026-08-12 after
-> Izzat adjudicated real cases — see *Editorial adjudication rules* and
-> *Taxonomy Gap Round* below.
+> **SUPERSEDED AS A UNIVERSAL TAXONOMY, 2026-08-12.** Izzat clarified that
+> language in Quick means a different editorial edition, not a translation —
+> see `docs/edition-taxonomy-model.md`, which is now authoritative. This
+> 15-Bidang list is a strong **draft of the `ms-MY` edition's taxonomy**
+> specifically (it reads like a Malaysian news portal, which is exactly what
+> it should be for that edition) — it is NOT the universal/display taxonomy
+> for `en` or `ar` readers. Everything below is still valid *as ms-MY edition
+> design work*; just don't read it as "Quick's one taxonomy" anymore.
+>
+> `Bisnes` and `Bencana` were both added 2026-08-12 after Izzat adjudicated
+> real cases — see *Editorial adjudication rules* and *Taxonomy Gap Round*
+> below.
 
 Decided 2026-08-12. Izzat chose **Option B** from
 `docs/classification-taxonomy-mapping.md` — a dedicated Quick news taxonomy
