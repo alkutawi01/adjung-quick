@@ -65,6 +65,31 @@ single Strong-class evidence alone:
   than an error — consistent with the "don't discard ambiguity" principle
   already locked for Story Understanding.
 
+## Evidence Independence (added after ChatGPT review, 2026-08-12)
+
+**Evidence Agreement ≠ Evidence Count.** Agreement only means something
+when the evidence comes from genuinely different sources — three keyword
+matches from the same content-rule family are not three independent
+signals, they're one weak signal repeated:
+
+```
+Weaker (looks like more, isn't):
+  title_keyword: "menteri"
+  title_keyword: "parlimen"
+  title_keyword: "kerajaan"
+  → 3 matches, but Weak + Weak + Weak, same evidence family
+
+Stronger (fewer, but independent):
+  rss_category: Politics
+  → 1 match, but Medium/Strong, a different mechanism entirely
+```
+
+Independent evidence sources (publisher declaration, URL structure, RSS
+category, content — genuinely different *mechanisms*) carry more combined
+value than multiple signals drawn from the same mechanism, even when the
+same-mechanism count is higher. Any future confidence model must count
+*independent corroborating mechanisms*, not raw evidence-item count.
+
 ## Generic category handling
 
 Explicitly a distinct problem from "weak evidence" — a generic category
@@ -83,13 +108,17 @@ a formula. The shape:
 Evidence Quality (per piece of evidence: strong/medium/weak/ignored)
         │
         ▼
-Evidence Agreement (do independent pieces corroborate the same value?)
+Evidence Agreement (independent corroborating mechanisms, not raw count — see above)
         │
         ▼
 Candidate Confidence
         │
         ▼
-Edition Resolver
+Minimum Candidate Confidence Policy (resolver-confidence-policy.md, renamed
+        │                            from min_subject_confidence — a candidate
+        │                            can be subject, geography, or future entity)
+        ▼
+Edition Resolver / Placement
 ```
 
 Not:
@@ -111,22 +140,36 @@ an explicit first-class concept. Whether the existing formula needs to
 change, and how, is **not decided in this document** — that's
 implementation work for whenever this contract is confirmed.
 
-## Open question this contract raises, not answers
+## Resolved: don't replace min_subject_confidence, layer it instead (2026-08-12)
 
-Should `min_subject_confidence` (`docs/resolver-confidence-policy.md`)
-be replaced by a `minimum_evidence_quality` gate instead — e.g. "reject
-candidates backed only by Weak-class evidence" rather than "reject
-candidates below a numeric threshold"? Per Batch A2's finding, these two
-framings currently produce *identical* behavior on the live corpus (since
-low confidence and Tier-5-only are the same population right now) — but
-they diverge in intent and in future behavior once evidence sources
-change. This document does not choose between them; that decision comes
-after this contract is confirmed.
+The open question above is answered, not left open. Per ChatGPT: don't
+replace `min_subject_confidence` with `minimum_evidence_quality` — they
+answer different questions and collapsing them would hide that
+difference:
+
+- **Evidence Quality** — determines a candidate's base strength (this doc).
+- **Candidate Confidence** — the result of combining evidence (quality ×
+  independent agreement, per above).
+- **Minimum Candidate Confidence Policy** — decides whether a candidate is
+  usable at all (`docs/resolver-confidence-policy.md`, renamed from
+  `min_subject_confidence` to `minimum_candidate_confidence` — a
+  "candidate" isn't only ever a subject; geography candidates already
+  exist, entity candidates are a plausible future).
+
+These currently produce identical behavior on the live corpus only
+because of a corpus coincidence (Batch A2: low confidence == Tier-5-only,
+right now) — not because they're the same concept. Keeping them layered
+and separately named preserves the distinction for when that coincidence
+stops holding (e.g. once Tier 5 content rules improve, or entity
+detection is added).
 
 ## Explicitly out of scope for 3B.2C-3
 
 - No confidence formula changed or implemented.
-- No `min_subject_confidence` vs `minimum_evidence_quality` decision made.
+- No renamed parameter actually implemented in code yet — the
+  `minimum_candidate_confidence` name is locked here as vocabulary; the
+  `confidence-policy.mjs` module still uses the old field name until a
+  dedicated implementation pass.
 - No evidence class values (`quality`/`provenance` fields) added to
   `story-understanding.mjs`'s actual output — this is vocabulary/design
   only.
