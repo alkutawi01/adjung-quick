@@ -30,18 +30,30 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // controlled `translateY` driven by React state (`currentIndex`), exactly
 // matching the reference design's architecture (controlled `offset`,
 // snap-to-nearest computed in JS, not left to native scroll physics).
-// Wheel/trackpad ticks step exactly one index per accepted event
-// (throttled so rapid trackpad micro-events don't compound into multiple
-// jumps for what feels like one physical gesture). Pointer drag follows
-// the finger continuously and snaps to the nearest item index on release
-// — a deliberate LONG drag can cross several items (matches the reference
-// component's drag model), but a discrete wheel/trackpad tick cannot.
+//
+// SEVENTH round correction (2026-08-12): the per-tick throttle above was
+// still wrong — a real physical trackpad/mouse-wheel scroll fires MANY
+// wheel events over ~300-500ms, and a 180ms throttle window is shorter
+// than that, so several of those events still landed as separate
+// "accepted" ticks, each moving one step — net result was still a
+// multi-item jump for one gesture. Replaced throttle-per-event with
+// GESTURE-level debounce: every wheel event during a continuous gesture
+// only updates a live visual offset (so the wheel still tracks the
+// motion smoothly); the index only actually changes ONCE, on a timer
+// that keeps resetting until the gesture pauses (~180ms of silence) —
+// at which point it commits exactly ±1 step from wherever the gesture
+// started, regardless of how many wheel events fired in between.
+// Pointer drag is unchanged and intentionally different: a deliberate
+// LONG drag can still cross several items (matches the reference
+// component's drag model), but a wheel/trackpad gesture never can.
 export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   const allValues = useMemo(() => [null, ...topics], [topics]); // null = "Semua"
   const currentIndex = Math.max(0, allValues.indexOf(selectedTopic));
   const trackRef = useRef(null);
   const itemStepRef = useRef(34); // px per item (line-height + gap); measured on mount
-  const wheelThrottle = useRef(false);
+  const wheelGesture = useRef(null); // { startIndex, accumDeltaY } while a wheel gesture is in progress
+  const wheelDebounceTimer = useRef(null);
+  const [wheelVisualOffsetPx, setWheelVisualOffsetPx] = useState(0); // live tracking offset while a wheel gesture is uncommitted
   const drag = useRef(null); // { startY, startIndex } while a pointer drag is active
   const [dragOffsetPx, setDragOffsetPx] = useState(0); // live visual offset while dragging, reset on release
   const trackHeightRef = useRef(190); // matches .bidang-wheel__track's CSS height; re-measured on mount
@@ -66,15 +78,24 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
     if (allValues[clamped] !== selectedTopic) onSelect(allValues[clamped]);
   };
 
-  // One wheel/trackpad tick = exactly one Bidang, per Izzat. Throttled so a
-  // single physical gesture (which fires many small deltaY events on a
-  // trackpad) doesn't advance multiple indices.
+  // Gesture-level debounce: a whole physical scroll gesture (however many
+  // wheel events it fires) commits exactly ONE index step, per Izzat's
+  // "1 scroll = 1 line" requirement. Live visual offset tracks the raw
+  // motion while the gesture is in progress so it still feels responsive,
+  // but only the debounce timer actually commits the index change.
   const handleWheel = e => {
     e.preventDefault();
-    if (wheelThrottle.current) return;
-    wheelThrottle.current = true;
-    selectIndex(currentIndex + (e.deltaY > 0 ? 1 : -1));
-    setTimeout(() => { wheelThrottle.current = false; }, 180);
+    if (!wheelGesture.current) wheelGesture.current = { startIndex: currentIndex, accumDeltaY: 0 };
+    wheelGesture.current.accumDeltaY += e.deltaY;
+    setWheelVisualOffsetPx(-wheelGesture.current.accumDeltaY * 0.4); // damped — visual hint only, not 1:1 tracking
+    if (wheelDebounceTimer.current) clearTimeout(wheelDebounceTimer.current);
+    wheelDebounceTimer.current = setTimeout(() => {
+      const gesture = wheelGesture.current;
+      wheelGesture.current = null;
+      setWheelVisualOffsetPx(0);
+      if (!gesture || gesture.accumDeltaY === 0) return;
+      selectIndex(gesture.startIndex + (gesture.accumDeltaY > 0 ? 1 : -1));
+    }, 180); // gesture "pause" detection — resets on every event, only fires after motion stops
   };
 
   const handlePointerDown = e => {
@@ -105,7 +126,7 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   // vertical center — computed fully in px so it doesn't depend on
   // percentage-translateY's confusing "relative to own box" semantics.
   const centerOffset =
-    trackHeightRef.current / 2 - (currentIndex * itemStepRef.current + itemStepRef.current / 2) + dragOffsetPx;
+    trackHeightRef.current / 2 - (currentIndex * itemStepRef.current + itemStepRef.current / 2) + dragOffsetPx + wheelVisualOffsetPx;
 
   return (
     <div className="bidang-wheel" aria-label="Bidang">
@@ -122,7 +143,7 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
       >
         <div
           className="bidang-wheel__list"
-          style={{ transform: `translateY(${centerOffset}px)`, transition: drag.current ? 'none' : 'transform 150ms ease-out' }}
+          style={{ transform: `translateY(${centerOffset}px)`, transition: (drag.current || wheelGesture.current) ? 'none' : 'transform 150ms ease-out' }}
         >
           {allValues.map((value, i) => {
             const dist = Math.min(3, Math.abs(i - currentIndex) - (dragOffsetPx ? Math.abs(dragOffsetPx) / itemStepRef.current : 0));

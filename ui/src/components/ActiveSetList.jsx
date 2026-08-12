@@ -10,10 +10,20 @@ import StoryCard from './StoryCard.jsx';
 // never opens Brief — that's Enter's job, handled per-card). Per the
 // contract's wrap-around item (still OPEN), this stops at the ends rather
 // than wrapping — the conservative default until Izzat decides otherwise.
-export default function ActiveSetList({ activeSet, selectedTopic, sourceNames, highlightedStoryId, onSelect, onOpen, onRelease }) {
-  const visible = selectedTopic
-    ? activeSet.filter(s => s._cluster?.topic === selectedTopic)
-    : activeSet;
+export default function ActiveSetList({ activeSet, sourceNames, highlightedStoryId, onSelect, onOpen, onRelease }) {
+  // BUG FIX (2026-08-12): this component was filtering activeSet by
+  // selectedTopic, directly contradicting the already-locked principle
+  // stated in the comment above (and in state/model.js's own comments):
+  // Bidang/topic selection filters discovery/backlog, it must NEVER
+  // filter or resize the Active Set itself. That filtering caused two
+  // real bugs Izzat caught live: (1) a single matching card would stretch
+  // to fill the whole screen and appear oddly centered, since flex:1
+  // divides available height by however many cards happen to match; and
+  // (2) swiping a card away appeared to disturb unrelated cards, because
+  // the filtered view could reshuffle entirely on release. The Active Set
+  // is always all 10 (or whatever activeSetCapacity is) slots, unfiltered
+  // — full stop.
+  const visible = activeSet;
 
   if (visible.length === 0) {
     return <div className="active-set-list active-set-list--empty">Tiada berita buat masa ini.</div>;

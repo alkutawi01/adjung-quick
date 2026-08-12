@@ -110,7 +110,6 @@ export default function App() {
         />
         <ActiveSetList
           activeSet={state.activeSet}
-          selectedTopic={state.userContext.selectedTopic}
           sourceNames={sourceNames}
           highlightedStoryId={state.selection.highlightedStoryId}
           onSelect={id => dispatch(selectStory(id))}

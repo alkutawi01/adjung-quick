@@ -89,9 +89,14 @@ body {
   padding: 4px 0;
   cursor: grab;
   touch-action: none;
-  /* ~5 items visible: (item line-height + gap) * 5, tuned for the
-     current font-size — a visual experiment, NOT activeSetCapacity. */
-  height: 190px;
+  /* FIXED (2026-08-12): was a fixed 190px, which left the wheel sitting
+     near the top of the phone screen instead of vertically centered —
+     Izzat caught this live. height:100% makes the track span the full
+     .app__body column (which itself stretches the whole available
+     height below the masthead), so the selected item's center genuinely
+     aligns with the vertical center of the visible screen, not an
+     arbitrary fixed box. */
+  height: 100%;
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
   mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
 }
@@ -158,10 +163,12 @@ body {
   justify-content: center;
   padding: 4px 0;
   border-bottom: 1px solid var(--hairline);
-  cursor: pointer;
+  cursor: grab;
   outline-offset: 2px;
   overflow: hidden;
+  user-select: none;
 }
+.story-card:active { cursor: grabbing; }
 .story-card--highlighted { background: rgba(122, 59, 46, 0.05); }
 
 .story-card__meta {
@@ -197,18 +204,6 @@ body {
 }
 .source-link:hover { color: var(--accent); border-color: var(--accent); }
 .source-link--unavailable { font-size: 0.78rem; color: var(--ink-faint); }
-
-/* Release: deliberately minimal — not a dominant CRUD button. */
-.story-card__release {
-  background: none;
-  border: none;
-  color: var(--ink-faint);
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-.story-card__release:hover { color: var(--accent); }
 
 /* --- Brief: full-screen reading state, entered/exited as a transition,
    never a permanently-visible pane. Its own scroll region, page itself
