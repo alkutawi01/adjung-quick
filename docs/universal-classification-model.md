@@ -19,13 +19,13 @@ Attached to the Story Cluster. Language-independent. Engine-facing only,
 **never shown to the reader directly**. Two separate dimensions, deliberately
 not merged:
 
-### Subject (what the story is about)
+### Subject (what the story is about) — 15, LOCKED
 
 ```
 Politics
 Crime
 Economy
-Business          ← proposed addition, see note below
+Business
 Sports
 Health
 Education
@@ -40,24 +40,46 @@ Lifestyle
 ```
 
 Not a union of all three editions' category names — genuinely smaller.
-`ms-MY`'s `Hiburan`, `en`'s `Entertainment`, `ar`'s` ثقافة/فن` are not three
+`ms-MY`'s `Hiburan`, `en`'s `Entertainment`, `ar`'s `فنون/ترفيه` are not three
 different subjects; they're one subject (`Entertainment`) read through three
 editorial lenses.
 
-**Note on `Business`:** ChatGPT's draft list has only `Economy`. Flagging a
-real conflict: Izzat's own adjudication (Kanopi Residences — a single
-company's occupancy milestone) ruled `Bisnes`, distinct from `Ekonomi`
-(macro: ringgit, inflation, subsidies). That's a genuine analytical
-distinction — a company's quarterly results vs. central bank policy are
-different kinds of story, not the same subject read differently. Proposing
-`Business` as a 15th universal subject rather than folding Izzat's ruling into
-an edition-only quirk. **Needs ChatGPT's confirmation.**
+**Guiding principle (ChatGPT, 2026-08-12):** Universal Classification is not
+about minimizing subject count — it's a set of concepts that stay *stable
+across cultures and languages*. 15 is still small; a professional news portal
+typically runs dozens of sections. Don't fear adding a subject that's
+genuinely cross-cultural; do reject one that's really geography, a portal
+section, or a ranking preference in disguise (see exclusions below).
+
+**`Business` vs `Economy` — LOCKED, confidence 0.98.** This was flagged as a
+possible ms-MY-only quirk from Izzat's Kanopi Residences ruling, but ChatGPT
+confirmed it's a real cross-language distinction: English media split
+Economy/Business/Markets; Arabic splits اقتصاد (macro) from أعمال/شركات
+(business/company). Not local portal bias.
+
+Boundary rule:
+
+- **Business** — story has a specific economic actor: a company, CEO, product,
+  corporate transaction, investment entity. *"Kanopi Residences capai 90%
+  jualan"*, *"Petronas catat keuntungan RMX bilion"*, *"Tesla buka kilang
+  baharu"*.
+- **Economy** — story is about policy, market conditions, or national/global
+  economic indicators. *"Kerajaan umum subsidi minyak baharu"*, *"Harga minyak
+  dunia meningkat"*.
+- Don't add `Markets`/`Finance` as a further split yet — that's an edition- or
+  attribute-level nuance (e.g. "Bursa Malaysia naik selepas keputusan Fed" is
+  Economy with a markets *attribute*, not a 16th subject) until real volume
+  justifies it.
 
 ### Geography (where, or whose orbit the story sits in)
 
 ```
 Malaysia
-World          (or a specific country/region — see open question below)
+Southeast Asia
+Middle East
+Europe
+Americas
+World
 ```
 
 This is the formalization of what were previously drafted as `Malaysia`/
@@ -68,15 +90,27 @@ geography+section, Adjung Bidang is subject" — the residual buckets were
 always the geography half of that split, just not named as such yet).
 
 A story can have **both**: `subject: Politics, geography: Malaysia` for
-domestic party politics, `subject: Politics, geography: Lebanon` for foreign
-parliament news. Same subject, different geography — exactly the case that
-caused most of the 49 boundary disputes when forced into one flat taxonomy.
+domestic party politics, `subject: Politics, geography: Middle East` for
+Lebanon parliament news. Same subject, different geography — exactly the case
+that caused most of the 49 boundary disputes when forced into one flat
+taxonomy.
 
-### Entity / Event Type — placeholder, not designed yet
+### Event / Attribute (cross-cutting tags, non-exclusive)
 
-ChatGPT's architecture sketch includes these as future universal fields
-(e.g., entity = "Wong Chen", event type = "party defection"). Not scoped for
-v1 — noted so the schema doesn't foreclose them later.
+```
+Conflict
+Election
+Diplomacy
+Humanitarian
+Research
+Innovation
+```
+
+This absorbs the earlier "Konflik/Antarabangsa attribute" decision from the
+Taxonomy Gap Round — a war story stays `subject: Politics`, tagged
+`attribute: Conflict`, rather than needing its own subject. Entity (e.g.
+"Wong Chen", "Petronas") remains an unscoped placeholder for a future pass —
+not designed in v1, noted so schema doesn't foreclose it.
 
 ## Layer 2 — Edition Taxonomy Mapping
 
@@ -84,34 +118,40 @@ One universal subject maps to a different display term per edition. Table
 format, not three separately-labelled lists — this is what keeps editions
 comparable and stops accidental subject drift between them.
 
-| Universal Subject | ms-MY | English | Arabic |
+| Universal Subject | English | Arabic | ms-MY |
 |---|---|---|---|
-| Politics | Politik | Politics | سياسة |
-| Crime | Jenayah | Crime | جريمة |
-| Economy | Ekonomi | Economy | اقتصاد |
-| Business | Bisnes | Business | (TBD) |
-| Sports | Sukan | Sports | رياضة |
-| Health | Kesihatan | Health | (TBD) |
-| Education | Pendidikan | Education | (TBD) |
-| Science | Sains | Science | علوم |
-| Technology | Teknologi | Technology | تكنولوجيا |
-| Environment | Alam Sekitar | Environment/Climate | (TBD) |
-| Disaster | Bencana | Disaster | (TBD) |
-| Culture | Budaya | Culture | ثقافة |
-| Entertainment | Hiburan | Entertainment | فن (partial) |
-| Religion | Agama (future candidate) | (TBD — may not exist as a section) | (TBD) |
-| Lifestyle | (not in ms-MY draft) | Lifestyle | (TBD) |
+| Politics | Politics | سياسة | Politik |
+| Crime | Crime | جريمة | Jenayah |
+| Economy | Economy | اقتصاد | Ekonomi |
+| Business | Business | أعمال | Bisnes |
+| Sports | Sports | رياضة | Sukan |
+| Health | Health | (TBD) | Kesihatan |
+| Education | Education | (TBD) | Pendidikan |
+| Science | Science | علوم | Sains |
+| Technology | Technology | تكنولوجيا | Teknologi |
+| Environment | Environment/Climate | (TBD) | Alam Sekitar |
+| Disaster | Disaster | (TBD) | Bencana |
+| Culture | Culture | ثقافة | Budaya |
+| Entertainment | Entertainment | فنون/ترفيه | Hiburan |
+| Religion | (TBD — may not exist as a section) | (TBD) | Agama (future candidate) |
+| Lifestyle | Lifestyle | (TBD) | (not in ms-MY draft) |
+
+Three-column format (not Universal→one-portal-category at a time) deliberately
+so gaps are visible at a glance: which subjects have a direct edition
+equivalent, which need merging, which don't exist in a given edition at all.
 
 TBD cells need the same evidence-based treatment `ms-MY` got in
 `classification-taxonomy-mapping.md`, run against the real 71-item English and
-51-item Arabic slices of the 190-item corpus — not guessed. Scheduled next,
-per ChatGPT: mapping matrix work happens *after* this universal draft is
-confirmed, not in parallel with it.
+51-item Arabic slices of the 190-item corpus — not guessed. In progress, see
+`docs/edition-mapping-matrix-en-ar.md`.
 
-**Excluded from both layers — structural sections, not subjects:**
-`Semasa` (Malay portals' "current affairs" section — pure recency, not a
-subject, same reasoning that excluded `Unclassified` and `Utama`), `Utama`
-(prominence, already the Editorial Score's job).
+**Excluded from all layers — geography, section, or ranking preference in
+disguise, not subjects:**
+- `World` (CNN-style) — geography, not subject.
+- `Middle East` (Al Jazeera-style) — region, not subject.
+- `Semasa` (Malay portals' "current affairs" section) — pure recency, same
+  reasoning that excluded `Unclassified`.
+- `Utama` — prominence, already the Editorial Score's job.
 
 ## Layer 3 — Edition Preference (new concept, not just taxonomy)
 
