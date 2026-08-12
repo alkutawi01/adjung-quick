@@ -49,6 +49,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* FIXED (2026-08-12, per Izzat: "kedudukan wheel berubah2 bila saya scroll
+   wheel dan pilih bidang"). #root had NO height rule, so `.app { height:
+   100% }` resolved against an auto-height parent and silently fell back to
+   CONTENT height. Once Bidang filtering landed, the Active Set's content
+   height started varying with the match count — measured 741px (10 cards)
+   → 571px (1 card) → 429px (0 cards) — collapsing the whole column and
+   dragging the vertically-centered wheel window up with it. The wheel's
+   own centering math was never wrong; the column it centers inside was
+   changing size. Giving #root a real height makes .app's 100% resolve
+   against the viewport, so the column is constant and the wheel window
+   stays put no matter how many stories match. */
+#root {
+  height: 100%;
+}
+
 .app {
   height: 100%;
   overflow: hidden;
