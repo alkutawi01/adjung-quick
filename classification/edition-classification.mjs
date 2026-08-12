@@ -9,23 +9,40 @@
 // facts; Edition Classification = edition-owned, derived (this module).
 
 import { subjectToDisplayField, EDITION_GEOGRAPHY_RESIDUAL_LABEL } from './lib/edition-taxonomy.mjs';
+import { evaluateEditionRules } from './lib/edition-rules.mjs';
 
-export const RULESET_VERSION = 'v1.0.0';
+export const RULESET_VERSION = 'v1.1.0'; // bumped: Edition Rule Registry (tier 1-2) added ahead of the Display Transform Registry (tier 3)
 
-// v1 policy, explicit and honest about its simplicity: trust Story
-// Understanding's own confidence ranking (candidates already sorted
-// descending) rather than inventing per-edition subject-priority rules
-// without real evidence to justify them (e.g. "English prefers Politics
-// when a minister entity is present" needs Tier 4 entity detection, which
-// spec explicitly does NOT implement yet — inventing that rule now would be
-// exactly the speculative-rule-writing ChatGPT has repeatedly warned
-// against). Documented as method 'highest_confidence' so this is legible
-// and revisitable once entity detection exists.
+// Unified Resolver Model, per docs/edition-rule-engine-contract.md:
+// ONE pipeline, TWO registries. Tier 1-2 (Edition Rule Registry, dynamic,
+// context-aware) is checked FIRST; only if no rule matches does tier 3
+// (Display Transform Registry, static, edition-taxonomy.mjs) run. Tier 3
+// is not "lower value" — it simply runs after we know no contextual rule
+// already decided the outcome.
 export function classifyForEdition(understanding, edition) {
   const subjectCandidates = understanding.subject_candidates ?? [];
   const geographyCandidates = understanding.geography_candidates ?? [];
 
-  // Subject beats geography, per the locked rule — try every subject
+  // Tiers 1-2: Edition Rule Registry (dynamic, context-aware — checked first)
+  const ruleMatch = evaluateEditionRules(edition, understanding);
+  if (ruleMatch) {
+    return {
+      edition_id: edition,
+      field: ruleMatch.display_field,
+      sub_field: null,
+      classification_status: 'classified',
+      classification_method: 'edition_rule',
+      classification_rule: ruleMatch.rule_id,
+      confidence: ruleMatch.confidence,
+      ruleset_version: RULESET_VERSION,
+      alternatives: subjectCandidates.slice(1, 3).map(c => ({
+        universal_subject: c.value, confidence: c.confidence,
+        display_field: subjectToDisplayField(edition, c.value),
+      })),
+    };
+  }
+
+  // Tier 3: Display Transform Registry (static) — try every subject
   // candidate in confidence order until one has a display mapping for
   // this edition (a subject with no edition mapping is a real gap, not
   // silently dropped — falls through to the next candidate, then to

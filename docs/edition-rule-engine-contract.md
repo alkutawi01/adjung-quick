@@ -1,5 +1,15 @@
 # Edition Rule Engine Contract (Sesi 3B.2A)
 
+> **Corrections applied 2026-08-12, after ChatGPT review of this contract:**
+> (1) `Culture+Entertainment → Hiburan for ms-MY` was a mistaken example —
+> **cancelled**, no decision change. The real Arabic-only rule:
+> `{ edition: "ar", condition: { field_in: ["Culture","Entertainment"] },
+> action: { display_field: "ثقافة وفنون" } }`. (2) The static taxonomy
+> transform and the dynamic conditional rules are **not two separate code
+> paths** — one Edition Resolution Pipeline, two data registries feeding it.
+> See "Unified Resolver Model" below, which supersedes the "open design
+> question" originally in this document.
+
 Status: **CONTRACT — schema only, no rules implemented, no code written.**
 Per ChatGPT: don't write rules yet, define how editions are *allowed* to make
 decisions first.
@@ -44,29 +54,66 @@ Data, never hard-coded per-edition branches (same discipline as
 }
 ```
 
-## Rule hierarchy (evaluation order)
+## Unified Resolver Model (LOCKED, corrected 2026-08-12)
+
+One Edition Resolution Pipeline, two distinct registries feeding it — never
+two separate code paths:
 
 ```
-1. Explicit edition override
-2. Geography transformation       (e.g. foreign_politics_to_world)
-3. Subject mapping                (the existing Merge/Rename table)
-4. Default presentation mapping
+Story Understanding
+        │
+        ▼
+   Edition Resolver
+        │
+        ├── Display Transform Registry   (STATIC — edition-taxonomy.mjs)
+        │     "how does universal taxonomy map to this edition's menu?"
+        │     Never looks at the individual story.
+        │
+        └── Edition Rule Registry        (DYNAMIC — new)
+              "does THIS story's context change the display?"
+              Looks at subject + geography (+ future signals) per story.
+        │
+        ▼
+Resolved Edition Classification
+```
+
+### Refined priority hierarchy
+
+```
+1. Editorial override rules          (highest priority, most specific)
+2. Contextual transformation rules   (e.g. foreign_politics_to_world)
+3. Taxonomy display transformation   (the static Merge/Rename table)
+4. Direct subject mapping            (fallback: pass the subject name through as-is)
 5. Unclassified
 ```
 
-Higher-priority rules short-circuit lower ones. A rule that doesn't match
-falls through to the next tier — the existing `edition-taxonomy.mjs`
-Merge/Rename table becomes Tier 3 of this hierarchy, not a separate
-mechanism.
+Taxonomy transform is not "lower value" than a contextual rule — it simply
+runs *after* we know the subject, and only when no contextual rule already
+decided the outcome. Worked example:
 
-**Open design question, not resolved here:** are Tier 3 (the existing static
-Merge/Rename table) and Tiers 1–2 (conditional IF/AND/THEN rules) the *same*
-mechanism at different priorities, or two genuinely different systems (static
-table vs. rule engine) that need separate code paths? ChatGPT's own Sesi
-3B.2B example listed `Business+Economy → Bisnes` (currently a static Merge)
-alongside `foreign_politics_to_world` (a new conditional rule) as if they
-were the same kind of "rule" — this needs explicit confirmation before
-implementation, not assumed.
+- `subject: Business, geography: Malaysia` → no contextual rule matches →
+  falls to taxonomy transform → `Business + Economy → Bisnes`.
+- `subject: Politics, geography: Thailand` → `foreign_politics_to_world`
+  matches at tier 2 → resolves to `Dunia` directly, taxonomy transform never
+  runs for this story.
+
+### Resolution Operation Types (vocabulary for the Display Transform Registry)
+
+- **MAP** — one universal subject → one edition field (e.g. `Politics →
+  Politik`).
+- **MERGE** — multiple universal subjects → one edition field (e.g.
+  `Business+Economy → Bisnes`).
+- **SPLIT** — one universal subject → multiple edition fields (not used in
+  v1, mechanism reserved).
+- **HIDE** — subject exists but isn't surfaced as a Wheel entry (e.g.
+  `Lifestyle`, not yet drafted for ms-MY).
+
+`OVERRIDE` (context-dependent) belongs to the Edition Rule Registry, not this
+vocabulary — it's a different registry entirely, evaluated at tiers 1–2
+before the Display Transform Registry ever runs.
+
+`edition-taxonomy.mjs` is **not replaced** — it becomes the **Edition
+Taxonomy Registry**, read by the resolver at tier 3.
 
 ## Confidence threshold — parameter, not locked
 
@@ -80,19 +127,22 @@ Below this, the resolver should prefer geography fallback over a weak
 subject candidate. **Value not locked** — needs testing against real data
 before fixing a number, per ChatGPT's explicit "threshold jangan lock dulu."
 
-## Candidate rules — sourced ONLY from Gap Analysis, none invented
+## Candidate rules — 3B.2B scope, deliberately narrow
 
-| Candidate rule | Evidence | Edition |
+Per ChatGPT: implement **only** rules already proven by evidence, not the
+full Gap 2 list generalized speculatively:
+
+| Rule | Type | Status |
 |---|---|---|
-| `foreign_politics_to_world` (Politics + geography≠Malaysia → Dunia) | Gap 2: 11/33 foreign-subject cases are Politics | ms-MY |
-| Equivalent for Crime, Disaster, Environment, Business | Gap 2: 9/4/4/3 cases respectively | ms-MY |
-| `min_subject_confidence` threshold (candidate < threshold → geography fallback) | Gap 3: 64/284 (23%) weak candidates currently winning | all editions, value TBD |
+| `foreign_politics_to_world` (Politics + geography≠Malaysia → Dunia) | Edition Rule Registry, OVERRIDE, tier 2 | **3B.2B — implement now** |
+| `Business+Economy → Bisnes` | Display Transform Registry, MERGE, tier 3 | Already implemented (`edition-taxonomy.mjs`), just now correctly understood as tier 3 of the same pipeline, not a separate system |
+| Equivalent foreign-routing for Crime, Disaster, Environment, Business | Gap 2 evidence exists (9/4/4/3 cases) | **NOT implemented yet** — deliberately not generalizing from one proven case (Politics) to four unproven ones. A foreign earthquake plausibly *should* stay `Bencana` for ms-MY (disaster relevance isn't geography-scoped the way domestic party politics is) — needs its own evidence/judgment call, not an automatic extension of the Politics rule. |
+| `min_subject_confidence` threshold | Gap 3 evidence exists (23%) | Not implemented in 3B.2B — separate resolver-policy work, not an editorial rule |
 
-**Not a candidate rule (per ChatGPT, explicit correction):** merging
-Culture+Entertainment for ms-MY. Already locked the opposite — Izzat's
-ruling keeps `Budaya`/`Hiburan` separate for ms-MY (only the Arabic edition
-merges these). Flagging this discrepancy rather than silently adopting
-ChatGPT's example literally, since it contradicts an existing lock.
+**Corrected — not a candidate rule at all:** merging Culture+Entertainment
+for ms-MY (see correction note at top of document). The real Arabic-only
+version of this rule already exists as a Display Transform Registry MERGE
+entry.
 
 ## Sequencing (per ChatGPT)
 
