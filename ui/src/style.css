@@ -31,7 +31,15 @@ html, body {
   margin: 0;
   overflow: hidden;
   overscroll-behavior: none;
-  touch-action: none;
+  /* NOT touch-action:none here (per ChatGPT's correction, 2026-08-12):
+     that would also disable Brief's native touch-scroll of long content
+     (.brief has its own overflow-y:auto and relies on default touch
+     panning). touch-action is a per-element gesture declaration, not a
+     page-lock tool — overflow:hidden + overscroll-behavior:none already
+     stop the PAGE itself from scrolling/bouncing; touch-action:none is
+     scoped only to .bidang-wheel__track below, the one surface with its
+     own fully custom drag/rotate gesture that must never leak into
+     native panning. */
 }
 
 body {
