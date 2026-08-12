@@ -79,6 +79,22 @@ export function parseRssXml(xmlString, source) {
       .map(c => sanitizeHtmlText(c.replace(/<category[^>]*>([\s\S]*?)<\/category>/i, '$1')))
       .filter(Boolean);
 
+    // Source Content Profile (per ChatGPT, 2026-08-12): some feeds mix real
+    // news with non-news administrative output — KPM's RSS carries genuine
+    // education news alongside government tender/procurement notices
+    // ("Keputusan Tender Perkhidmatan Kawalan Keselamatan..."). Found via
+    // the Real Classification Snapshot sanity sample: 116/309 items
+    // classified Pendidikan were tender notices, not news. This is
+    // deliberately a per-SOURCE filter (source.excludePatterns), not a
+    // classifier rule — same lesson as the mahkamah/menteri false-positive
+    // case: a title keyword that's structurally reliable for one source
+    // ("tender" always means procurement noise from a ministry feed) is not
+    // a safe general rule (a real newsroom might legitimately cover a
+    // tender scandal as news). Filtering here, before the item ever
+    // becomes a cluster, keeps the exclusion scoped to where it's actually
+    // known to be correct.
+    if (source.excludePatterns?.some(pattern => pattern.test(title))) continue;
+
     if (title && (link || description)) {
       items.push({
         sourceId: source.id,

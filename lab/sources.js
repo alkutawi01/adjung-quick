@@ -115,7 +115,13 @@ export const RSS_SOURCES = [
   // KPM as empty, while the real parser finds 329 entries, because KPM
   // publishes Atom `<entry>` rather than RSS `<item>`.
   { id: 'rss-mosti', name: 'MOSTI', url: 'https://www.mosti.gov.my/feed/', language: 'ms', trustScore: 85, knownCategory: 'sains', sourceType: 'authority_niche' },
-  { id: 'rss-kpm', name: 'Kementerian Pendidikan', url: 'https://www.moe.gov.my/feed', language: 'ms', trustScore: 85, knownCategory: 'pendidikan', sourceType: 'authority_niche' },
+  // excludePatterns (2026-08-12, per ChatGPT — see lab/rss.js's filtering
+  // comment for the full reasoning): KPM's feed mixes real education news
+  // with government procurement notices. 116/309 Pendidikan-classified
+  // items in the first full re-ingest after the evidence-persistence fix
+  // were tender/sebut-harga notices, not news, per docs/known-issues.
+  { id: 'rss-kpm', name: 'Kementerian Pendidikan', url: 'https://www.moe.gov.my/feed', language: 'ms', trustScore: 85, knownCategory: 'pendidikan', sourceType: 'authority_niche',
+    excludePatterns: [/tender/i, /sebut harga/i, /perolehan/i, /^notis\b/i] },
   // Amanz — a real Malay tech newsroom (not a ministry), so unlike MOSTI/KPM
   // it publishes daily and won't leave the Bidang looking stale. 30 items
   // verified. Tagged 'teknologi' rather than 'sains': its output is device
@@ -139,4 +145,13 @@ export const RSS_SOURCES = [
   // Malaysia." They are a strong candidate for a future ms-EN edition, or
   // as Asia coverage within en-global once per-edition Source Profiles
   // exist — not as general English sources today.
+
+  // PressDisplay-hosted newspaper front-page feeds, added by Izzat
+  // 2026-08-13. Verified live: all 3 return real HTTP 200 RSS, general
+  // (no knownCategory) editorial content — titles carry a date/section
+  // prefix ("8/13/2026: MUKA DEPAN: ...") that isn't parsed as evidence
+  // (unlike Bernama's prefix scheme), just ordinary title text.
+  { id: 'rss-utusanborneo-sabah', name: 'Utusan Borneo (Sabah)', url: 'https://www.pressdisplay.com/pressdisplay/services/rss.ashx?cid=4965&type=full', language: 'ms', trustScore: 85, sourceType: 'general' },
+  { id: 'rss-utusanborneo-sarawak', name: 'Utusan Borneo (Sarawak)', url: 'https://www.pressdisplay.com/pressdisplay/services/rss.ashx?cid=4888&type=full', language: 'ms', trustScore: 85, sourceType: 'general' },
+  { id: 'rss-beritaharian', name: 'Berita Harian', url: 'https://www.pressdisplay.com/pressdisplay/services/rss.ashx?cid=5831&type=full', language: 'ms', trustScore: 92, sourceType: 'general' },
 ];
