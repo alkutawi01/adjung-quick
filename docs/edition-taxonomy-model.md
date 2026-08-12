@@ -1,6 +1,14 @@
 # Edition Taxonomy Model
 
-Status: **LOCKED direction, design in progress.** Supersedes the single-taxonomy
+> **OBSOLETE 2026-08-12 — superseded by `docs/edition-architecture-model.md`.**
+> This two-layer sketch (Universal Classification → Edition Resolver → Wheel)
+> was the first correct step away from a single flat taxonomy, but was itself
+> superseded hours later when Edition became a first-class entity with its own
+> classification (not just a display-name resolver). Kept for history — the
+> reasoning in "What changed and why" below still explains why language ≠
+> translation in Quick, that part hasn't changed.
+
+Status: ~~LOCKED direction, design in progress.~~ Supersedes the single-taxonomy
 assumption in `docs/quick-bidang-taxonomy.md` and the "Politik is global at the
 display layer" part of `docs/classification-evidence-model.md`'s language
 collision resolution. Confirmed by Izzat 2026-08-12.

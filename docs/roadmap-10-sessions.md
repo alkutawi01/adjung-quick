@@ -1,5 +1,11 @@
 # Adjung Quick — Roadmap 10 Sesi
 
+> **SUPERSEDED 2026-08-12.** The Edition Architecture pivot
+> (`docs/edition-architecture-model.md`) replaced this roadmap with a new
+> 10-session order built around Edition as a first-class entity. This file is
+> kept for history; follow `edition-architecture-model.md`'s roadmap table
+> instead.
+
 Source: ChatGPT (project director), 2026-08-12, in response to Izzat's request
 for a 10-session plan. Confidence stated: 0.98.
 

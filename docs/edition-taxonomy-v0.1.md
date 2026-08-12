@@ -1,5 +1,11 @@
 # Edition Taxonomy v0.1 (baseline, not final)
 
+> **OBSOLETE 2026-08-12 — superseded by `docs/edition-architecture-model.md`**
+> (Edition is now a first-class entity with its own classification, not a
+> simple resolver). The master table below is still useful **raw material**
+> for Sesi 2 (Edition Taxonomy Design) — don't discard the data, just don't
+> treat this document's framing as current.
+
 Status: DRAFT baseline per ChatGPT's ordering — built before Round 2 resumes,
 so that when a story is classified `Universal Subject: Business`, we already
 know what every edition displays for it. Consolidates
