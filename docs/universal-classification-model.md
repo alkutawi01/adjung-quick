@@ -1,0 +1,171 @@
+# Universal Classification Model
+
+Status: **Design in progress, locked sequencing.** Builds on
+`docs/edition-taxonomy-model.md`. ChatGPT's ruling, 2026-08-12: build this
+layer FIRST — not three parallel edition taxonomies compared for overlap
+afterward, which risks producing an unmanageable "union taxonomy." Sequence:
+
+```
+Universal Subject Model  →  Edition Mapping Matrix  →  Edition Resolver  →  Wheel
+```
+
+Portal taxonomy is **presentation**. Universal classification is **ontology**.
+Don't copy a portal's menu directly — `World` on CNN isn't a subject, it's
+geography; `Middle East` on Al Jazeera is a region, not a subject either.
+
+## Layer 1 — Universal Classification
+
+Attached to the Story Cluster. Language-independent. Engine-facing only,
+**never shown to the reader directly**. Two separate dimensions, deliberately
+not merged:
+
+### Subject (what the story is about)
+
+```
+Politics
+Crime
+Economy
+Business          ← proposed addition, see note below
+Sports
+Health
+Education
+Science
+Technology
+Environment
+Disaster
+Culture
+Entertainment
+Religion
+Lifestyle
+```
+
+Not a union of all three editions' category names — genuinely smaller.
+`ms-MY`'s `Hiburan`, `en`'s `Entertainment`, `ar`'s` ثقافة/فن` are not three
+different subjects; they're one subject (`Entertainment`) read through three
+editorial lenses.
+
+**Note on `Business`:** ChatGPT's draft list has only `Economy`. Flagging a
+real conflict: Izzat's own adjudication (Kanopi Residences — a single
+company's occupancy milestone) ruled `Bisnes`, distinct from `Ekonomi`
+(macro: ringgit, inflation, subsidies). That's a genuine analytical
+distinction — a company's quarterly results vs. central bank policy are
+different kinds of story, not the same subject read differently. Proposing
+`Business` as a 15th universal subject rather than folding Izzat's ruling into
+an edition-only quirk. **Needs ChatGPT's confirmation.**
+
+### Geography (where, or whose orbit the story sits in)
+
+```
+Malaysia
+World          (or a specific country/region — see open question below)
+```
+
+This is the formalization of what were previously drafted as `Malaysia`/
+`Dunia` **Bidang** in the ms-MY draft — under this model they were never real
+subjects, they were geography wearing a Bidang costume. Confirmed by
+`docs/classification-taxonomy-mapping.md`'s own Finding 2 ("newsroom desks are
+geography+section, Adjung Bidang is subject" — the residual buckets were
+always the geography half of that split, just not named as such yet).
+
+A story can have **both**: `subject: Politics, geography: Malaysia` for
+domestic party politics, `subject: Politics, geography: Lebanon` for foreign
+parliament news. Same subject, different geography — exactly the case that
+caused most of the 49 boundary disputes when forced into one flat taxonomy.
+
+### Entity / Event Type — placeholder, not designed yet
+
+ChatGPT's architecture sketch includes these as future universal fields
+(e.g., entity = "Wong Chen", event type = "party defection"). Not scoped for
+v1 — noted so the schema doesn't foreclose them later.
+
+## Layer 2 — Edition Taxonomy Mapping
+
+One universal subject maps to a different display term per edition. Table
+format, not three separately-labelled lists — this is what keeps editions
+comparable and stops accidental subject drift between them.
+
+| Universal Subject | ms-MY | English | Arabic |
+|---|---|---|---|
+| Politics | Politik | Politics | سياسة |
+| Crime | Jenayah | Crime | جريمة |
+| Economy | Ekonomi | Economy | اقتصاد |
+| Business | Bisnes | Business | (TBD) |
+| Sports | Sukan | Sports | رياضة |
+| Health | Kesihatan | Health | (TBD) |
+| Education | Pendidikan | Education | (TBD) |
+| Science | Sains | Science | علوم |
+| Technology | Teknologi | Technology | تكنولوجيا |
+| Environment | Alam Sekitar | Environment/Climate | (TBD) |
+| Disaster | Bencana | Disaster | (TBD) |
+| Culture | Budaya | Culture | ثقافة |
+| Entertainment | Hiburan | Entertainment | فن (partial) |
+| Religion | Agama (future candidate) | (TBD — may not exist as a section) | (TBD) |
+| Lifestyle | (not in ms-MY draft) | Lifestyle | (TBD) |
+
+TBD cells need the same evidence-based treatment `ms-MY` got in
+`classification-taxonomy-mapping.md`, run against the real 71-item English and
+51-item Arabic slices of the 190-item corpus — not guessed. Scheduled next,
+per ChatGPT: mapping matrix work happens *after* this universal draft is
+confirmed, not in parallel with it.
+
+**Excluded from both layers — structural sections, not subjects:**
+`Semasa` (Malay portals' "current affairs" section — pure recency, not a
+subject, same reasoning that excluded `Unclassified` and `Utama`), `Utama`
+(prominence, already the Editorial Score's job).
+
+## Layer 3 — Edition Preference (new concept, not just taxonomy)
+
+ChatGPT's addition: an edition isn't only a category-name mapping, it's also a
+**priority/ranking lens** and a **source lens**:
+
+```
+ms-MY:  Malaysia > Regional > World      (Malaysia-first)
+en:     Global > Regional > Local        (Global-first)
+ar:     Arab World > Middle East > Global (Arab-world-first)
+```
+
+So the Edition Resolver combines: Taxonomy Mapping + Ranking Preference +
+Source Preference. Not designed in detail yet — flagged so schema/engine work
+doesn't assume taxonomy mapping is the resolver's only job. Likely intersects
+with Editorial Score (`lab/engine.js`) and `lab/control.js`, not just
+classification — needs its own design pass, probably after Layer 1/2 are
+locked.
+
+## Resolver behaviour — LOCKED decisions
+
+- **Read-time, not precomputed.** Category mapping is an editorial decision,
+  not a fact about the story — if an editor moves `Politics` from top-level to
+  `Semasa > Politik` tomorrow, old stories shouldn't need reclassification.
+  Only Layer 1 (Universal Classification) is stored; Layer 2 resolves live.
+  Revisit only if this becomes a real performance problem — at 191 items / 9
+  sources / Active Set 10, it isn't one now.
+- **`SWITCH_LANGUAGE` tries semantic mapping before resetting the Wheel.** If
+  the reader is on `Politik` (ms-MY) and switches to English, the resolver
+  looks up `Politik`'s universal subject (`Politics`) and finds `en`'s
+  equivalent (`Politics`) — position is maintained. If no equivalent exists
+  (e.g. `Agama` has no `en` edition counterpart), fall back to that edition's
+  default, don't force a match.
+
+## Consequence for the 15-Bidang ms-MY draft
+
+Per ChatGPT: this will likely **reduce**, not grow, the Bidang count — several
+things provisionally treated as Bidang were actually portal sections
+(`Semasa`) or geography (`Malaysia`, `Dunia`) misfiled as subjects. Once Layer
+1/2 are confirmed, audit `docs/quick-bidang-taxonomy.md`'s 15 against this
+model rather than assuming they all survive as-is.
+
+## Immediate next steps (per ChatGPT, in order)
+
+1. Confirm this Universal Subject list (14 or 15 with `Business`) with
+   ChatGPT.
+2. Build the `en` and `ar` mapping matrices against real corpus evidence,
+   filling the TBD cells above.
+3. Re-audit the ms-MY 15-Bidang draft against the confirmed universal model —
+   expect some entries to collapse into Geography or get excluded as
+   sections.
+4. Only then resume Round 2 (Subject Boundary, the 49 paused cases) — many
+   should resolve automatically once geography stops competing with subject
+   in a single flat list.
+
+Explicitly NOT started yet, per ChatGPT: classifier rules, Edition Preference
+detail design, schema changes.
