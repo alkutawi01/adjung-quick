@@ -227,6 +227,59 @@ Labelling the 190-item corpus is paused until this taxonomy gap round closes
 those labels the moment `Bencana` is approved, corrupting the benchmark before
 it starts.
 
+## Field / Sub-field / Attribute layers (architecture, 2026-08-12)
+
+Izzat asked whether Quick needs sub-Bidang, prompted by real evidence: `Politik`
+is 73/190 (38%) of the labelled corpus — far larger than any other Bidang.
+ChatGPT's ruling (0.97): design the concept now, populate it later. Three
+distinct layers, never conflated:
+
+- **Field** — the main domain, what the Wheel shows. `Politik`, `Jenayah`, …
+- **Sub-field** — optional internal breakdown of a Field, for organization/
+  filtering. Never a Wheel entry.
+- **Attribute** — a cross-cutting tag that can apply within any Field (e.g.
+  `Konflik`, `Antarabangsa`, `Kecemasan` — the conflict/war tagging decided
+  earlier is an instance of this).
+
+```json
+{ "field": "Politik", "sub_field": "Antarabangsa", "attributes": ["Konflik"] }
+```
+
+**Never** `field: "Politik Antarabangsa"` — that would make Malaysia-politics
+and international-politics read as two different Bidang, when they're one
+domain. Story Cluster identity principle stays intact.
+
+**LOCKED: the Wheel uses Field only.** It shows `Politik`, `Jenayah`, `Ekonomi`
+— never `Politik Malaysia` / `Politik Antarabangsa` as separate wheel items.
+The Wheel answers "which Bidang do I want to read?", not "let me browse a
+taxonomy tree." If a Field gets too large in practice, a second-level
+interaction (open Politik → pick a sub-field) is a *future* option, not v1.
+
+Candidate sub-fields for `Politik` (example, **not final**, not populated):
+
+```
+Politik
+├── Malaysia (parlimen, parti, PRU, kerajaan)
+├── Antarabangsa (by region)
+└── (Diplomasi/Konflik — via attributes, not sub-field)
+```
+
+**Important reframe:** `Politik` having 73/190 raw items may not need
+sub-Bidang at all. Quick isn't a traditional portal optimizing for archive
+navigation and page views — the reader sees the Active Set's best N stories
+(ranking/freshness/prominence), not a full list of everything classified
+`Politik`. Don't solve a display problem with a taxonomy solution before
+confirming it's actually a display problem.
+
+**Sub-field does not resolve subject-boundary disputes.** The SPRM case
+(Politik vs Jenayah) is a boundary problem — which Field — not a "too many
+items in one Field" problem. Don't let sub-field become a dumping ground for
+unresolved boundary calls.
+
+**Status: architecture only.** No `sub_field`/`attributes` SQL columns added
+yet — wait for evidence of real need. Round 2 (Subject Boundary) proceeds
+without forcing sub-field decisions during labelling.
+
 ## Future candidate — Agama
 
 Not in v1. Do **not** add a Bidang on a hunch. Collect corpus for 1–2 weeks and
