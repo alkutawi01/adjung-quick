@@ -7,7 +7,8 @@ import { RSS_SOURCES } from '../lab/sources.js';
 import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
 import { createEditorialControl } from '../lab/control.js';
-import { createInitialState } from './model.js';
+import { createInitialState, getRepresentationPreference } from './model.js';
+import { getEdition } from './editions.js';
 import { reduce } from './reducer.js';
 import * as actions from './actions.js';
 
@@ -121,6 +122,68 @@ async function main() {
       const rep = s._cluster?.representation;
       return !rep || rep.language === 'en';
     }));
+
+  // --- Session UI-1 acceptance tests (docs/edition-state-model.md,
+  // docs/core-reading-ui-contract.md §11a). These test the EDITION layer,
+  // which is a different concern from TEST 8's language/representation
+  // layer above — the whole point of the O-012 split. ---
+
+  // Test 1 — Edition isolation: each edition's Wheel reads its OWN taxonomy.
+  const msEdition = getEdition('ms-MY');
+  const enEdition = getEdition('en');
+  const arEdition = getEdition('ar');
+  assert('UI-1 TEST 1a — ms-MY taxonomy is ms-MY specific',
+    msEdition.taxonomy.includes('Politik') && !msEdition.taxonomy.includes('Politics'));
+  assert('UI-1 TEST 1b — en taxonomy is en specific',
+    enEdition.taxonomy.includes('Politics') && !enEdition.taxonomy.includes('Politik'));
+  assert('UI-1 TEST 1c — ar taxonomy is ar specific + RTL',
+    arEdition.taxonomy.includes('سياسة') && arEdition.direction === 'rtl');
+  assert('UI-1 TEST 1d — editions do NOT have identical field counts (independent taxonomies, not translations)',
+    new Set([msEdition.taxonomy.length, enEdition.taxonomy.length, arEdition.taxonomy.length]).size > 1);
+
+  // Test 2 — Active Set stability across edition switch: content may change,
+  // capacity/slot model must not.
+  let editionState = createInitialState();
+  editionState = reduce(editionState, actions.switchLanguage(['ms', 'en', 'ar']), context);
+  const beforeEditionSwitch = editionState.activeSet.length;
+  const afterEditionSwitch = reduce(editionState, actions.switchEdition('en'), context);
+  assert('UI-1 TEST 2a — SWITCH_EDITION updates activeEdition',
+    afterEditionSwitch.editionContext.activeEdition === 'en');
+  assert('UI-1 TEST 2b — Active Set capacity unchanged by edition switch',
+    afterEditionSwitch.activeSetCapacity === editionState.activeSetCapacity);
+  assert('UI-1 TEST 2c — Active Set never exceeds capacity after edition switch',
+    afterEditionSwitch.activeSet.length <= afterEditionSwitch.activeSetCapacity,
+    `before=${beforeEditionSwitch} after=${afterEditionSwitch.activeSet.length}`);
+  assert('UI-1 TEST 2d — SWITCH_EDITION closes Brief',
+    afterEditionSwitch.brief.open === false);
+
+  // Test 3 — Field invalidation: a field that exists in the new edition
+  // carries over; one that doesn't is dropped to null (never auto-mapped).
+  const withSurvivingField = reduce(
+    { ...editionState, userContext: { ...editionState.userContext, selectedTopic: 'Politik' } },
+    actions.switchEdition('ms-MY'), context);
+  assert('UI-1 TEST 3a — field valid in target edition carries over',
+    withSurvivingField.userContext.selectedTopic === 'Politik');
+
+  const withDroppedField = reduce(
+    { ...editionState, userContext: { ...editionState.userContext, selectedTopic: 'Agama' } },
+    actions.switchEdition('ar'), context);
+  assert('UI-1 TEST 3b — field absent from target edition is dropped, not auto-mapped',
+    withDroppedField.userContext.selectedTopic === null,
+    `got ${JSON.stringify(withDroppedField.userContext.selectedTopic)}`);
+
+  // Test 4 — Representation preference is a SEPARATE concern: it must not
+  // rebuild the Active Set (unlike SWITCH_LANGUAGE, which does).
+  const beforePrefChange = editionState.activeSet;
+  const afterPrefChange = reduce(editionState, actions.setRepresentationPreference(['ar', 'en', 'ms']), context);
+  assert('UI-1 TEST 4a — SET_REPRESENTATION_PREFERENCE does not rebuild Active Set',
+    afterPrefChange.activeSet === beforePrefChange);
+  assert('UI-1 TEST 4b — SET_REPRESENTATION_PREFERENCE records the preference order',
+    JSON.stringify(afterPrefChange.userContext.representationPreference) === JSON.stringify(['ar', 'en', 'ms']));
+  assert('UI-1 TEST 4c — getRepresentationPreference reads new field once written',
+    JSON.stringify(getRepresentationPreference(afterPrefChange)) === JSON.stringify(['ar', 'en', 'ms']));
+  assert('UI-1 TEST 4d — getRepresentationPreference falls back to selectedLanguages pre-migration',
+    JSON.stringify(getRepresentationPreference(editionState)) === JSON.stringify(['ms', 'en', 'ar']));
 
   console.log(`\n${passed} passed, ${failed} failed.\n`);
   if (failed > 0) process.exit(1);

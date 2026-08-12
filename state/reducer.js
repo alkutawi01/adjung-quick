@@ -16,6 +16,7 @@
 import { ActionTypes } from './actions.js';
 import { selectActiveSetWithControl } from '../lab/engine.js';
 import { selectRepresentation } from './representation.js';
+import { getEdition } from './editions.js';
 
 function toActiveSetEntries(clusters, eligibleLanguages) {
   return clusters
@@ -148,6 +149,61 @@ export function reduce(state, action, context = {}) {
         brief: { open: false, storyId: null }, // closing Brief on language switch avoids showing a story that may no longer be eligible
       };
     }
+
+    case ActionTypes.SWITCH_EDITION: {
+      // Per docs/edition-state-model.md + docs/core-reading-ui-contract.md
+      // §11a. Switching edition is NOT a label translation — each edition
+      // owns an independent taxonomy, so the currently-selected field may
+      // simply not exist in the new one (ms-MY's "Agama" has no Arabic
+      // Wheel equivalent). In that case the field is dropped rather than
+      // carried over or auto-mapped onto a "similar" field — auto-mapping
+      // is exactly the universal-taxonomy assumption the whole edition
+      // architecture rejected.
+      const nextEdition = getEdition(action.editionId);
+      const currentField = state.userContext.selectedTopic;
+      const fieldSurvives = currentField != null && nextEdition.taxonomy.includes(currentField);
+
+      // Active Set is rebuilt because edition determines placement/ranking,
+      // but capacity and the stable-spatial-slot model are untouched — the
+      // slot count never changes with edition (docs/edition-state-model.md,
+      // Active Set stays 10 stable slots regardless of edition).
+      const eligibleLanguages = state.userContext.selectedLanguages;
+      const eligible = toActiveSetEntries(rankedQueue, eligibleLanguages)
+        .map(x => ({ ...x.cluster, representation: x.representation }));
+      const freshSelection = control
+        ? selectActiveSetWithControl(eligible, control, state.activeSetCapacity, [])
+        : eligible.slice(0, state.activeSetCapacity);
+
+      return {
+        ...state,
+        editionContext: { ...state.editionContext, activeEdition: nextEdition.editionId },
+        userContext: {
+          ...state.userContext,
+          // null (not a fallback field, not "Semua") when the field doesn't
+          // survive — model.js already documents null as "not chosen yet",
+          // and the UI picks the first real field of the new edition, same
+          // as it does at cold start.
+          selectedTopic: fieldSurvives ? currentField : null,
+        },
+        activeSet: buildActiveSetSlots(freshSelection),
+        brief: { open: false, storyId: null }, // same reasoning as SWITCH_LANGUAGE: the open story may not be placed/available in the new edition
+      };
+    }
+
+    case ActionTypes.SET_REPRESENTATION_PREFERENCE:
+      // Deliberately does NOT rebuild the Active Set, unlike
+      // SWITCH_LANGUAGE. Per docs/edition-state-model.md, representation
+      // preference only affects which language version of a story is shown
+      // when several exist — it never changes which stories are in the
+      // Active Set, because membership belongs to the edition, not to a
+      // language preference.
+      return {
+        ...state,
+        userContext: {
+          ...state.userContext,
+          representationPreference: action.representationPreference,
+        },
+      };
 
     // --- Editorial Control: single-editor, delegates to control.js. These
     // mutate the CONTROL state, not activeSet directly — activeSet only

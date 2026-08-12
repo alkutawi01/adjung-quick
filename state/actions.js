@@ -15,7 +15,18 @@ export const ActionTypes = Object.freeze({
   GO_BACK: 'GO_BACK',                 // alias-able to CLOSE_BRIEF depending on context — see reducer
 
   RELEASE_STORY: 'RELEASE_STORY',     // the ONLY way (besides language switch) a slot opens
+
+  // DEPRECATED as a combined concept, per docs/edition-state-model.md —
+  // SWITCH_LANGUAGE currently conflates two separate things (which
+  // edition am I reading vs which representation language do I prefer
+  // for a given story). Kept working for now (Step 3 is additive; the
+  // reducer case is unchanged) so nothing breaks mid-migration.
   SWITCH_LANGUAGE: 'SWITCH_LANGUAGE',
+
+  // The two actions SWITCH_LANGUAGE splits into. Added Step 3, not yet
+  // wired into the reducer (Step 4).
+  SWITCH_EDITION: 'SWITCH_EDITION',                       // changes editionContext.activeEdition; re-resolves Wheel taxonomy, selectedField, Active Set
+  SET_REPRESENTATION_PREFERENCE: 'SET_REPRESENTATION_PREFERENCE', // changes preferred representation-language ORDER only; must NOT rebuild the Active Set
 
   // Editorial Control — single-editor only, per L-018/L-019/L-020/L-021.
   PIN_STORY: 'PIN_STORY',
@@ -43,6 +54,12 @@ export function releaseStory(storyId) {
 }
 export function switchLanguage(selectedLanguages) {
   return { type: ActionTypes.SWITCH_LANGUAGE, selectedLanguages };
+}
+export function switchEdition(editionId) {
+  return { type: ActionTypes.SWITCH_EDITION, editionId };
+}
+export function setRepresentationPreference(representationPreference) {
+  return { type: ActionTypes.SET_REPRESENTATION_PREFERENCE, representationPreference };
 }
 export function pinStory(storyId) {
   return { type: ActionTypes.PIN_STORY, storyId };
