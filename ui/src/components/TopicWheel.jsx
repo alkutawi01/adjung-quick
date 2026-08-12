@@ -43,10 +43,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 //     is rendered as 3 concatenated copies, and the selection is always
 //     positioned in the MIDDLE copy — so every item, including the first
 //     and last logical Bidang, always has real neighbour items (from the
-//     adjacent copies) to fill space above and below it. Selection logic
-//     itself still clamps at the true first/last Bidang (wrap-around
-//     remains OPEN, undecided) — this only fixes the visual space-filling
-//     problem, not the selection boundary behaviour.
+//     adjacent copies) to fill space above and below it.
+//
+// WRAP-AROUND (LOCKED, 2026-08-12, per Izzat's direct correction): the
+// wheel is circular — the last Bidang is adjacent to the first, at any
+// list length. There is never dead space past the last item. Selection
+// index math wraps via modulo instead of clamping to [0, length-1]. The
+// tripled-list rendering already makes this visually seamless: the item
+// one position past the true last Bidang IS the true first Bidang
+// (rendered again in the next copy) — wrapping the committed index just
+// keeps the tripled list anchored on the correct copy after the fact, it
+// never has to visually "jump" backward across the whole list.
 export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   const allValues = useMemo(() => [null, ...topics], [topics]); // null = "Semua"
   const currentIndex = Math.max(0, allValues.indexOf(selectedTopic));
@@ -93,11 +100,11 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
     };
   }, [allValues]);
 
-  const clampIndex = i => Math.max(0, Math.min(allValues.length - 1, i));
+  const wrapIndex = i => ((i % allValues.length) + allValues.length) % allValues.length;
 
   const selectIndex = i => {
-    const clamped = clampIndex(i);
-    if (allValues[clamped] !== selectedTopic) onSelect(allValues[clamped]);
+    const wrapped = wrapIndex(i);
+    if (allValues[wrapped] !== selectedTopic) onSelect(allValues[wrapped]);
   };
 
   // Gesture-level debounce: a whole physical scroll gesture (however many
@@ -208,7 +215,7 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   // derive a LIVE index from the current raw offset, continuously, so
   // whichever item is nearest the visual center is always the one styled
   // active — never lagging behind the drag, and never zero.
-  const liveIndex = clampIndex(currentIndex + Math.round(-rawOffsetPx / itemStep));
+  const liveIndex = wrapIndex(currentIndex + Math.round(-rawOffsetPx / itemStep));
   const liveMiddleIndex = allValues.length + liveIndex;
 
   return (
