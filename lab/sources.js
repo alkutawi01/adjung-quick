@@ -67,12 +67,14 @@ export const RSS_SOURCES = [
   { id: 'rss-awani-gayahidup', name: 'Astro Awani — Gaya Hidup', url: 'https://www.astroawani.com/rss/lifestyle/public', language: 'ms', trustScore: 90, knownCategory: 'gaya hidup' },
   { id: 'rss-awani-dunia', name: 'Astro Awani — Dunia', url: 'https://www.astroawani.com/rss/international/public', language: 'ms', trustScore: 90, knownCategory: 'dunia' },
 
-  // RTM (berita.rtm.gov.my). Verified live: HTTP 200, 50 items each. Note
-  // these are served through rss.app, a third-party bridge rather than RTM's
-  // own infrastructure — so treat availability as less guaranteed than a
-  // publisher-hosted feed, and re-verify if items stop arriving.
-  // Jenayah and Pilihan Raya are categories no other Malay source gives us
-  // this cleanly.
+  // RTM (berita.rtm.gov.my). OFFICIAL feeds — listed on RTM's own RSS page
+  // (/rss/senarai-berita-rss/), 13 categories published by RTM themselves.
+  // They deliver via rss.app, which is RTM's chosen platform, not a scrape or
+  // an unofficial mirror. The only practical consequence is that rss.app sits
+  // in the delivery path, so a delivery-side outage is possible independently
+  // of RTM — worth knowing when debugging, not a reason to distrust the
+  // source. Verified live: HTTP 200, 50 items each.
+  // Jenayah is a category no other Malay source gives us this cleanly.
   { id: 'rss-rtm-nasional', name: 'RTM — Berita Nasional', url: 'https://rss.app/feeds/0q20i5CxKfD3ppJ9.xml', language: 'ms', trustScore: 88, knownCategory: 'malaysia' },
   { id: 'rss-rtm-ekonomi', name: 'RTM — Berita Ekonomi', url: 'https://rss.app/feeds/JCAvoTk2CKzZ7VrK.xml', language: 'ms', trustScore: 88, knownCategory: 'ekonomi' },
   { id: 'rss-rtm-dunia', name: 'RTM — Berita Dunia', url: 'https://rss.app/feeds/WAg4LOY6T5L7Le9m.xml', language: 'ms', trustScore: 88, knownCategory: 'dunia' },
