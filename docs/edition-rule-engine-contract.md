@@ -144,6 +144,40 @@ for ms-MY (see correction note at top of document). The real Arabic-only
 version of this rule already exists as a Display Transform Registry MERGE
 entry.
 
+## Conflict Resolution (v1, added 2026-08-12 — proposal, freeze active)
+
+When structural evidence from the same source genuinely disagrees (e.g.
+Guardian's own `rss_category:Politics` vs `url_segment:Environment` for
+the same story — not two different publishers, one publisher's own two
+mechanisms disagreeing), v1 resolves to a single primary placement using
+this priority:
+
+```
+URL desk path > RSS category > other structural signals
+```
+
+Rationale (Izzat, confirmed by ChatGPT): a publisher's URL structure
+reflects a more deliberate editorial decision than an RSS `<category>`
+tag, which tends to be looser or more automated. Not claimed as an
+absolute truth ("URL is always right") — a v1 default tie-breaker.
+
+**The losing candidate is not discarded.** It remains in Story
+Understanding's evidence trail (`alternative_candidates`, per
+`docs/structural-evidence-fallback-policy.md`'s Policy A) for audit,
+debugging, and future reconsideration — only the *displayed* placement
+is singular, not the underlying evidence.
+
+This is deliberately a narrow, same-source rule — it does not attempt to
+resolve disagreement *between* different publishers/sources on the same
+story cluster. Per `docs/multi-placement-consideration.md`, cross-source
+disagreement is expected to resolve through source diversity (more RSS
+feeds, future clustering) rather than explicit multi-placement machinery
+— not a v1 concern.
+
+Still a proposal, not locked — pending confirmation via Batch M/U/Medium
+adjudication that this holds consistently, per
+`docs/evidence-calibration-freeze.md`.
+
 ## Sequencing (per ChatGPT)
 
 | Step | Scope |

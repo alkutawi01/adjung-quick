@@ -1,13 +1,45 @@
-# Multi-Placement Consideration (raised 2026-08-12, not decided)
+# Multi-Placement Consideration (raised 2026-08-12)
 
-Status: **CONSIDERATION document only — no decision made, no code
-changed.** Triggered by Izzat's question while reviewing Batch M's 2
-conflict cases: *"kenapa masih perlu klasifikasi drpd enjin sedangkan rss
-mentah tu sendiri dah nyatakan ia adalah berita alam sekitar? kalau rss
-tu sendiri bercanggah... masukkan satu di politik, satu di alam
-sekitar."* (Why does the engine need to resolve to one category when the
-raw RSS itself already states it — and if RSS sources genuinely
-disagree, why not place the story under both?)
+Status: **DEFERRED / NOT REQUIRED FOR V1.** Resolved by Izzat's own
+follow-up (below), confirmed by ChatGPT. Kept as a document, not deleted
+— this is a real future capability, just not a v1 requirement. No code
+was ever changed for this consideration.
+
+Triggered by Izzat's question while reviewing Batch M's 2 conflict cases:
+*"kenapa masih perlu klasifikasi drpd enjin sedangkan rss mentah tu
+sendiri dah nyatakan ia adalah berita alam sekitar? kalau rss tu sendiri
+bercanggah... masukkan satu di politik, satu di alam sekitar."* (Why does
+the engine need to resolve to one category when the raw RSS itself
+already states it — and if RSS sources genuinely disagree, why not place
+the story under both?)
+
+## Why this was deferred (Izzat's own resolution)
+
+When asked to adjudicate the 2 actual conflict cases, Izzat picked "URL
+wins" (single placement) over dual-placement, then added the reasoning
+that settles this for v1: *"ni isu terpencil bg saya. sbb kalau kita
+tambah lagi sumber RSS kita, mesti ada sumber yg klasifikasikan di Alam
+Sekitar dan Politik, jika benar Politik tu kategori yg tepat. jadi, ia
+pasti akan masuk kedua-dua kategori juga akhirnya."* (This is an isolated
+issue for me — as more RSS sources get added, some source will classify
+it Environment and some Politics, if Politics really is accurate. So it
+ends up represented in both categories eventually anyway.)
+
+Adjung Quick doesn't need to be a "truth resolver" across every portal's
+internal disagreement — it's an editorial system aggregating signal
+across many sources. Genuine ambiguity gets resolved through **source
+diversity** (more RSS feeds, future story clustering across sources), not
+through one story carrying duplicate placements. Simpler for v1:
+
+```
+Story Understanding
+        ↓
+Edition Placement Resolver
+        ↓
+One primary placement
+        ↓
+Alternative evidence retained (not discarded, not displayed as a second placement)
+```
 
 ## Why this issue surfaced
 
@@ -99,19 +131,27 @@ competition.
   than the current one-row-per-(story,edition) assumption. Not designed
   here.
 
-## Explicitly not decided here
+## Decided
 
-- Whether multi-placement gets implemented at all.
-- What threshold/rule distinguishes "genuine ambiguity" from "uncertain
-  candidate" in code (conceptually sketched above, not formalized).
-- Any schema or code change to `edition-classification.mjs`,
-  `edition_story_classifications`, the Active Set selector, or the Wheel.
+- **Multi-placement is NOT implemented for v1.** Single primary placement
+  per story per edition, per `docs/structural-evidence-fallback-policy.md`
+  and `docs/edition-rule-engine-contract.md`'s v1 Conflict Resolution rule
+  (URL desk > RSS category > other structural signals).
+- Losing/alternative candidates are **not discarded** — they stay in
+  Story Understanding's evidence for audit, debugging, and future
+  reconsideration, even though they're not displayed as a second
+  placement.
+- Genuine ambiguity is expected to resolve naturally as more RSS sources
+  are added and story clustering improves, rather than through explicit
+  per-story dual-placement machinery.
 
-## Next
+## Still open (future capability, not v1)
 
-Per ChatGPT: don't decide this from 2 conflict cases. Wait until Izzat
-finishes adjudicating Batch M/U/Medium and the full pattern of
-genuine-ambiguity vs weak-candidate cases across all batches is known,
-then revisit this document with real evidence of how common each
-situation actually is before deciding whether multi-placement is worth
-building.
+- The Ambiguity vs Uncertainty distinction above remains conceptually
+  useful even without multi-placement — it's what justified keeping
+  alternative candidates in the evidence trail rather than discarding
+  them.
+- If source diversity turns out NOT to resolve genuine ambiguity in
+  practice (worth re-checking once more RSS sources are added), revisit
+  whether a primary/secondary placement model is worth building then —
+  informed by real data at that point, not now.
