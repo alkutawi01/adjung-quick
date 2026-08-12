@@ -1,9 +1,8 @@
 # Quick Bidang Taxonomy (v1)
 
-> **14 Bidang + 1 PROPOSED.** `Bisnes` was added 2026-08-12 after Izzat
-> adjudicated a real borderline case — see *Editorial adjudication rules*
-> below. `Bencana` is PROPOSED (not yet locked) — see *Taxonomy Gap Round*
-> below, pending Izzat's approval.
+> **15 Bidang.** `Bisnes` and `Bencana` were both added 2026-08-12 after
+> Izzat adjudicated real cases — see *Editorial adjudication rules* and
+> *Taxonomy Gap Round* below.
 
 Decided 2026-08-12. Izzat chose **Option B** from
 `docs/classification-taxonomy-mapping.md` — a dedicated Quick news taxonomy
@@ -157,7 +156,14 @@ Zimbabwe ferry capsize) and active conflict (Iran-US/Hormuz tension,
 Yemen-Houthi, Gaza, Ukraine arms funding, North Korea missile tests, Sudan).
 ChatGPT's ruling (0.97 / 0.94):
 
-### `Bencana` — approved as a new Bidang, PROPOSED pending Izzat
+### `Bencana` — LOCKED, approved by Izzat 2026-08-12 (15th Bidang)
+
+Same subject-beats-geography rule as everything else: a Malaysian flood is
+`field: Bencana`, not `Malaysia` — exactly like a Malaysian political story is
+`Politik`, not `Malaysia`. The country isn't lost; `geography_candidate` still
+records `Malaysia` underneath, it just isn't what decides the Bidang. `Bencana`
+never competes with `Malaysia`/`Dunia` for the same reason `Politik` doesn't:
+those two are pure residual, assigned only when *no* subject Bidang matches.
 
 Acute disaster/emergency: earthquake, flood, shipwreck, landslide, major fire,
 volcanic eruption, major accident. Deliberately **separate from `Alam

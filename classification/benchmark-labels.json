@@ -250,9 +250,9 @@
     "reason": "rape case remand"
   },
   "https://www.bbc.co.uk/news/articles/c20dqd9qwq4o?at_medium=RSS&amp;at_campaign=rss": {
-    "field": "Dunia",
-    "uncertain": true,
-    "reason": "earthquake disaster; no dedicated disaster/Bencana Bidang exists yet (gap noted in mapping doc)"
+    "field": "Bencana",
+    "uncertain": false,
+    "reason": "earthquake disaster; no dedicated disaster/Bencana Bidang exists yet (gap noted in mapping doc) [moved to Bencana, approved by Izzat 2026-08-12]"
   },
   "https://www.bbc.co.uk/news/articles/c980r4wpl9lo?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
@@ -280,9 +280,9 @@
     "reason": "Ronaldo's wedding -- celebrity human interest, not sport itself; could be Sukan since he's a footballer"
   },
   "https://www.bbc.co.uk/news/articles/czxe2vyxd7do?at_medium=RSS&amp;at_campaign=rss": {
-    "field": "Dunia",
-    "uncertain": true,
-    "reason": "boat sinking disaster; no dedicated disaster Bidang"
+    "field": "Bencana",
+    "uncertain": false,
+    "reason": "boat sinking disaster; no dedicated disaster Bidang [moved to Bencana, approved by Izzat 2026-08-12]"
   },
   "https://www.bbc.co.uk/news/articles/c8enj8p1xwgo?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
@@ -320,19 +320,19 @@
     "reason": "Secret Service security operations feature; security/politics-adjacent explainer, no clean subject match"
   },
   "https://www.bbc.co.uk/news/articles/czxerlglgw5o?at_medium=RSS&amp;at_campaign=rss": {
-    "field": "Dunia",
-    "uncertain": true,
-    "reason": "earthquake disaster follow-up, human interest"
+    "field": "Bencana",
+    "uncertain": false,
+    "reason": "earthquake disaster follow-up, human interest [moved to Bencana, approved by Izzat 2026-08-12]"
   },
   "https://www.bbc.co.uk/news/articles/clye8332d63o?at_medium=RSS&amp;at_campaign=rss": {
-    "field": "Alam Sekitar",
-    "uncertain": true,
-    "reason": "flood rescue story -- Alam Sekitar taxonomy explicitly lists floods, but this reads as human-interest rescue not environment/climate reporting"
+    "field": "Bencana",
+    "uncertain": false,
+    "reason": "flood rescue story -- Alam Sekitar taxonomy explicitly lists floods, but this reads as human-interest rescue not environment/climate reporting [moved to Bencana, approved by Izzat 2026-08-12]"
   },
   "https://www.bbc.co.uk/news/videos/ckge0e0g95no?at_medium=RSS&amp;at_campaign=rss": {
-    "field": "Dunia",
-    "uncertain": true,
-    "reason": "earthquake aftermath, same disaster-gap issue"
+    "field": "Bencana",
+    "uncertain": false,
+    "reason": "earthquake aftermath, same disaster-gap issue [moved to Bencana, approved by Izzat 2026-08-12]"
   },
   "https://www.bbc.co.uk/news/videos/cy4k1jldxnwo?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
@@ -370,9 +370,9 @@
     "reason": "duplicate of BBC Ronaldo wedding story -- celebrity human interest vs Sukan"
   },
   "https://www.aljazeera.com/news/2026/8/12/at-least-15-dead-dozens-missing-as-ferry-capsizes-in-zimbabwe?traffic_source=rss": {
-    "field": "Dunia",
-    "uncertain": true,
-    "reason": "ferry disaster, duplicate of BBC Zimbabwe story"
+    "field": "Bencana",
+    "uncertain": false,
+    "reason": "ferry disaster, duplicate of BBC Zimbabwe story [moved to Bencana, approved by Izzat 2026-08-12]"
   },
   "https://www.aljazeera.com/news/2026/8/12/why-have-several-nations-raised-red-flags-over-indian-farm-exports?traffic_source=rss": {
     "field": "Ekonomi",
@@ -600,9 +600,9 @@
     "reason": "airport operator competitive position; could be Politik (expansion policy debate)"
   },
   "https://www.theguardian.com/world/2026/aug/12/israel-deliberately-starting-wildfires-in-southern-lebanon-firefighters-say": {
-    "field": "Dunia",
+    "field": "Politik",
     "uncertain": true,
-    "reason": "conflict/military action allegation; could be Alam Sekitar (wildfires) but the subject is the alleged military act"
+    "reason": "Israeli military deliberately setting wildfires as a tactic -- this is conflict/military action, not a natural disaster; stays Politik per the conflict-stays-Politik ruling, not Bencana"
   },
   "https://www.theguardian.com/us-news/2026/aug/11/human-rights-groups-trump-lawsuit-icc-sanctions": {
     "field": "Politik",
@@ -750,9 +750,9 @@
     "reason": "Iranian government appointment"
   },
   "https://www.bbc.com/arabic/articles/cwyl1wn674ro?at_medium=RSS&amp;at_campaign=rss": {
-    "field": "Dunia",
-    "uncertain": true,
-    "reason": "explainer on historical Egypt earthquake, disaster context"
+    "field": "Bencana",
+    "uncertain": false,
+    "reason": "explainer on historical Egypt earthquake, disaster context [moved to Bencana, approved by Izzat 2026-08-12]"
   },
   "https://www.bbc.com/arabic/articles/c4gx9gyx490o?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
@@ -935,9 +935,9 @@
     "reason": "North Korea missile test, security/military, duplicate theme"
   },
   "https://www.aljazeera.net/news/2026/8/12/%d8%ae%d9%84%d9%81-19-%d9%88%d9%81%d8%a7%d8%a9-%d8%aa%d8%b4%d9%8a%d9%8a%d8%b9-%d8%b6%d8%ad%d8%a7%d9%8a%d8%a7-%d8%ad%d8%a7%d8%af%d8%ab-%d8%aa%d8%b5%d8%a7%d8%af%d9%85?traffic_source=rss": {
-    "field": "Dunia",
-    "uncertain": true,
-    "reason": "Egypt truck collision fatalities, accident/disaster gap"
+    "field": "Bencana",
+    "uncertain": false,
+    "reason": "Egypt truck collision fatalities, accident/disaster gap [moved to Bencana, approved by Izzat 2026-08-12]"
   },
   "https://www.aljazeera.net/news/2026/8/12/%d9%87%d9%8a%d8%a6%d8%a9-%d8%a7%d9%84%d8%a8%d8%ab-%d9%88%d8%a7%d8%b4%d9%86%d8%b7%d9%86-%d8%aa%d8%a8%d9%84%d8%ba-%d9%82%d9%88%d8%a9-%d8%a7%d9%84%d8%a7%d8%b3%d8%aa%d9%82%d8%b1%d8%a7%d8%b1?traffic_source=rss": {
     "field": "Politik",
