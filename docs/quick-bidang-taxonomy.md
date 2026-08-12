@@ -1,5 +1,9 @@
 # Quick Bidang Taxonomy (v1)
 
+> **14 Bidang.** `Bisnes` was added 2026-08-12 after Izzat adjudicated a real
+> borderline case — see *Editorial adjudication rules* below, which is the
+> authoritative statement of how classification decisions are made.
+
 Decided 2026-08-12. Izzat chose **Option B** from
 `docs/classification-taxonomy-mapping.md` — a dedicated Quick news taxonomy
 rather than Adjung Brief's 24 essay Bidang (which lack `Politik` and `Jenayah`,
@@ -21,7 +25,8 @@ can be written later if the two ever share content.
 |---|---|---|
 | **Politik** | party politics, parliament, elections, government | `nasional/politik`, `berita-politik`, `politics`, `سياسة` |
 | **Jenayah** | crime, courts, police, fraud, enforcement | none — content rules only, yet plausibly the largest real category |
-| **Ekonomi** | economy, business, markets, ringgit, companies | `ekonomi`, `economy`, `business`, `ebusiness`, `اقتصاد` |
+| **Ekonomi** | macro economy: ringgit, inflation, GDP, subsidies, fiscal policy | `ekonomi`, `economy`, `اقتصاد` |
+| **Bisnes** | individual companies, corporate results, property, deals | `business`, `ebusiness` |
 | **Sukan** | sport | `sport`, `sports`, `football`, `رياضة` |
 | **Alam Sekitar** | environment, haze, floods, wildlife, climate | `environment` |
 | **Kesihatan** | public health, hospitals, disease, outbreaks | content rules |
@@ -82,6 +87,57 @@ subject_candidate   = Politik
 geography_candidate = Malaysia
 final_field         = Politik
 ```
+
+## Editorial adjudication rules (Izzat, 2026-08-12)
+
+Izzat ruled on three real borderline cases from the corpus. The rulings imply
+principles that govern the classifier, not just those three stories.
+
+| Story | Ruling | Principle |
+|---|---|---|
+| "SPRM cari Po Lian dan Jennifer, mahkamah keluarkan waran tangkap" | **Depends** — if Po Lian is a politician → `Politik`; if not → `Jenayah`. And *"kena rujuk brief juga"* | Actor identity can decide the Bidang; the **title alone is not enough**, the brief/description must be read |
+| "Kanopi Residences capai kadar pengambilan 90 peratus" | **`Bisnes`** (not Ekonomi) | A single company's performance is `Bisnes`. `Ekonomi` is the macro picture |
+| "Tun Dr Mahathir, Siti Hasmah cipta rekod ASEAN pasangan tertua" | **`Malaysia`** — *"walaupun dia seorang ahli politik tp di sini bukan nak cerita politik"* | Classify by **what the story is about**, not who appears in it |
+
+### The governing principle
+
+> **Classify by what the story is about — not by who appears in it.**
+
+A politician appearing does not make a story `Politik`. Mahathir setting a
+marriage-longevity record is human interest → residual `Malaysia`. But the SPRM
+case *is* about a person's conduct in their public capacity, so if the subject
+is a politician it becomes `Politik`.
+
+Combined test: *is the story about the actor's political role?* If yes →
+`Politik`. If a politician merely features → judge on the story's actual topic.
+
+### ⚠ Architectural consequence: this needs entity knowledge
+
+"Is Po Lian a politician?" cannot be answered by keywords. A purely
+text-deterministic classifier has no way to know. Options, none free:
+
+1. **Maintained entity registry** — a curated list of politicians/parties/
+   officeholders, checked against the title+brief. Deterministic and auditable
+   (fits the no-AI constraint), but someone must maintain it, and it will always
+   lag new names.
+2. **Role-phrase detection** — match the *descriptors* that accompany names in
+   Malay reporting (`Ahli Parlimen`, `Menteri`, `ADUN`, `Datuk Seri … Menteri`,
+   `bekas Perdana Menteri`). Doesn't need to know the person, only how they are
+   introduced. Cheaper, and Malay news usually states the role.
+3. **Accept the limit** — treat these as `Jenayah` by default and let the
+   residual/Unclassified path absorb the ambiguity.
+
+Recommendation: **(2) role-phrase detection**, since Malay wire copy nearly
+always names the role, with (1) reserved for a small list of very high-profile
+figures. Open for ChatGPT's audit — flagged because it materially affects how
+Tier-4 content rules must be built.
+
+### Must read the brief, not just the title
+
+Izzat's *"kena rujuk brief juga"* confirms the classifier must consume title
+**and** description. `lab/classify.js` already does this; the production path
+must preserve it, and the benchmark must label from title+brief too — not
+headline alone.
 
 ## Not a Bidang
 
