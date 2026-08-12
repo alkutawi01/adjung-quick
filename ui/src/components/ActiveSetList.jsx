@@ -23,6 +23,11 @@ export default function ActiveSetList({ activeSet, sourceNames, highlightedStory
   // selectedTopic == null only during cold start, before the Bidang list has
   // loaded (there is no "Semua"/All pseudo-Bidang — removed 2026-08-12 per
   // Izzat). Once a real Bidang is selected, the view always filters to it.
+  // Since 2026-08-12 the Active Set is already Bidang-scoped by the reducer
+  // (state/reducer.js SELECT_TOPIC), so this filter is normally a no-op. Kept
+  // as a defensive guard for the one frame between a Bidang change and the
+  // reducer's rebuild — cheap, and prevents briefly rendering the previous
+  // Bidang's stories under the new label.
   const visible = selectedTopic == null
     ? activeSet
     : activeSet.filter(slot => slot._cluster?.topic === selectedTopic);

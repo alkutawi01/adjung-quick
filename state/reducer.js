@@ -17,6 +17,7 @@ import { ActionTypes } from './actions.js';
 import { selectActiveSetWithControl } from '../lab/engine.js';
 import { selectRepresentation } from './representation.js';
 import { getEdition } from './editions.js';
+import { getRepresentationPreference } from './model.js';
 
 function toActiveSetEntries(clusters, eligibleLanguages) {
   return clusters
@@ -38,9 +39,46 @@ export function reduce(state, action, context = {}) {
   const { rankedQueue = [], control } = context;
 
   switch (action.type) {
-    // --- Pure navigation/observation actions: NEVER touch activeSet. ---
-    case ActionTypes.SELECT_TOPIC:
-      return { ...state, userContext: { ...state.userContext, selectedTopic: action.topic } };
+    // SELECT_TOPIC — Bidang-scoped Active Set (Izzat's decision, 2026-08-12).
+    //
+    // This action USED to be pure navigation ("never touches activeSet"), with
+    // the Active Set holding the 10 globally top-ranked stories and the UI
+    // filtering them by Bidang at render time. That produced the bug this
+    // change fixes: with 14 Bidang but only 10 global slots, most Bidang
+    // rendered empty — selecting "Politik" showed nothing even though 13
+    // Politik stories existed in the database.
+    //
+    // The Active Set is now scoped to the selected Bidang: 10 slots OF THAT
+    // BIDANG. This matches the Session UI-1 contract's own data flow
+    // (Selected Field -> Edition Filter -> Ranking -> 10 Active Slots) and
+    // makes the Wheel a real navigation surface rather than a filter over
+    // whatever happened to rank globally.
+    //
+    // Supersedes: docs/core-reading-ui-contract.md §3's "topic selection
+    // never filters the Active Set itself", and this file's own header rule
+    // that only RELEASE_STORY/SWITCH_LANGUAGE may change activeSet.
+    // Stable Spatial Slots is UNAFFECTED — still exactly `capacity` fixed
+    // positions; only which stories are eligible to fill them changed.
+    case ActionTypes.SELECT_TOPIC: {
+      const eligibleLanguages = getRepresentationPreference(state);
+      const inBidang = rankedQueue.filter(c => c.topic === action.topic);
+      const eligible = toActiveSetEntries(inBidang, eligibleLanguages)
+        .map(x => ({ ...x.cluster, representation: x.representation }));
+
+      const selected = control
+        ? selectActiveSetWithControl(eligible, control, state.activeSetCapacity, [])
+        : eligible.slice(0, state.activeSetCapacity);
+
+      return {
+        ...state,
+        userContext: { ...state.userContext, selectedTopic: action.topic },
+        activeSet: buildActiveSetSlots(selected),
+        // A Bidang change replaces every story on screen, so an open Brief
+        // would be showing something no longer in view — same reasoning as
+        // SWITCH_LANGUAGE/SWITCH_EDITION below.
+        brief: { open: false, storyId: null },
+      };
+    }
 
     case ActionTypes.SELECT_STORY:
       return { ...state, selection: { highlightedStoryId: action.storyId } };

@@ -36,9 +36,23 @@ async function main() {
 
   const initialActiveSet = state.activeSet;
 
-  // --- TEST 2: SELECT_TOPIC never touches activeSet ---
-  const afterSelectTopic = reduce(state, actions.selectTopic('Politics'), context);
-  assert('TEST 2 — SELECT_TOPIC does not change activeSet', afterSelectTopic.activeSet === initialActiveSet);
+  // --- TEST 2: SELECT_TOPIC scopes the Active Set to the chosen Bidang ---
+  // CHANGED 2026-08-12 (Izzat's decision): this previously asserted
+  // SELECT_TOPIC never touched activeSet, with the Active Set holding the 10
+  // globally top-ranked stories and the UI filtering at render time. That
+  // left most Bidang empty (14 Bidang, 10 global slots) — selecting "Politik"
+  // showed nothing despite 13 Politik stories existing. The Active Set is now
+  // 10 slots OF THE SELECTED BIDANG.
+  const topicWithStories = rankedQueue[0].topic;
+  const afterSelectTopic = reduce(state, actions.selectTopic(topicWithStories), context);
+  assert('TEST 2 — SELECT_TOPIC scopes activeSet to the selected Bidang',
+    afterSelectTopic.activeSet.length > 0 &&
+    afterSelectTopic.activeSet.every(s => s._cluster.topic === topicWithStories),
+    `topic=${topicWithStories} got=${JSON.stringify(afterSelectTopic.activeSet.map(s => s._cluster.topic))}`);
+  assert('TEST 2b — Bidang-scoped Active Set still respects capacity (Stable Spatial Slots intact)',
+    afterSelectTopic.activeSet.length <= state.activeSetCapacity);
+  assert('TEST 2c — SELECT_TOPIC on a Bidang with no stories yields an empty Active Set, not an error',
+    reduce(state, actions.selectTopic('__no_such_bidang__'), context).activeSet.length === 0);
 
   // --- TEST 3: SELECT_STORY never touches activeSet ---
   const someStoryId = initialActiveSet[0].storyId;

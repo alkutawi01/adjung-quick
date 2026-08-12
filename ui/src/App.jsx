@@ -3,6 +3,7 @@ import { createInitialState } from '../../state/model.js';
 import { reduce } from '../../state/reducer.js';
 import { selectTopic, selectStory, openBrief, closeBrief, releaseStory } from '../../state/actions.js';
 import { selectRepresentation } from '../../state/representation.js';
+import { getEdition } from '../../state/editions.js';
 import { selectActiveSet } from '../../lab/engine.js';
 import { createEditorialControl } from '../../lab/control.js';
 import { fetchRankedQueue, fetchSourceNames } from './adapter/productionAdapter.js';
@@ -41,11 +42,24 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const [queue, names] = await Promise.all([fetchRankedQueue(), fetchSourceNames()]);
+        // Edition-scoped: each cluster's `topic` comes back as THIS
+        // edition's placement (docs/edition-state-model.md). Switching
+        // edition re-runs this effect, since the whole ranked queue must be
+        // re-labelled — a Bidang list can't be translated in place.
+        const [queue, names] = await Promise.all([
+          fetchRankedQueue(state.editionContext.activeEdition),
+          fetchSourceNames(),
+        ]);
         if (cancelled) return;
         setRankedQueue(queue);
         setSourceNames(names);
+        // Bidang-scoped cold start (2026-08-12, Izzat's decision): seed the
+        // Active Set from the FIRST Bidang's stories, not the global top-10.
+        // Matching state/reducer.js's SELECT_TOPIC — otherwise cold start and
+        // every subsequent Bidang change would use two different rules.
+        const firstTopic = getEdition(state.editionContext.activeEdition).taxonomy[0];
         const eligible = queue
+          .filter(c => c.topic === firstTopic)
           .map(c => ({ ...c, representation: selectRepresentation(c, state.userContext.selectedLanguages) }))
           .filter(c => c.representation !== null);
         const initial = selectActiveSet(eligible, state.activeSetCapacity);
@@ -58,25 +72,44 @@ export default function App() {
       }
     })();
     return () => { cancelled = true; };
-    // Intentionally runs once — Phase 2A cold-start only, per contract scope.
+    // Re-runs on edition change (UI-1.1): the ranked queue carries
+    // edition-specific placements, so a new edition needs a fresh fetch,
+    // not a client-side re-label. Still cold-start-only otherwise.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [state.editionContext.activeEdition]);
 
   const dispatch = action => {
     setState(prev => reduce(prev, action, { rankedQueue, control: controlRef.current, now: new Date().toISOString() }));
   };
 
-  const topics = useMemo(() => [...new Set(rankedQueue.map(c => c.topic))].sort(), [rankedQueue]);
+  // UI-1.1 Wheel Taxonomy Source Migration (2026-08-12, per
+  // docs/edition-state-model.md). The Wheel reads its field list from the
+  // ACTIVE EDITION's taxonomy, never from whatever topics happen to exist
+  // in today's stories. Previously this was
+  // `[...new Set(rankedQueue.map(c => c.topic))]`, which meant a Bidang
+  // with no stories today silently vanished from the Wheel, and the labels
+  // came from the old classifier's `c.topic` rather than the edition's own
+  // taxonomy. The Wheel is the edition's editorial map, not a filter over
+  // available content — stories determine how MUCH is in each Bidang, never
+  // WHICH Bidang exist.
+  const topics = useMemo(
+    () => getEdition(state.editionContext.activeEdition).taxonomy,
+    [state.editionContext.activeEdition],
+  );
 
   // There is no "Semua"/All Bidang (removed 2026-08-12 per Izzat — he never
   // decided to have one). The reader is always inside exactly one real
-  // Bidang, so as soon as the Bidang list is known, select the first one.
+  // Bidang. Since UI-1.1 the taxonomy is known synchronously from the
+  // edition (no longer waiting on async story data), so this resolves
+  // immediately at cold start — and re-resolves after SWITCH_EDITION drops
+  // a field that doesn't exist in the new edition (reducer sets it to null,
+  // per docs/core-reading-ui-contract.md §11a).
   useEffect(() => {
     if (state.userContext.selectedTopic == null && topics.length > 0) {
       dispatch(selectTopic(topics[0]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topics]);
+  }, [topics, state.userContext.selectedTopic]);
 
   const openStory = useMemo(() => {
     if (!state.brief.open) return null;

@@ -83,4 +83,19 @@ CREATE INDEX IF NOT EXISTS idx_esc_story
 -- auth.uid() policies. Editorial placement is not personal data.
 GRANT SELECT ON edition_story_classifications TO anon, authenticated;
 
+-- GRANT alone is NOT enough: this project has RLS on by default for new
+-- public-schema tables, and RLS-with-no-policy returns ZERO ROWS WITHOUT AN
+-- ERROR — which is far more confusing than a permission error, since the
+-- query "succeeds" and the UI just silently shows nothing. Found live
+-- (2026-08-12) after GRANT fixed the earlier "permission denied": the anon
+-- client got 0 rows while the service-role client saw all 549.
+ALTER TABLE edition_story_classifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS esc_public_read ON edition_story_classifications;
+CREATE POLICY esc_public_read ON edition_story_classifications
+  FOR SELECT TO anon, authenticated
+  USING (true);   -- editorial placement is public data; USING (true) is the
+                  -- intent, not an oversight. Writes remain service-role only
+                  -- (no INSERT/UPDATE/DELETE policy exists).
+
 COMMIT;
