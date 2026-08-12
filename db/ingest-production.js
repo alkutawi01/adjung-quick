@@ -85,13 +85,31 @@ async function main() {
       });
     }
   }
+  // De-duplicate by primary key before inserting. Once per-category feeds
+  // were added (2026-08-12), the SAME article legitimately arrives from two
+  // feeds of one publisher — e.g. Utusan's general feed and Utusan's Politik
+  // feed both carry the same story, with the same rssGuid. That is not bad
+  // data; it is how category feeds work. Without this the whole insert aborts
+  // on "duplicate key value violates unique constraint rss_items_pkey",
+  // leaving clusters in the database with no items behind them (hit live).
+  // Keeping the FIRST occurrence is deliberate: cluster membership is decided
+  // upstream by lab/engine.js, so any copy resolves to the same cluster.
+  const seenIds = new Set();
+  const dedupedItemRows = itemRows.filter(r => {
+    if (seenIds.has(r.id)) return false;
+    seenIds.add(r.id);
+    return true;
+  });
+  const droppedDupes = itemRows.length - dedupedItemRows.length;
+  if (droppedDupes > 0) console.log(`De-duplicated ${droppedDupes} cross-feed duplicate items.`);
+
   // Batch insert (Supabase/PostgREST has payload limits) — chunks of 500.
-  for (let i = 0; i < itemRows.length; i += 500) {
-    const chunk = itemRows.slice(i, i + 500);
+  for (let i = 0; i < dedupedItemRows.length; i += 500) {
+    const chunk = dedupedItemRows.slice(i, i + 500);
     const { error } = await supabase.from('rss_items').insert(chunk);
     if (error) { console.error(`rss_items insert failed at chunk ${i}:`, error); process.exit(1); }
   }
-  console.log(`Inserted ${itemRows.length} rss_items.`);
+  console.log(`Inserted ${dedupedItemRows.length} rss_items.`);
 
   // --- 4. Close the circular FK: set representative_rss_item_id now that rss_items exist. ---
   for (const cluster of labRankedQueue) {
