@@ -77,10 +77,68 @@ Both coverage numbers are below the spec's informal ballparks (~95% subject,
   subjects where real corpus evidence was strongest. The other 10 subjects
   currently rely entirely on Tiers 1-3.
 
+## Tier 1 wired in (Sesi 3A.1, same day) — before/after
+
+Per ChatGPT: this stays inside Sesi 3A ("melengkapkan Sesi 3A", not a jump to
+Sesi 5), and must be a data-driven **Source Evidence Layer**, never
+`if (source === "Harian Metro") return "Business"`. Implemented as:
+`lab/rss.js` now passes through an optional `source.knownCategory` onto every
+parsed item as `sourceKnownCategory` (undefined for ordinary feeds — nothing
+guessed). `lab/sources.js` gained 9 new source entries, additive only,
+nothing removed: Bernama EN/BM (rediscovered by Izzat, title-prefix evidence
+via `classification/lib/bernama-prefix.mjs`), Harian Metro's 4 confirmed
+category feeds (`bisnes`/`arena`=sukan/`global`=dunia/`rap`=hiburan), and 4
+spot-verified Utusan/Kosmo `/category/{slug}/feed/` feeds (ekonomi, sukan,
+politik, hiburan) — all confirmed live before adding, per
+`source-registry-v2-audit.md`.
+
+```
+                          BEFORE (193 items,     AFTER (283 items,
+                          no new sources)        +9 sources, Tier 1 ON)
+Subject coverage          52%                    61%
+Geography coverage        33%                    34%
+No signal                 48%                    39%
+Single candidate          46%                    55%
+Multiple candidates       6%                     6%
+
+Evidence distribution:
+  title_keyword           49%                    28%
+  rss_category             —  (29% of a          24%
+                               different total)
+  url_segment              —  (22%)               25%
+  feed_category             0%                    22%   <- new
+  title_prefix              0%                    1%    <- new (Bernama)
+```
+
+**Honest read — the gain is mostly from the new sources' inherent URL
+signal, not the explicit Tier 1 flag on its own.** Isolated test with
+`--no-tier1` (same 283-item corpus, `sourceKnownCategory` suppressed) shows
+coverage *unchanged* at 61%/34% — because the new category feeds' URLs
+already contain the category (`/category/ekonomi/feed/` matches Tier 2's
+URL-path lookup regardless of the explicit `knownCategory` field). Verified
+directly on a real Harian Metro Bisnes item: `Business` at 0.98 confidence,
+evidence `[feed_category: "bisnes", url_segment: "bisnes"]` — Tier 1's real,
+measurable contribution here is **higher confidence and explicit
+provenance** (a `feed_category` entry that didn't exist before), not
+additional raw coverage, for sources where URL and feed category happen to
+agree. `title_keyword`'s share dropping from 49%→28% is the real health
+signal ChatGPT asked to track — less reliance on content guessing, evidence
+now genuinely spread across 4 types instead of 3.
+
+Bernama's title-prefix mechanism verified working directly: `"World : ..."`
+→ `geography_candidates: [{value: "World", confidence: 0.9}]`; `"General :
+..."` → correctly produces **no** candidate (General is Bernama's real
+catch-all, same as `mutakhir`/`utama` elsewhere — matches the
+`STRUCTURAL_NOISE` exclusion principle).
+
+**Known issue, not blocking:** `rss-bernama-bm` (Malay Bernama) returns
+HTTP 500 via our fetch client (`lab/rss.js`'s `fetch()` with a custom
+User-Agent) despite loading fine directly in a browser — possibly UA-
+sensitive on Bernama's side. English Bernama works and already validates
+the title-prefix mechanism; not investigated further in this pass.
+
 ## Recommended next step
 
-Wire in Tier 1 sources (at minimum: Harian Metro's 4 category feeds +
-Bernama EN/BM) and re-run this exact test — that's the fastest way to see
-whether Source Registry v2's core hypothesis (publisher evidence reduces
-dependence on content rules) actually holds, before investing in more
-keyword rules.
+Per ChatGPT: Sesi 3A.2 — audit this output further, target is *not* 100%
+coverage but continuing to reduce `title_keyword` dependency. Then Sesi 3B
+(Edition Classification) can begin.

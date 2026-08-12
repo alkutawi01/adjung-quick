@@ -9,11 +9,17 @@ import { RSS_SOURCES } from '../lab/sources.js';
 import { fetchFeed } from '../lab/rss.js';
 import { understandStory } from './story-understanding.mjs';
 
-const results = await Promise.all(RSS_SOURCES.map(fetchFeed));
-const items = results.filter(r => r.ok).flatMap(r =>
-  r.items.map(i => ({ ...i, sourceName: r.source.name })));
+const withTier1 = !process.argv.includes('--no-tier1');
 
-console.log(`\nSTORY UNDERSTANDING ENGINE — Sesi 3A test, ${items.length} real items\n`);
+const results = await Promise.all(RSS_SOURCES.map(fetchFeed));
+const failed = results.filter(r => !r.ok);
+const items = results.filter(r => r.ok).flatMap(r =>
+  r.items.map(i => ({ ...i, sourceName: r.source.name, sourceKnownCategory: withTier1 ? i.sourceKnownCategory : undefined })));
+
+if (failed.length) {
+  console.log('FETCH FAILURES:', failed.map(r => `${r.source.name} (${r.error})`).join(', '));
+}
+console.log(`\nSTORY UNDERSTANDING ENGINE — Sesi 3A test, ${items.length} real items (Tier 1: ${withTier1 ? 'ON' : 'OFF, --no-tier1'})\n`);
 
 let subjectCovered = 0, geographyCovered = 0;
 let ambiguitySingle = 0, ambiguityMultiple = 0, ambiguityNone = 0;

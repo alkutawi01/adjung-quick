@@ -95,6 +95,11 @@ export function parseRssXml(xmlString, source) {
         // topic is intentionally left null here — assigned later by the
         // rule-based classifier, not by this parser.
         topic: null,
+        // Sesi 3A Tier 1 evidence: set only when this feed IS a publisher-
+        // declared category feed (e.g. Harian Metro's bisnes.xml), per
+        // docs/source-registry-v2-audit.md. undefined for ordinary mixed
+        // feeds — never guessed here, only carried through from source config.
+        sourceKnownCategory: source.knownCategory,
       });
     }
   }
