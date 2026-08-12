@@ -1,0 +1,251 @@
+/* Visual direction reset (2026-08-11), per Izzat's correction: Quick is a
+   minimal, editorial reading experience — not a news dashboard/admin tool.
+   ONE composition renders at every viewport width (Candidate B — Bidang
+   Wheel + bounded Active Set); Brief is always a full-screen transition.
+   Still not a final design system (contract §16 theme hook is separate,
+   still OPEN) — this is restrained typography/spacing, not a locked
+   visual language. */
+
+* { box-sizing: border-box; }
+
+:root {
+  --ink: #1c1c1a;
+  --ink-muted: #6b6b66;
+  --ink-faint: #a3a39c;
+  --hairline: #e4e2dc;
+  --paper: #fdfdfb;
+  --accent: #7a3b2e;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  height: 100vh;
+  overflow: hidden;
+  padding: 16px 14px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.app__masthead {
+  font-family: Georgia, serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+
+/* Bidang Wheel sits LEFT of Active Set at every viewport width, per
+   Izzat's explicit correction: moving it above (horizontal) ate reading
+   space and made Quick read as an ordinary mobile feed. */
+.app__body {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- Bidang Wheel: vertical, scroll-snapping rotational selector —
+   deliberately NOT a horizontal nav bar or a plain sidebar filter list.
+   Third round (2026-08-11): normal horizontal text (no vertical-rl); the
+   "wheel" reads through a FIXED-HEIGHT viewport (~5 items) with the
+   selected Bidang spatially centered and neighbours visible above/below,
+   fading toward the edges — not through rotated text. Width sizes to
+   content (not pinned to a small px value) so long Bidang names stay
+   legible; readability wins over a specific width number. --- */
+.bidang-wheel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex: 0 0 auto;
+  /* FIXED (2026-08-11): width:max-content silently collapsed to 0 once
+     .bidang-wheel__list became position:absolute (sixth round) — an
+     absolutely-positioned child is out of normal flow and no longer
+     contributes to its ancestor's auto/max-content width, so the wheel
+     rendered in the DOM but with zero visible width. Explicit width
+     until Izzat picks the real Bidang label set (docs/taxonomy-audit.md)
+     and we can size to the actual longest name. */
+  width: 96px;
+  gap: 2px;
+}
+
+/* Sixth round (2026-08-11): NO native scroll — position is a fully
+   controlled translateY driven by React state (currentIndex), so a
+   single wheel/trackpad tick always moves exactly one Bidang. Native
+   scroll+momentum could carry a fling through several snap points at
+   once; a controlled transform never does more than what the code asks
+   for. Matches the reference design handoff's architecture (controlled
+   `offset`, snap-to-nearest computed in JS). */
+.bidang-wheel__track {
+  position: relative;
+  overflow: hidden;
+  padding: 4px 0;
+  cursor: grab;
+  touch-action: none;
+  /* ~5 items visible: (item line-height + gap) * 5, tuned for the
+     current font-size — a visual experiment, NOT activeSetCapacity. */
+  height: 190px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+}
+.bidang-wheel__track:active { cursor: grabbing; }
+
+.bidang-wheel__list {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* No click affordance — per Izzat: the centered item auto-selects while
+   spinning the wheel, there is no separate click-to-select step. */
+.bidang-wheel__item {
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  color: var(--ink-faint);
+  padding: 2px 0;
+  text-align: left;
+  user-select: none;
+  transform-origin: left center;
+  /* opacity/transform:scale set inline per-item by TopicWheel.jsx based on
+     distance from the current index — the continuous wheel-picker cue. */
+}
+.bidang-wheel__item--active {
+  color: var(--accent);
+  font-weight: bold;
+}
+
+/* --- Active Set: a bounded working set, not a scrolling feed.
+   Per Izzat (2026-08-11, direct instruction): "berita tak boleh scroll,
+   hanya yg aktif sahaja terpapar. muat satu skrin." — NO scroll at all.
+   Every card gets an EQUAL, elastic share of the available height
+   (flex:1 each) so however many stories are currently in the Active Set
+   always fit the viewport exactly, with zero scrolling. This replaces
+   the earlier max-height/overflow "~5 visible" experiment outright. --- */
+.active-set-list {
+  border-top: 1px solid var(--hairline);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.active-set-list--empty {
+  color: var(--ink-muted);
+  padding: 24px 0;
+  font-style: italic;
+}
+
+.story-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--hairline);
+  cursor: pointer;
+  outline-offset: 2px;
+  overflow: hidden;
+}
+.story-card--highlighted { background: rgba(122, 59, 46, 0.05); }
+
+.story-card__meta {
+  font-size: 0.66rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
+}
+
+.story-card__title {
+  font-size: 0.85rem;
+  line-height: 1.25;
+  margin-bottom: 2px;
+  /* Guarantees containment within this card's elastic share of height —
+     per Izzat, nothing may force the Active Set to scroll. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.story-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.source-link {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hairline);
+}
+.source-link:hover { color: var(--accent); border-color: var(--accent); }
+.source-link--unavailable { font-size: 0.78rem; color: var(--ink-faint); }
+
+/* Release: deliberately minimal — not a dominant CRUD button. */
+.story-card__release {
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.story-card__release:hover { color: var(--accent); }
+
+/* --- Brief: full-screen reading state, entered/exited as a transition,
+   never a permanently-visible pane. Its own scroll region, page itself
+   never scrolls. --- */
+.brief {
+  height: 100vh;
+  overflow-y: auto;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+.brief__close {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-bottom: 24px;
+  padding: 0;
+}
+.brief__close:hover { color: var(--accent); }
+.brief__title {
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-weight: normal;
+  margin: 0 0 20px;
+}
+.brief__description {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: #333;
+  margin-bottom: 28px;
+}
+.brief__footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+}
+
+.app-error { padding: 24px; color: #a00; font-family: Georgia, serif; }

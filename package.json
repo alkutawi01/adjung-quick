@@ -1,0 +1,28 @@
+{
+  "name": "adjung-quick-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Editorial Ranking Laboratory for Adjung Quick — proves the ranking/dedup/selection engine against real RSS before production build.",
+  "scripts": {
+    "dev": "vite",
+    "lab": "node lab/run.js",
+    "lab:match": "node lab/run-match.js",
+    "lab:control": "node lab/run-control.js",
+    "test": "node lab/test.js && node state/test.js",
+    "test:engine": "node lab/test.js",
+    "test:state": "node state/test.js",
+    "test:identity": "node db/identity-test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "dotenv": "^17.4.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.21"
+  }
+}
