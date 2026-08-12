@@ -1,8 +1,9 @@
 # Quick Bidang Taxonomy (v1)
 
-> **14 Bidang.** `Bisnes` was added 2026-08-12 after Izzat adjudicated a real
-> borderline case — see *Editorial adjudication rules* below, which is the
-> authoritative statement of how classification decisions are made.
+> **14 Bidang + 1 PROPOSED.** `Bisnes` was added 2026-08-12 after Izzat
+> adjudicated a real borderline case — see *Editorial adjudication rules*
+> below. `Bencana` is PROPOSED (not yet locked) — see *Taxonomy Gap Round*
+> below, pending Izzat's approval.
 
 Decided 2026-08-12. Izzat chose **Option B** from
 `docs/classification-taxonomy-mapping.md` — a dedicated Quick news taxonomy
@@ -145,6 +146,80 @@ headline alone.
   the wheel. (Same reasoning that removed "Semua".)
 - **Utama** — Adjung Brief has it; Quick does not. Prominence is the Editorial
   Score's job.
+
+## Taxonomy Gap Round (2026-08-12) — PROPOSED: add Bencana
+
+Discovered while drafting the 190-item benchmark labels: 56% came back
+flagged uncertain, but 38 of those weren't labelling disputes at all — they
+were stories with genuinely no home in the 14 Bidang. Two patterns dominated:
+acute disasters (Colombia earthquake, 254+ dead; Beijing/Assam flooding;
+Zimbabwe ferry capsize) and active conflict (Iran-US/Hormuz tension,
+Yemen-Houthi, Gaza, Ukraine arms funding, North Korea missile tests, Sudan).
+ChatGPT's ruling (0.97 / 0.94):
+
+### `Bencana` — approved as a new Bidang, PROPOSED pending Izzat
+
+Acute disaster/emergency: earthquake, flood, shipwreck, landslide, major fire,
+volcanic eruption, major accident. Deliberately **separate from `Alam
+Sekitar`**, which stays about climate/pollution/haze/conservation — an ongoing
+condition, not a single acute event.
+
+| Headline | Bidang |
+|---|---|
+| "Jerebu tutup sekolah" | Alam Sekitar |
+| "Gempa bumi, 254 mati" | **Bencana** |
+| "Banjir besar meragut nyawa" | **Bencana** |
+| "Polisi kurangkan karbon" | Alam Sekitar |
+
+### Conflict/War — NOT a new Bidang. Stays `Politik` + an attribute
+
+War coverage resists a single Bidang because it's never just one thing — a
+Ukraine story might be politics, security, military, or conflict depending on
+angle; a Gaza story might be politics, conflict, or humanitarian. Forcing a
+`Peperangan` Bidang risks the classifier keying on "sounds violent →
+Peperangan", which isn't a real subject rule.
+
+Decision: keep `field = Politik` for these stories, and add a secondary,
+non-exclusive **attribute** dimension (e.g. `["Konflik", "Antarabangsa"]`) —
+not part of `field`, doesn't compete with the single-Bidang model, but lets a
+future UI or query distinguish "routine domestic politics" from "active
+conflict reporting" without another Bidang. Not yet implemented in schema;
+recorded here as the decided direction.
+
+### Warning: `Dunia` was becoming a dumping ground
+
+The gap review surfaced a real pattern — `Dunia` was absorbing disasters, wars,
+and foreign politics that all actually belonged somewhere once `Bencana`
+exists and `Politik` is confirmed global. `Dunia` must stay **pure residual
+geography**: a story with no subject match at all (e.g. "Japan announces new
+tourism rules"). "Earthquake kills 254" → `Bencana`, not `Dunia`.
+"Lebanon parliament vote" → `Politik`, not `Dunia`.
+
+### Redefined target: not 1% of all stories, ~1% after taxonomy+rules mature
+
+Izzat's original target — iterate until only ~1% of stories are ambiguous —
+holds, but the definition sharpens: not "1% of all 190 have zero possible
+debate" (near-impossible), but *1% remain unplaceable after the taxonomy is
+right and rules are mature*. Some boundary will always remain (SPRM-style
+politician-identity cases, government-linked companies, an artist entering
+politics, climate-driven disasters) — that's normal, not a failure.
+
+### Four-round plan to get there
+
+1. **Taxonomy Gap** (this round) — find genuinely missing categories. Don't
+   finalize labels yet.
+2. **Subject Boundary** — bring the 69 real boundary cases to Izzat, once
+   taxonomy is stable (categories like Politik vs Jenayah, Ekonomi vs
+   Teknologi, Budaya vs Hiburan, Alam Sekitar vs Bencana).
+3. **Rule Design** — build desk mapping, category mapping, phrase rules,
+   exclusions. Only after boundary cases are resolved.
+4. **Holdout Validation** — test against *new* RSS never seen during rule
+   authoring, not the same 190 items. That's the real benchmark.
+
+Labelling the 190-item corpus is paused until this taxonomy gap round closes
+— continuing now would force the 38 gap items into `Dunia`, then invalidate
+those labels the moment `Bencana` is approved, corrupting the benchmark before
+it starts.
 
 ## Future candidate — Agama
 
