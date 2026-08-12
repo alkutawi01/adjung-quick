@@ -58,7 +58,7 @@ list is well-chosen, not ms-MY-biased:
 
 | Universal Subject | Arabic display | Evidence |
 |---|---|---|
-| Politics | سياسة | AJ-Arabic desk `politics`/category `سياسة` (5 items) |
+| Politics | سياسة | AJ-Arabic desk `politics`/category `سياسة` (5 items); confirmed as a real standalone nav item by Al Araby (`سياسة`), though AJ Arabic/BBC Arabic/elalmelarby fold it into `أخبار` (News) generally — see `sesi2-edition-taxonomy-design.md` |
 | Crime | جريمة | not observed in corpus — proposed, standard MSA term |
 | Economy | اقتصاد | AJ-Arabic desk `ebusiness`/category `اقتصاد` (2 items) |
 | Business | أعمال | proposed — AJ-Arabic's `ebusiness` desk covers both macro and corporate stories in this corpus slice; needs a larger sample to confirm Arabic media actually splits these the way English/Malay do |
