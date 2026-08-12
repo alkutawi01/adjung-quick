@@ -12,8 +12,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// import.meta.env only exists under Vite — guarded so this module can also
+// be imported by plain-Node scripts (e.g. the acceptance test) that only
+// need the pure mapRowsToRankedQueue() below, not a real Supabase client.
+const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL ?? 'http://localhost';
+const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY ?? 'placeholder';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false },
@@ -46,6 +49,14 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
   if (itemsErr) throw new Error(`fetchRankedQueue: rss_items — ${itemsErr.message}`);
   if (placementsErr) throw new Error(`fetchRankedQueue: edition_story_classifications — ${placementsErr.message}`);
 
+  return mapRowsToRankedQueue({ sources, clusters, items, placements });
+}
+
+// Pure reshape, split out from fetchRankedQueue so the edition-placement
+// mapping (the exact thing the Production Classification Acceptance Test
+// needs to guard) is testable without a live Supabase call — see
+// db/production-classification-acceptance.test.mjs.
+export function mapRowsToRankedQueue({ sources, clusters, items, placements }) {
   const placementByStory = new Map(placements.map(p => [p.story_id, p]));
 
   const trustById = new Map(sources.map(s => [s.id, s.trust_score]));
