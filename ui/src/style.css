@@ -17,8 +17,24 @@
   --accent: #7a3b2e;
 }
 
-body {
+/* FIXED (2026-08-12, per Izzat's real-phone test): the wheel itself was
+   drifting up/down on touch — root cause was that only .app had
+   overflow:hidden; html/body were never locked, so on a real mobile
+   browser the page itself could rubber-band/bounce-scroll (and Safari's
+   default touch panning) while dragging on the wheel, moving the ENTIRE
+   layout instead of just rotating items inside the wheel's own track.
+   overscroll-behavior:none + locking html/body height stops the page
+   itself from ever scrolling/bouncing — only .bidang-wheel__track's own
+   internal transform may move, per its dedicated pointer handlers. */
+html, body {
+  height: 100%;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body {
   font-family: Georgia, 'Times New Roman', serif;
   color: var(--ink);
   background: var(--paper);
@@ -26,8 +42,9 @@ body {
 }
 
 .app {
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   padding: 16px 14px 24px;
   display: flex;
   flex-direction: column;
@@ -89,6 +106,7 @@ body {
   padding: 4px 0;
   cursor: grab;
   touch-action: none;
+  overscroll-behavior: none;
   /* FIXED (2026-08-12): was a fixed 190px, which left the wheel sitting
      near the top of the phone screen instead of vertically centered —
      Izzat caught this live. height:100% makes the track span the full
