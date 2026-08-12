@@ -55,11 +55,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 // keeps the tripled list anchored on the correct copy after the fact, it
 // never has to visually "jump" backward across the whole list.
 export default function TopicWheel({ topics, selectedTopic, onSelect }) {
-  const allValues = useMemo(() => [null, ...topics], [topics]); // null = "Semua"
+  // Real Bidang only. The "Semua" pseudo-Bidang that used to sit at index 0
+  // was REMOVED 2026-08-12 — Izzat's correction: he never decided to have
+  // one, it was added without approval. The reader is always inside exactly
+  // one real Bidang; there is no unfiltered view.
+  const allValues = topics;
   const currentIndex = Math.max(0, allValues.indexOf(selectedTopic));
   // Middle-copy index: where the selection actually renders in the tripled list.
   const middleIndex = allValues.length + currentIndex;
   const tripledValues = useMemo(() => [...allValues, ...allValues, ...allValues], [allValues]);
+  const hasTopics = allValues.length > 0;
 
   const trackRef = useRef(null);
   const listRef = useRef(null);
@@ -100,9 +105,11 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
     };
   }, [allValues]);
 
-  const wrapIndex = i => ((i % allValues.length) + allValues.length) % allValues.length;
+  const wrapIndex = i =>
+    hasTopics ? ((i % allValues.length) + allValues.length) % allValues.length : 0;
 
   const selectIndex = i => {
+    if (!hasTopics) return;
     const wrapped = wrapIndex(i);
     if (allValues[wrapped] !== selectedTopic) onSelect(allValues[wrapped]);
   };
@@ -254,7 +261,7 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
                 style={{ opacity: 1 - t * 0.75, transform: `scale(${1 - t * 0.28})` }}
                 aria-hidden={domIndex !== liveMiddleIndex}
               >
-                {value ?? 'Semua'}
+                {value}
               </div>
             );
           })}

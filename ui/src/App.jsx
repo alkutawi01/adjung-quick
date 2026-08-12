@@ -68,6 +68,16 @@ export default function App() {
 
   const topics = useMemo(() => [...new Set(rankedQueue.map(c => c.topic))].sort(), [rankedQueue]);
 
+  // There is no "Semua"/All Bidang (removed 2026-08-12 per Izzat — he never
+  // decided to have one). The reader is always inside exactly one real
+  // Bidang, so as soon as the Bidang list is known, select the first one.
+  useEffect(() => {
+    if (state.userContext.selectedTopic == null && topics.length > 0) {
+      dispatch(selectTopic(topics[0]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topics]);
+
   const openStory = useMemo(() => {
     if (!state.brief.open) return null;
     const cluster = rankedQueue.find(c => c.clusterKey === state.brief.storyId);

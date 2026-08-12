@@ -10,9 +10,13 @@ export function createInitialState() {
     userContext: {
       selectedLanguages: ['ms'],   // O-012 resolved: mixed set, but user still
                                     // picks which languages are eligible at all
-      selectedTopic: null,         // null = "All" — filters BACKLOG/discovery,
-                                    // never filters the Active Set itself (locked
-                                    // principle from the original product philosophy)
+      // null here means "not chosen yet" (cold start, before the Bidang list
+       // has loaded) — NOT an "All"/"Semua" pseudo-Bidang. Izzat's correction
+       // (2026-08-12): he never decided on a "Semua" Bidang; it was added
+       // without his approval and is now removed. The reader is always inside
+       // exactly one real Bidang. App.jsx picks the first real Bidang as soon
+       // as the list is known.
+      selectedTopic: null,
 
       // Derived state only — theme is a lookup FROM selectedTopic via a
       // theme resolver (topic -> ThemeTokens), never hardcoded per-topic UI

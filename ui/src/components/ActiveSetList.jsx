@@ -20,6 +20,9 @@ import StoryCard from './StoryCard.jsx';
 // (all 10 engine-controlled slots) is completely untouched by this view
 // filter — Stable Spatial Slots still governs the real data underneath.
 export default function ActiveSetList({ activeSet, sourceNames, highlightedStoryId, selectedTopic, activeSetCapacity, onSelect, onOpen, onRelease }) {
+  // selectedTopic == null only during cold start, before the Bidang list has
+  // loaded (there is no "Semua"/All pseudo-Bidang — removed 2026-08-12 per
+  // Izzat). Once a real Bidang is selected, the view always filters to it.
   const visible = selectedTopic == null
     ? activeSet
     : activeSet.filter(slot => slot._cluster?.topic === selectedTopic);
