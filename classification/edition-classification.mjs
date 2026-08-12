@@ -13,16 +13,24 @@
 
 import { resolveDefaultPlacement, EDITION_GEOGRAPHY_RESIDUAL_LABEL } from './lib/edition-taxonomy.mjs';
 import { evaluateEditionRules } from './lib/edition-rules.mjs';
+import { checkConfidenceGate } from './lib/confidence-policy.mjs';
 
-export const RULESET_VERSION = 'v1.2.0'; // bumped: maps_from -> default_mapping, reframed as optional (not a required universal->edition contract)
+export const RULESET_VERSION = 'v1.3.0'; // bumped: Confidence Gate (Sesi 3B.2C-1) inserted between Edition Rules and Default Placement Mapping
 
 // Resolver order (per ChatGPT, 2026-08-12 correction):
 // 1-2. Edition Rules (dynamic, context-aware — edition-rules.mjs)
+// 2.5  Confidence Gate (docs/resolver-confidence-policy.md) — only runs if
+//      no Edition Rule already matched; an explicit rule is never
+//      second-guessed by a confidence number.
 // 3.   Default Placement Mapping (optional fallback hint — edition-taxonomy.mjs)
 // 4.   Geography fallback / Unclassified
 // A subject with no default_mapping in a given edition is NOT a gap — that
 // edition simply hasn't (yet, or ever) chosen to surface that subject.
-export function classifyForEdition(understanding, edition) {
+//
+// thresholdOverride: benchmark-only escape hatch (classification/
+// benchmark-confidence-threshold.mjs) to test multiple min_subject_confidence
+// values without mutating the policy module's shared state. Omit in normal use.
+export function classifyForEdition(understanding, edition, thresholdOverride) {
   const subjectCandidates = understanding.subject_candidates ?? [];
   const geographyCandidates = understanding.geography_candidates ?? [];
 
@@ -43,6 +51,38 @@ export function classifyForEdition(understanding, edition) {
         display_field: resolveDefaultPlacement(edition, c.value),
       })),
     };
+  }
+
+  // Tier 2.5: Confidence Gate — per docs/resolver-confidence-policy.md §1a,
+  // this never discards the top candidate, it only decides whether Tier 3
+  // is allowed to use it as a DEFAULT placement basis. On fail, skip
+  // straight to geography fallback (the only wired-up low_confidence_action
+  // so far — see confidence-policy.mjs).
+  const gate = checkConfidenceGate(edition, subjectCandidates[0], thresholdOverride);
+  if (!gate.pass && gate.action === 'fallback_geography') {
+    const residual = EDITION_GEOGRAPHY_RESIDUAL_LABEL[edition];
+    const topGeo = geographyCandidates[0];
+    if (residual && topGeo) {
+      const label = topGeo.value === 'Malaysia' ? residual.local : residual.world;
+      return {
+        edition_id: edition,
+        field: label,
+        sub_field: null,
+        classification_status: 'classified',
+        classification_method: 'low_confidence_fallback',
+        classification_rule: `confidence_gate:${subjectCandidates[0].value}@${subjectCandidates[0].confidence}<${gate.policy.min_subject_confidence} -> story_understanding.geography:${topGeo.value} -> ${edition}.${label}`,
+        confidence: topGeo.confidence,
+        ruleset_version: RULESET_VERSION,
+        alternatives: subjectCandidates.slice(0, 3).map(c => ({
+          universal_subject: c.value, confidence: c.confidence,
+          display_field: resolveDefaultPlacement(edition, c.value),
+        })),
+      };
+    }
+    // Gate failed but there's no geography to fall back to either —
+    // continues to Tier 3 below rather than forcing unclassified, since a
+    // weak subject candidate is still better than nothing when geography
+    // itself gives us no alternative.
   }
 
   // Tier 3: Default Placement Mapping (optional fallback, not a required
@@ -105,10 +145,10 @@ export function classifyForEdition(understanding, edition) {
   };
 }
 
-export function classifyForAllEditions(understanding) {
+export function classifyForAllEditions(understanding, thresholdOverride) {
   return {
-    'ms-MY': classifyForEdition(understanding, 'ms-MY'),
-    'en': classifyForEdition(understanding, 'en'),
-    'ar': classifyForEdition(understanding, 'ar'),
+    'ms-MY': classifyForEdition(understanding, 'ms-MY', thresholdOverride),
+    'en': classifyForEdition(understanding, 'en', thresholdOverride),
+    'ar': classifyForEdition(understanding, 'ar', thresholdOverride),
   };
 }
