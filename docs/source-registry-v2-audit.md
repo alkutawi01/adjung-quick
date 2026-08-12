@@ -142,6 +142,14 @@ suggested.
 Not yet added to `lab/sources.js` or the desk vocabulary — flagged for when
 Sesi 3A/5 actually wires in new sources.
 
+## Queued sources (not yet checked — Izzat sent these, checking paused to prioritize engine build)
+
+- Al Arabiya (`alarabiya.net/tools/mrss`) — confirmed same pattern again
+  (Economy/Sports/Technology as real separate categories), actual feed URLs
+  not extracted yet.
+- `arabi21.com/rss/index` — not checked yet.
+- `alkhaleej.ae/rss` — not checked yet.
+
 ## Explicitly not done (Sesi 3+ or later)
 
 - No `lab/sources.js` change.
