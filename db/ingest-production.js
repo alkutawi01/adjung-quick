@@ -82,6 +82,17 @@ async function main() {
         normalized_url: item.normalizedUrl || null,
         language: item.language,
         published_at: item.publishedAt,
+        // Production Evidence Persistence Gap fix (2026-08-12): these two
+        // were silently never written, so every classification run against
+        // production data was missing Tier 1 (feed_category) and Tier 3
+        // (rss_category) evidence entirely — only Tier 2 (url_path, derived
+        // from `link` above, which WAS persisted) survived. Kept as two
+        // separate columns, never merged: `categories` is what the
+        // PUBLISHER declared, `source_known_category` is what OUR source
+        // registry (lab/sources.js) declares about that specific feed URL —
+        // different provenance, must stay distinguishable.
+        categories: item.categories ?? [],
+        source_known_category: item.sourceKnownCategory ?? null,
       });
     }
   }

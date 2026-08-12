@@ -42,7 +42,7 @@ async function main() {
   // own signals (link/categories/title), not the cluster's legacy topic.
   const [{ data: clusters, error: cErr }, { data: items, error: iErr }] = await Promise.all([
     supabase.from('story_clusters').select('id, topic, workspace_state'),
-    supabase.from('rss_items').select('id, cluster_id, source_id, title, description, link, categories, published_at'),
+    supabase.from('rss_items').select('id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at'),
   ]);
   if (cErr) throw new Error(`story_clusters — ${cErr.message}`);
   if (iErr) throw new Error(`rss_items — ${iErr.message}`);
@@ -75,6 +75,7 @@ async function main() {
       description: canonical.description,
       link: canonical.link,
       categories: canonical.categories ?? [],
+      sourceKnownCategory: canonical.source_known_category ?? undefined,
     });
     const editions = classifyForAllEditions(understanding);
 
