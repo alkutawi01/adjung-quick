@@ -4,10 +4,44 @@
 // Per MVP Contract: "desktop dan mobile hanya menjadi dua presentation layer
 // kepada state yang sama." Neither platform owns its own copy of this shape.
 
+// getRepresentationPreference — compatibility layer, per
+// docs/edition-state-model.md Step 2. Lets callers start reading the new
+// name (`representationPreference`) before any reducer/action actually
+// writes it, falling back to the old `selectedLanguages` field so
+// existing components don't break during migration. Once
+// representationPreference is actually written by the reducer (a later
+// step), the `?? state.userContext.selectedLanguages` fallback becomes
+// dead code, removed then — not now.
+export function getRepresentationPreference(state) {
+  return state.userContext.representationPreference
+    ?? state.userContext.selectedLanguages
+    ?? ['ms'];
+}
+
 export function createInitialState() {
   return {
+    // §EDITION CONTRACT — per docs/edition-state-model.md (Session UI-1,
+    // Step 1, added 2026-08-12). NEW, additive: does not yet replace
+    // userContext.selectedLanguages (kept below, Step 1 only ADDS this).
+    // Exactly one edition is active at a time; it owns the Wheel's
+    // taxonomy, ranking, and Active Set placement — never a mix of
+    // editions in one Active Set (docs/edition-state-model.md's explicit
+    // v1 rejection of edition-mixing). See state/editions.js for the
+    // registry this reads from.
+    editionContext: {
+      activeEdition: 'ms-MY', // DEFAULT_EDITION_ID, duplicated here as a literal
+                               // rather than imported, to keep this file's only
+                               // job (initial shape) independent of editions.js's
+                               // internal default-picking logic
+    },
+
     // §2 LANGUAGE CONTRACT
     userContext: {
+      // O-012 DEPRECATED as a mixed-Active-Set filter, per
+      // docs/edition-state-model.md — kept as-is for now (Step 1 is
+      // additive only, per ChatGPT's incremental migration plan; renaming
+      // to representationPreference[] and narrowing its meaning to
+      // per-story representation-language preference is a later step).
       selectedLanguages: ['ms'],   // O-012 resolved: mixed set, but user still
                                     // picks which languages are eligible at all
       // null here means "not chosen yet" (cold start, before the Bidang list
