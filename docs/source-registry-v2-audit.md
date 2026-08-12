@@ -116,6 +116,32 @@ feed, not a third-party proxy.
 title-prefix parsing to the evidence pipeline, or adding any of the newly
 found sources. Flagged for Sesi 3A/5, not acted on out of sequence.
 
+## Asharq Al-Awsat discovered (Izzat, 2026-08-12) — richest Arabic source found
+
+`aawsat.com/rss-feed` lists ~30 real category feeds — by far the most
+granular Arabic source found. Confirms several universal subjects
+distinctly, some for the first time in Arabic evidence: `الاقتصاد` (Economy),
+`الرياضة` (Sports), **`التعليم` (Education — second confirmation, after
+elalmelarby.com)**, `تقنية المعلومات` (Technology), **`صحتك` (Health — second
+confirmation)**, **`علوم` (Science — second confirmation)**. Also carries
+real geography-only feeds separate from subject (`العالم العربي` Arab World,
+`الخليج` Gulf, `أوروبا` Europe, `الأميركيتين` Americas, `آسيا` Asia, `أفريقيا`
+Africa) — further independent confirmation of the Subject/Geography split.
+
+**Adds a third position to the Culture/Entertainment/Arts question**, beyond
+the BBC-Arabic/AJ-Arabic merge vs. Al Araby's two-way split: Asharq
+Al-Awsat runs **three** separate feeds — `فضاءات` (Culture), `سينما`
+(Cinema/Entertainment), `أنغام وفنون` (Music & Arts) — not merged at all.
+Strengthens the case that the earlier `ثقافة وفنون` merge decision was a
+genuine simplification choice for Quick's v1, not something "the evidence"
+uniformly supports — real major outlets range from fully-merged to
+three-way-split. Not reopening the locked v1 decision now, just recording
+that the evidence is more mixed than the original two-source confirmation
+suggested.
+
+Not yet added to `lab/sources.js` or the desk vocabulary — flagged for when
+Sesi 3A/5 actually wires in new sources.
+
 ## Explicitly not done (Sesi 3+ or later)
 
 - No `lab/sources.js` change.
