@@ -1,60 +1,68 @@
-// edition-taxonomy.mjs — Edition Display Transformations, as DATA, per
-// docs/edition-architecture-model.md's LOCKED framework and
-// docs/edition-classification-contract.md's display_fields shape. Never
-// code branches per edition inside the resolver — this table IS the rule.
+// edition-taxonomy.mjs — Sesi 3B.2B refactor (2026-08-12), per ChatGPT
+// correcting its own earlier framing after Izzat asked "kenapa nak padankan
+// bidang dlm edisi arab dengan edisi malaysia?": each edition's taxonomy is
+// independent, not derived from a shared Universal Subject parent. Politics
+// (EN) / Politik (MY) / سياسة (AR) are NOT "the same category" — they are
+// three separate editorial decisions that happen to often agree.
 //
-// maps_from: which Universal Subjects/Geography values collapse into this
-// one display label for this edition. Multiple universal values -> one
-// label = Merge. One universal value -> its own label = Rename (or
-// pass-through, for English).
+// What this file IS: each edition's own list of display fields.
+// What this file is NOT: a translation table that every Universal Subject
+// must resolve into. There is no assumption that every universal subject
+// has (or needs) a display field in every edition.
+//
+// default_mapping (renamed from maps_from): an OPTIONAL fallback hint — "if
+// no Edition Rule already decided the placement, and this story's subject
+// candidate matches one of these, place it here by default." It is NOT a
+// required contract. A subject with no default_mapping anywhere just falls
+// through to geography_fallback / unclassified, which is normal, not a gap.
 
-export const EDITION_SUBJECT_TAXONOMY = {
+export const EDITION_TAXONOMY = {
   'ms-MY': [
-    { label: 'Politik', maps_from: ['Politics'] },
-    { label: 'Jenayah', maps_from: ['Crime'] },
-    { label: 'Bisnes', maps_from: ['Business', 'Economy'] }, // LOCKED merge, real ms-MY portals don't split these
-    { label: 'Sukan', maps_from: ['Sports'] },
-    { label: 'Alam Sekitar', maps_from: ['Environment'] },
-    { label: 'Bencana', maps_from: ['Disaster'] },
-    { label: 'Kesihatan', maps_from: ['Health'] },
-    { label: 'Pendidikan', maps_from: ['Education'] },
-    { label: 'Teknologi', maps_from: ['Technology'] },
-    { label: 'Sains', maps_from: ['Science'] },
-    { label: 'Budaya', maps_from: ['Culture'] },
-    { label: 'Hiburan', maps_from: ['Entertainment'] },
-    { label: 'Agama', maps_from: ['Religion'] }, // future candidate for Wheel display; still a valid classification result
-    { label: 'Gaya Hidup', maps_from: ['Lifestyle'] },
+    { label: 'Politik', default_mapping: ['Politics'] },
+    { label: 'Jenayah', default_mapping: ['Crime'] },
+    { label: 'Bisnes', default_mapping: ['Business', 'Economy'] }, // LOCKED merge, real ms-MY portals don't split these
+    { label: 'Sukan', default_mapping: ['Sports'] },
+    { label: 'Alam Sekitar', default_mapping: ['Environment'] },
+    { label: 'Bencana', default_mapping: ['Disaster'] },
+    { label: 'Kesihatan', default_mapping: ['Health'] },
+    { label: 'Pendidikan', default_mapping: ['Education'] },
+    { label: 'Teknologi', default_mapping: ['Technology'] },
+    { label: 'Sains', default_mapping: ['Science'] },
+    { label: 'Budaya', default_mapping: ['Culture'] },
+    { label: 'Hiburan', default_mapping: ['Entertainment'] },
+    { label: 'Agama', default_mapping: ['Religion'] }, // future candidate for Wheel display; still a valid classification result
+    { label: 'Gaya Hidup', default_mapping: ['Lifestyle'] },
   ],
   'en': [
-    { label: 'Politics', maps_from: ['Politics'] },
-    { label: 'Crime', maps_from: ['Crime'] },
-    { label: 'Economy', maps_from: ['Economy'] },
-    { label: 'Business', maps_from: ['Business'] }, // BBC/Guardian both split these — no merge for en
-    { label: 'Sports', maps_from: ['Sports'] },
-    { label: 'Environment', maps_from: ['Environment'] },
-    { label: 'Disaster', maps_from: ['Disaster'] },
-    { label: 'Health', maps_from: ['Health'] },
-    { label: 'Education', maps_from: ['Education'] },
-    { label: 'Technology', maps_from: ['Technology'] },
-    { label: 'Science', maps_from: ['Science'] },
-    { label: 'Culture', maps_from: ['Culture'] },
-    { label: 'Entertainment', maps_from: ['Entertainment'] },
-    { label: 'Religion', maps_from: ['Religion'] },
-    { label: 'Lifestyle', maps_from: ['Lifestyle'] },
+    { label: 'Politics', default_mapping: ['Politics'] },
+    { label: 'Crime', default_mapping: ['Crime'] },
+    { label: 'Economy', default_mapping: ['Economy'] },
+    { label: 'Business', default_mapping: ['Business'] }, // BBC/Guardian both split these — no merge for en
+    { label: 'Sports', default_mapping: ['Sports'] },
+    { label: 'Environment', default_mapping: ['Environment'] },
+    { label: 'Disaster', default_mapping: ['Disaster'] },
+    { label: 'Health', default_mapping: ['Health'] },
+    { label: 'Education', default_mapping: ['Education'] },
+    { label: 'Technology', default_mapping: ['Technology'] },
+    { label: 'Science', default_mapping: ['Science'] },
+    { label: 'Culture', default_mapping: ['Culture'] },
+    { label: 'Entertainment', default_mapping: ['Entertainment'] },
+    { label: 'Religion', default_mapping: ['Religion'] },
+    { label: 'Lifestyle', default_mapping: ['Lifestyle'] },
   ],
   'ar': [
-    { label: 'سياسة', maps_from: ['Politics'] },
-    { label: 'جريمة', maps_from: ['Crime'] },
-    { label: 'اقتصاد', maps_from: ['Business', 'Economy'] }, // LOCKED merge, Arabic sources show no real split
-    { label: 'رياضة', maps_from: ['Sports'] },
-    { label: 'بيئة', maps_from: ['Environment'] },
-    { label: 'كوارث', maps_from: ['Disaster'] },
-    { label: 'صحة وعلوم', maps_from: ['Health', 'Science'] }, // LOCKED merge, BBC Arabic evidence
-    { label: 'تعليم', maps_from: ['Education'] },
-    { label: 'تكنولوجيا', maps_from: ['Technology'] },
-    { label: 'ثقافة وفنون', maps_from: ['Culture', 'Entertainment'] }, // LOCKED v1 merge, editorial choice not unanimous evidence — see sesi2-edition-taxonomy-design.md
-    { label: 'دين', maps_from: ['Religion'] },
-    { label: 'منوعات', maps_from: ['Lifestyle'] },
+    { label: 'سياسة', default_mapping: ['Politics'] },
+    { label: 'جريمة', default_mapping: ['Crime'] },
+    { label: 'اقتصاد', default_mapping: ['Business', 'Economy'] }, // LOCKED merge, Arabic sources show no real split
+    { label: 'رياضة', default_mapping: ['Sports'] },
+    { label: 'بيئة', default_mapping: ['Environment'] },
+    { label: 'كوارث', default_mapping: ['Disaster'] },
+    { label: 'صحة وعلوم', default_mapping: ['Health', 'Science'] }, // LOCKED merge, BBC Arabic evidence
+    { label: 'تعليم', default_mapping: ['Education'] },
+    { label: 'تكنولوجيا', default_mapping: ['Technology'] },
+    { label: 'ثقافة وفنون', default_mapping: ['Culture', 'Entertainment'] }, // LOCKED v1 merge, editorial choice not unanimous evidence — see sesi2-edition-taxonomy-design.md
+    { label: 'دين', default_mapping: ['Religion'] },
+    { label: 'منوعات', default_mapping: ['Lifestyle'] },
   ],
 };
 
@@ -67,8 +75,13 @@ export const EDITION_GEOGRAPHY_RESIDUAL_LABEL = {
   'ar': { local: 'ماليزيا', world: 'العالم' },
 };
 
-export function subjectToDisplayField(edition, universalSubject) {
-  const table = EDITION_SUBJECT_TAXONOMY[edition] ?? [];
-  const entry = table.find(e => e.maps_from.includes(universalSubject));
+// Tier 3 of the resolver: default placement mapping. Only consulted when no
+// Edition Rule (tiers 1-2, edition-rules.mjs) already matched. Returns null
+// (not a thrown error, not a forced fallback) when this edition simply has
+// no default placement for the given subject — that is a legitimate,
+// expected outcome, not a gap to patch over.
+export function resolveDefaultPlacement(edition, universalSubject) {
+  const table = EDITION_TAXONOMY[edition] ?? [];
+  const entry = table.find(e => e.default_mapping.includes(universalSubject));
   return entry?.label ?? null;
 }
