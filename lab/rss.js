@@ -108,6 +108,16 @@ export function parseRssXml(xmlString, source) {
 }
 
 export async function fetchFeed(source) {
+  // Source Health (per ChatGPT, 2026-08-12): a source marked with a known,
+  // diagnosed failure status (e.g. 'failed_tls' — JAKIM's missing
+  // intermediate certificate) short-circuits here instead of re-attempting
+  // a fetch every ingestion run. This is NOT the same as silently dropping
+  // the source — it stays in the registry, the reason is preserved in the
+  // result, and removing `status` from sources.js re-enables fetching with
+  // no code change here.
+  if (source.status && source.status !== 'active') {
+    return { source, ok: false, error: `source status: ${source.status}`, items: [], skipped: true };
+  }
   try {
     const res = await fetch(source.url, {
       headers: { 'User-Agent': 'AdjungQuickLab/0.1 (+editorial-ranking-laboratory)' },

@@ -82,16 +82,31 @@ export const RSS_SOURCES = [
   { id: 'rss-rtm-sukan', name: 'RTM — Berita Sukan', url: 'https://rss.app/feeds/xdgz2Wiw03ZfQbD8.xml', language: 'ms', trustScore: 88, knownCategory: 'sukan' },
   { id: 'rss-rtm-hiburan', name: 'RTM — Berita Hiburan', url: 'https://rss.app/feeds/6YsTj9HrPlT7416Q.xml', language: 'ms', trustScore: 88, knownCategory: 'hiburan' },
 
-  // JAKIM (islam.gov.my). The ONLY source we have for the Agama Bidang,
-  // which renders completely empty today. Verified 2026-08-12: valid RSS
-  // (Joomla), 10 items — but ONLY when fetched from a browser. Node's fetch
-  // fails outright ("fetch failed"), the same symptom already documented for
-  // Bernama's Malay feed. Likely TLS/User-Agent filtering at their end, not
-  // a bad URL. Added anyway so the source is registered and the problem is
-  // visible in the pipeline rather than forgotten — expect these two to be
-  // skipped by lab/rss.js until that fetch issue is solved.
-  { id: 'rss-jakim-berita', name: 'JAKIM — Berita', url: 'https://www.islam.gov.my/ms/berita?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama' },
-  { id: 'rss-jakim-kenyataan', name: 'JAKIM — Kenyataan Media', url: 'https://www.islam.gov.my/ms/kenyataan-media?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama' },
+  // JAKIM (islam.gov.my). Root cause diagnosed 2026-08-12 (not a status-code
+  // issue like Bernama): UNABLE_TO_VERIFY_LEAF_SIGNATURE. Confirmed via a
+  // direct TLS handshake — JAKIM's server does not send its intermediate
+  // certificate, so any strict TLS client (Node) correctly rejects it while
+  // browsers tolerate it (they cache/fetch intermediates more leniently).
+  // This is a genuine misconfiguration on JAKIM's server, not our bug.
+  //
+  // Per ChatGPT (2026-08-12): do NOT relax TLS verification to work around
+  // this, not even scoped to this one domain — that would set a precedent
+  // ("if the source matters enough, bypass TLS") this project doesn't want,
+  // for a feed that isn't even reachable reliably in the first place. Kept
+  // registered rather than deleted, with status: 'failed_tls', so the gap
+  // stays visible in the pipeline instead of being silently forgotten.
+  { id: 'rss-jakim-berita', name: 'JAKIM — Berita', url: 'https://www.islam.gov.my/ms/berita?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama', status: 'failed_tls', statusReason: 'missing intermediate certificate (UNABLE_TO_VERIFY_LEAF_SIGNATURE)' },
+  { id: 'rss-jakim-kenyataan', name: 'JAKIM — Kenyataan Media', url: 'https://www.islam.gov.my/ms/kenyataan-media?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama', status: 'failed_tls', statusReason: 'missing intermediate certificate (UNABLE_TO_VERIFY_LEAF_SIGNATURE)' },
+
+  // Agama alternatives (2026-08-12), found per ChatGPT's instruction to keep
+  // searching rather than rely on JAKIM alone. Both verified: valid feed,
+  // real Islamic-content items.
+  { id: 'rss-utusan-agama', name: 'Utusan — Agama', url: 'https://www.utusan.com.my/category/agama/feed/', language: 'ms', trustScore: 90, knownCategory: 'agama' },
+  // IKIM's feed mixes in occasional English-titled items (its own site is
+  // bilingual) — kept anyway since the majority is genuine Malay Islamic
+  // content and language filtering already happens downstream
+  // (state/representation.js); not treated as reason to exclude the source.
+  { id: 'rss-ikim', name: 'IKIM', url: 'https://www.ikim.gov.my/feed/', language: 'ms', trustScore: 85, knownCategory: 'agama' },
 
   // Niche-authority sources for Bidang with no dedicated Malay news desk
   // (docs/empty-bidang-policy.md: fix the source registry, never infer the
