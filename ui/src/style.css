@@ -89,6 +89,16 @@ body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  /* FIXED (2026-08-12, per ChatGPT's real bug find): the track previously
+     stretched height:100% (full column height), so the ENTIRE tripled
+     list fit inside it with nothing to clip — aria-hidden on the non-
+     center copies hides them from screen readers only, NOT visually, so
+     the "wheel" was actually rendering as one long visible list of every
+     Bidang three times over. A wheel needs a bounded WINDOW, vertically
+     centered in the column, with overflow:hidden actually cutting off
+     everything outside it. justify-content:center here + a fixed height
+     on .bidang-wheel__track below is what creates that window. */
+  justify-content: center;
   flex: 0 0 auto;
   /* FIXED (2026-08-11): width:max-content silently collapsed to 0 once
      .bidang-wheel__list became position:absolute (sixth round) — an
@@ -115,16 +125,22 @@ body {
   cursor: grab;
   touch-action: none;
   overscroll-behavior: none;
-  /* FIXED (2026-08-12): was a fixed 190px, which left the wheel sitting
-     near the top of the phone screen instead of vertically centered —
-     Izzat caught this live. height:100% makes the track span the full
-     .app__body column (which itself stretches the whole available
-     height below the masthead), so the selected item's center genuinely
-     aligns with the vertical center of the visible screen, not an
-     arbitrary fixed box. */
-  height: 100%;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+  /* FIXED (2026-08-12, per ChatGPT's real bug find + Izzat's reference
+     example): height:100% was the actual visual bug — it made the track
+     as tall as the whole column, so nothing was ever clipped and the
+     FULL tripled list (every Bidang three times over) rendered visibly
+     as one long list, not a wheel. aria-hidden on the non-center copies
+     only affects the accessibility tree, never the visual layout, so it
+     could never have fixed this. A wheel needs a bounded WINDOW: fixed
+     height, vertically centered by .bidang-wheel's justify-content, with
+     overflow:hidden actually cutting off everything past its edges — the
+     same structure as Izzat's found reference (.menu-box: fixed height +
+     overflow:hidden + centered absolutely-positioned list). 7 visible
+     rows reads as a wheel without feeling cramped on a small phone. */
+  height: 238px; /* ~7 items x ~34px row height, matches itemStep default */
+  flex: 0 0 auto;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
 }
 .bidang-wheel__track:active { cursor: grabbing; }
 
