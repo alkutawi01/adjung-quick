@@ -9,6 +9,18 @@ what the evidence actually says (a specific RSS category vs a generic
 "News" catch-all). This document replaces the tier-ranking mental model
 with an **Evidence Quality Matrix**.
 
+## Evidence Calibration Status (added after Sesi 3B.2C-4, 2026-08-12)
+
+Not all four classes carry equal certainty — this table exists so nobody
+reading this matrix mistakes "documented" for "validated":
+
+| Class | Calibration status |
+|---|---|
+| Strong | **Validated** — sesi3a2's 20-item manual sample (10 Business + 10 Sports feed_category items), 0.98-0.99 confidence, all confirmed correct. |
+| Medium | **Pending validation** — 147 evidence items in the live corpus (`evidence-calibration-report.mjs`), no manual accuracy judgment yet. Sesi 3B.2C-5's job. |
+| Weak | **Known unreliable** — 3 documented false positives (sesi3a2), reconfirmed in Batch A. Not pending anything; already disqualified from driving default placement (`docs/resolver-confidence-policy.md`). |
+| Ignored | **Filtered** — excluded from candidate generation entirely (`desk-vocabulary.mjs`'s `STRUCTURAL_NOISE`); 0 items reach the candidate pool, so there's nothing left to calibrate. |
+
 ## Why this exists
 
 Three real findings, all from Sesi 3B.2C-1/2's benchmarking against the
