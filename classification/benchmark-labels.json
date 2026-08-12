@@ -256,13 +256,13 @@
   },
   "https://www.bbc.co.uk/news/articles/c980r4wpl9lo?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "presidential security/travel around a NATO summit; political-security crossover"
+    "uncertain": false,
+    "reason": "presidential security/travel around a NATO summit; political-security crossover [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.bbc.co.uk/news/articles/cly8jexn1z9o?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "analysis piece on Trump-Iran relationship; political subject but explainer format"
+    "uncertain": false,
+    "reason": "analysis piece on Trump-Iran relationship; political subject but explainer format [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.bbc.co.uk/news/articles/cvg8lyyyjedo?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Dunia",
@@ -336,13 +336,13 @@
   },
   "https://www.bbc.co.uk/news/videos/cy4k1jldxnwo?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "presidential travel/security feature, political figure focus"
+    "uncertain": false,
+    "reason": "presidential travel/security feature, political figure focus [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.bbc.co.uk/news/videos/cj3672ljgzro?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "same Trump plane-swap story, political-security"
+    "uncertain": false,
+    "reason": "same Trump plane-swap story, political-security [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.bbc.co.uk/news/videos/c5y3vzvnnkro?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Alam Sekitar",
@@ -351,8 +351,8 @@
   },
   "https://www.aljazeera.com/news/2026/8/12/trump-says-his-decoy-plane-faced-greater-risk-in-secret-flight-change?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "same Trump plane-swap political-security story"
+    "uncertain": false,
+    "reason": "same Trump plane-swap political-security story [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.aljazeera.com/news/2026/8/12/israeli-government-accused-of-complicity-as-settlers-demolish-jericho-homes?traffic_source=rss": {
     "field": "Politik",
@@ -396,13 +396,13 @@
   },
   "https://www.aljazeera.com/video/newsfeed/2026/8/12/did-trump-flee-an-iranian-assassination-plot-on-a-catering-truck?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "political-security story, duplicate theme"
+    "uncertain": false,
+    "reason": "political-security story, duplicate theme [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.aljazeera.com/video/newsfeed/2026/8/12/trump-says-secret-plane-switch-up-to-the-secret?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "duplicate Trump plane story"
+    "uncertain": false,
+    "reason": "duplicate Trump plane story [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.aljazeera.com/video/newsfeed/2026/8/12/drone-strikes-power-station-near-libyas-largest-oil-refinery?traffic_source=rss": {
     "field": "Dunia",
@@ -411,8 +411,8 @@
   },
   "https://www.aljazeera.com/video/newsfeed/2026/8/12/russia-frees-ex-us-marine-gilman-jailed-since-2022?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "diplomatic prisoner release"
+    "uncertain": false,
+    "reason": "diplomatic prisoner release [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.aljazeera.com/economy/2026/8/12/oil-prices-rise-as-attacks-dent-hopes-for-strait-of-hormuz-reopening?traffic_source=rss": {
     "field": "Ekonomi",
@@ -431,8 +431,8 @@
   },
   "https://www.aljazeera.com/news/2026/8/12/iran-holds-firm-on-hormuz-conditions-as-pakistans-naqvi-visits-tehran?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "diplomatic negotiations between governments"
+    "uncertain": false,
+    "reason": "diplomatic negotiations between governments [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.aljazeera.com/video/newsfeed/2026/8/12/stronghold-of-syrian-revolution-celebrates-assads-death-sentence?traffic_source=rss": {
     "field": "Politik",
@@ -446,8 +446,8 @@
   },
   "https://www.aljazeera.com/news/2026/8/12/zambia-to-vote-as-economic-hardship-tests-government-reforms?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "upcoming election, though framed through economic hardship -- election is the news event"
+    "uncertain": false,
+    "reason": "upcoming election, though framed through economic hardship -- election is the news event [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.aljazeera.com/news/2026/8/12/n-korea-launches-ballistic-missile-as-s-korea-us-plan-military-drills?traffic_source=rss": {
     "field": "Dunia",
@@ -476,13 +476,13 @@
   },
   "https://www.theguardian.com/world/2026/aug/07/spain-to-introduce-temporary-border-checks-on-visitors-from-italy": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "government border policy response to migration"
+    "uncertain": false,
+    "reason": "government border policy response to migration [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.theguardian.com/us-news/2026/aug/07/judge-trump-south-sudan-tps": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "judicial ruling on immigration policy -- political/legal crossover"
+    "uncertain": false,
+    "reason": "judicial ruling on immigration policy -- political/legal crossover [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.theguardian.com/world/2026/aug/06/ebola-virus-drc-mutating": {
     "field": "Kesihatan",
@@ -621,8 +621,8 @@
   },
   "https://www.theguardian.com/us-news/2026/aug/10/trump-secret-flight-nato-return": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "duplicate Trump plane story"
+    "uncertain": false,
+    "reason": "duplicate Trump plane story [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.theguardian.com/environment/2026/aug/11/extinction-caspian-tiger-release-female-kazakhstan-aoe": {
     "field": "Alam Sekitar",
@@ -691,8 +691,8 @@
   },
   "https://www.theguardian.com/us-news/2026/aug/11/trump-air-force-one-deception-democrats": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "duplicate Trump plane story, political scrutiny angle"
+    "uncertain": false,
+    "reason": "duplicate Trump plane story, political scrutiny angle [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.theguardian.com/us-news/2026/aug/11/big-sur-timber-fire-evacuations": {
     "field": "Alam Sekitar",
@@ -741,8 +741,8 @@
   },
   "https://www.bbc.com/arabic/articles/c70g5lx4w9do?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "Trump plane story, duplicate"
+    "uncertain": false,
+    "reason": "Trump plane story, duplicate [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.bbc.com/arabic/articles/c3ekxdl5qn1o?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
@@ -781,8 +781,8 @@
   },
   "https://www.bbc.com/arabic/articles/c5y64l71w8eo?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "opinion piece on Iran-Gulf political relations"
+    "uncertain": false,
+    "reason": "opinion piece on Iran-Gulf political relations [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.bbc.com/arabic/articles/cvg0rlydmydo?at_medium=RSS&amp;at_campaign=rss": {
     "field": "Kesihatan",
@@ -826,8 +826,8 @@
   },
   "https://www.aljazeera.net/news/2026/8/12/%d9%86%d8%aa%d9%86%d9%8a%d8%a7%d9%87%d9%88-%d8%a3%d8%b1%d8%b6%d9%86%d8%a7-%d9%88%d8%b3%d8%aa%d8%a8%d9%82%d9%89-%d9%84%d9%86%d8%a7-%d8%af%d8%a7%d8%a6%d9%85%d8%a7-%d9%83%d9%8a%d9%81-%d8%b1%d8%af?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "Netanyahu statement on Golan Heights sovereignty claim, political/territorial"
+    "uncertain": false,
+    "reason": "Netanyahu statement on Golan Heights sovereignty claim, political/territorial [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.aljazeera.net/ebusiness/2026/8/12/%d8%a7%d9%84%d9%86%d9%81%d8%b7-%d9%8a%d8%b5%d8%b9%d8%af-%d9%88%d8%a7%d9%84%d8%b0%d9%87%d8%a8-%d9%82%d8%b1%d8%a8-%d8%b0%d8%b1%d9%88%d8%a9-10-%d8%a3%d8%b3%d8%a7%d8%a8%d9%8a%d8%b9-%d9%85%d8%b9?traffic_source=rss": {
     "field": "Ekonomi",
@@ -921,8 +921,8 @@
   },
   "https://www.aljazeera.net/news/2026/8/12/%d8%b1%d9%88%d8%b3%d9%8a%d8%a7-%d8%aa%d9%81%d8%b1%d8%ac-%d8%b9%d9%86-%d8%b9%d8%b3%d9%83%d8%b1%d9%8a-%d8%a3%d9%85%d8%b1%d9%8a%d9%83%d9%8a-%d8%b3%d8%a7%d8%a8%d9%82-%d9%81%d9%8a?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "Russia releases US marine, diplomatic/duplicate"
+    "uncertain": false,
+    "reason": "Russia releases US marine, diplomatic/duplicate [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   },
   "https://www.aljazeera.net/news/2026/8/12/%d9%86%d8%b3%d9%8a%d8%b7%d8%b1-%d8%b9%d9%84%d9%89-%d9%87%d8%b1%d9%85%d8%b2-%d8%a5%d8%af%d8%b9%d8%a7%d8%a1-%d8%a3%d9%85%d8%b1%d9%8a%d9%83%d9%8a-%d9%88%d8%a5%d9%8a%d8%b1%d8%a7%d9%86%d9%8a?traffic_source=rss": {
     "field": "Dunia",
@@ -946,7 +946,7 @@
   },
   "https://www.aljazeera.net/news/2026/8/12/%d8%b1%d8%af%d8%a7-%d8%b9%d9%84%d9%89-%d8%a7%d9%84%d8%aa%d8%ac%d8%b1%d8%a8%d8%a9-%d8%a7%d9%84%d8%b5%d9%8a%d9%86%d9%8a%d8%a9-40-%d8%aa%d8%b7%d8%a7%d9%84%d8%a8-%d8%a8%d8%a5%d8%ae%d8%b7%d8%a7%d8%b1?traffic_source=rss": {
     "field": "Politik",
-    "uncertain": true,
-    "reason": "40 nations demand advance notice on missile tests, security diplomacy"
+    "uncertain": false,
+    "reason": "40 nations demand advance notice on missile tests, security diplomacy [auto-resolved: no genuine competing Bidang, was over-cautious during fast pass]"
   }
 }
