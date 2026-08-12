@@ -45,6 +45,35 @@ that "foreign politics → Dunia" is the right editorial call, which is high
 *because* an explicit rule matched, not because the underlying subject
 evidence changed.
 
+## 1a. Confidence Gate Semantics (added after ChatGPT review, 2026-08-12)
+
+The confidence gate never says:
+
+> "this candidate is wrong."
+
+It only ever says:
+
+> "this candidate is not strong enough to be the basis of a default
+> placement."
+
+Worked example:
+
+```json
+{
+  "subject_candidates": [{ "value": "Politics", "confidence": 0.45 }],
+  "geography_candidate": "Malaysia",
+  "geography_confidence": 0.90
+}
+```
+
+The gate does not discard `Politics` — it remains in Story Understanding's
+output, untouched, as evidence. The gate only tells the *resolver*: this
+subject signal isn't strong enough to drive this edition's default
+placement, try geography fallback instead. This distinction matters
+because future evidence (e.g. entity detection, not yet built) could
+strengthen the same candidate later — a discarded candidate could never
+recover; a gated one can.
+
 ## 2. The real open question: what happens when subject confidence is low?
 
 Not yet decided. Worked example:
@@ -138,14 +167,26 @@ and measure:
 - **Wrong-placement rate** — requires a small manual-judgment sample (not
   yet collected) to check whether low-confidence candidates that *do* win
   are actually reasonable placements or not.
+- **Editorial disagreement rate** (added after ChatGPT review, 2026-08-12)
+  — kept separate from wrong-placement, not folded into it. "Wrong" is too
+  harsh a word for cases where the engine's output is defensible but a
+  Chief Editor would have made a different, equally legitimate call.
+  Worked example: *"Anwar bertemu Presiden Indonesia"* — engine says
+  `Politics`; the Chief Editor might reasonably say `Malaysia` or `Dunia`
+  instead. That is not a technical error, it's an editorial preference.
+  The manual-review sample must record `engine_output` vs
+  `chief_editor_judgement` and classify each disagreement as either
+  **technical error** (the engine missed real evidence) or **editorial
+  preference** (both calls are defensible, humans just differ) — mixing
+  the two into one "error rate" would overstate how broken the engine is.
 
 Illustrative shape only (no real numbers yet):
 
-| threshold | unclassified | manual errors |
-|---|---|---|
-| 0.4 | low | high |
-| 0.6 | moderate | moderate |
-| 0.8 | high | low |
+| threshold | unclassified | technical error | editorial disagreement |
+|---|---|---|---|
+| 0.4 | low | ? | ? |
+| 0.6 | moderate | ? | ? |
+| 0.8 | high | ? | ? |
 
 The actual table gets filled in during 3B.2C-1, not here.
 
