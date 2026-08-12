@@ -87,18 +87,17 @@ async function main() {
       const match = after.activeSet.find(a => a.slot === s.slot);
       return match && match.storyId === s.storyId;
     });
-    const replacementAtSameSlot = (() => {
-      const replacement = after.activeSet.find(a => a.slot === slotIndexToRelease);
-      // Either the same slot has a NEW story (replacement found), or the
-      // slot is legitimately empty (no eligible candidate) — either way,
-      // no entry may exist claiming slot > the original max slot count
-      // (that would mean it got appended instead of placed in-slot).
-      const maxOriginalSlot = Math.max(...before.map(s => s.slot));
-      const noAppendedSlot = after.activeSet.every(a => a.slot <= maxOriginalSlot);
-      return noAppendedSlot && (!replacement || replacement.storyId !== targetEntry.storyId);
-    })();
-    assert(label, allUntouchedPreserved && replacementAtSameSlot,
-      `untouchedPreserved=${allUntouchedPreserved} replacementAtSameSlot=${replacementAtSameSlot}`);
+    // Strengthened per ChatGPT audit (2026-08-12): the original assertion
+    // let an EMPTY slot pass silently, which only proves "the old story
+    // isn't there" — not "a replacement actually filled it". With 196 real
+    // RSS items and only 10 slots occupied, a candidate always exists, so
+    // this test environment must show a real replacement, not an empty slot.
+    const maxOriginalSlot = Math.max(...before.map(s => s.slot));
+    const noAppendedSlot = after.activeSet.every(a => a.slot <= maxOriginalSlot);
+    const replacement = after.activeSet.find(a => a.slot === slotIndexToRelease);
+    const slotActuallyRefilledWithNewStory = !!replacement && replacement.storyId !== targetEntry.storyId;
+    assert(label, allUntouchedPreserved && noAppendedSlot && slotActuallyRefilledWithNewStory,
+      `untouchedPreserved=${allUntouchedPreserved} noAppendedSlot=${noAppendedSlot} slotActuallyRefilledWithNewStory=${slotActuallyRefilledWithNewStory}`);
   }
 
   assertSlotPreserved('TEST 9a — release slot 0: only slot 0 changes, all others keep position+story', 0);
