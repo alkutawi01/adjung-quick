@@ -207,6 +207,48 @@ not measurement.
 
 UI work resumes only after all of the above passes.
 
+## LOCKED — classification is language-independent (2026-08-12)
+
+Real collision surfaced while labelling the benchmark: Izzat's answer to
+"should Politik be global or Malaysia-only" was *"kalau pembaca pilih bahasa
+Melayu, maka politik malaysia sahaja. jika pilih bahasa lain, maka sejagat"* —
+which implied the same story could carry a different Bidang depending on
+reader language. That collides directly with locked O-012 ("one Active Set,
+never one per language").
+
+ChatGPT's resolution (confidence 0.96): Izzat is describing **editorial
+relevance**, not classification. Two different questions were being
+conflated — *what is this story about* (Subject) vs *is this story relevant to
+this reader* (Scope/Context). Fix:
+
+- **`field` stays ONE value per Story Cluster, language-independent.** Politik
+  is a global subject — Lebanon's parliament, NZ's PM, Malaysia's PRU are all
+  `Politik`. Forcing Politik to mean "Malaysia only" breaks the Bidang's
+  semantics and turns every foreign political story into `Dunia`, when `Dunia`
+  is a geography bucket, not a subject.
+- **`Malaysia`/`Dunia` remain pure residual** — assigned only when *no subject*
+  matches. A political story about any country is still `Politik`; it never
+  falls to `Malaysia`/`Dunia`, per the already-locked subject-beats-geography
+  rule. This was the existing design; the only real question was whether
+  Politik itself was Malaysia-scoped, and it is not.
+- **Reader-language relevance is a future presentation-layer concern** —
+  named "Reader Scope Resolver" / "Editorial Context Filter", explicitly NOT
+  built yet, explicitly NOT part of classification. It would read
+  `field` + `geography_candidate` + the reader's language/region context to
+  decide what the *wheel* shows — e.g. a Malay-context wheel might
+  deprioritize non-Malaysian `Politik` stories — without ever changing the
+  stored classification. Story identity stays singular; language selects
+  representation, never re-classifies the story (same principle as O-012).
+- **`geography_candidate` should hold real granularity**, not just a
+  `Malaysia`/`Dunia` binary — actual country/region (`Lebanon`, `New Zealand`,
+  `Malaysia`) so a future relevance layer has something to filter on. No schema
+  change needed (`TEXT`, already flexible); this only affects what values get
+  written into it.
+
+**Practical effect on labelling:** no rework needed. Label `field` as the true
+global subject; `Malaysia`/`Dunia` only for stories with no subject match at
+all — exactly the rule already in use.
+
 ## Remaining open question
 
 1. **`topic` column retirement** — add/backfill/switch/drop across two
