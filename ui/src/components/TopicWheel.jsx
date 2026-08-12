@@ -218,6 +218,17 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   const liveIndex = wrapIndex(currentIndex + Math.round(-rawOffsetPx / itemStep));
   const liveMiddleIndex = allValues.length + liveIndex;
 
+  // BUG FOUND 2026-08-12 (ChatGPT audit of the liveIndex fix above): using
+  // the ROUNDED liveMiddleIndex for the opacity/scale falloff too made the
+  // falloff jump in whole-item steps instead of following the finger
+  // continuously — a regression from the original per-pixel falloff. The
+  // rounded index is still correct (and required) for the single "active"
+  // class, since exactly one item must be discretely marked active at any
+  // moment. But the smooth falloff needs the CONTINUOUS (non-rounded)
+  // center position, so it keeps interpolating sub-pixel as the list
+  // slides, same as before the liveIndex fix.
+  const continuousCenterPos = middleIndex - rawOffsetPx / itemStep;
+
   return (
     <div className="bidang-wheel" aria-label="Bidang">
       <nav
@@ -233,7 +244,7 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
           style={{ transform: `translateY(${centerOffset}px)`, transition: 'none' }}
         >
           {tripledValues.map((value, domIndex) => {
-            const dist = Math.min(3, Math.abs(domIndex - liveMiddleIndex));
+            const dist = Math.min(3, Math.abs(domIndex - continuousCenterPos));
             const t = Math.max(0, Math.min(1, dist / 3));
             return (
               <div
