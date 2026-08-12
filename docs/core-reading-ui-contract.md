@@ -232,6 +232,67 @@ control for it should not read as a lightweight toggle. **[OPEN]**
 whether the UI warns the reader before switching if it would change >N
 slots — a UX-polish question, not decided here.
 
+### 11a. Language Switch Contract (added 2026-08-12, UI Phase 1)
+
+Triggered by Izzat's question during UI Phase 1 scoping: what happens
+when a reader switches edition mid-read and either (a) the story has no
+coverage in the new edition, or (b) the story's current Bidang doesn't
+exist as a category in the new edition's taxonomy (e.g. ms-MY's `Agama`
+has no equivalent Wheel entry in the Arabic edition)?
+
+**Locked principle: a language/edition switch changes representation
+context, not a taxonomy translation.** Two previously-conflated concepts
+must stay separate:
+
+```
+Story Cluster
+       │
+       ├── Representation Layer   — "is there coverage/text in this language?"
+       │        (Malay / English / Arabic)
+       │
+       └── Edition Placement Layer — "where does this story live in this edition's taxonomy?"
+                (ms-MY / en / ar, each independent per docs/edition-taxonomy.mjs)
+```
+
+**Switch behavior, per case:**
+
+- **Representation exists + taxonomy has an equivalent field** — switch
+  proceeds normally, story continues, field re-resolves under the new
+  edition's own placement (never assumed identical to the old field —
+  per the locked "editions don't share taxonomy" principle).
+- **Representation exists but the field doesn't exist in the new
+  edition's taxonomy** (the `Agama` example) — story continues (coverage
+  is available), but the selected Wheel category does **not** carry over
+  as-is; re-resolve under the new edition's own placement rules, which
+  may differ from the source edition's category entirely. Never
+  auto-map one edition's category name onto another's as if they were
+  translations of each other.
+- **No representation at all in the requested edition** (e.g. a
+  Malaysia-local story with no Arabic-language source coverage) — **do
+  not force the switch to fail or show an empty/404 state.** Keep the
+  current representation, optionally inform the reader (e.g. "Tiada
+  liputan Arab untuk berita ini — kekal dalam versi asal"), per
+  ChatGPT's framing: this is normal for a multi-edition editorial system
+  (real international portals like CNN Arabic don't have 1:1 story
+  parity with CNN English either) — not an error state to eliminate.
+
+**No guarantee a story exists in all editions.** Adjung Quick is not
+attempting to be "one portal in three languages" — it's one system with
+several editions that share a story graph only where real coverage
+overlaps. §4's Active Set membership rule (engine-controlled, UI only
+renders) and this section's fallback-to-current-representation rule
+both follow from the same principle: never force a UI state the
+underlying data can't actually support.
+
+**State-management implication (not implemented here):** `SWITCH_LANGUAGE`
+should conceptually resolve two separate concerns —
+`representationSelector` (`currentStoryId`, `availableRepresentations[]`,
+`selectedRepresentation`) and `editionContext` (`locale`, `taxonomy`,
+`selectedField`) — rather than treating "language" as a single flat
+value that implies both at once. This is a design note for whoever
+implements the eventual `state/representation.js` changes, not a schema
+or code change made by this document.
+
 ---
 
 ## 12. Save
