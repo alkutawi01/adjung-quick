@@ -149,7 +149,65 @@ Merging them lets `Malaysia` act as a garbage collector that looks impressive.
 The harness already reports per-Bidang precision/recall, a confusion matrix,
 per-source accuracy, and residual share as a separate line.
 
-## Open questions for the decision audit
+## Decisions from ChatGPT's audit (2026-08-12) — migration APPROVED
+
+1. **`topic` retirement — two stages, confirmed.** Add the new columns now, keep
+   `topic` and its index. Do **not** blind-backfill `topic → field`: the old
+   values came from the classifier we're replacing, so backfilling would import
+   its mistakes as ground truth. Drop order: new schema → classifier → benchmark
+   + editorial labels → classify corpus → verify → switch adapter/UI → regression
+   → drop `topic`. (0.99)
+2. **Classify at ingestion, store the result — LOCKED.** Not at read time. A
+   `classification/reclassify.mjs` pass handles ruleset changes. Build it now,
+   don't wait for Sesi 3. (0.97)
+3. **Classify the Story Cluster, not the RSS item.** Clustering decides what
+   counts as one story; classification decides its Bidang. The two engines stay
+   separate and classification must never alter clustering. (0.97)
+4. **Evidence may come from any member of the cluster**, not just the canonical
+   item — one cluster might have Utusan `category=Politik` + Astro Awani
+   `/berita-politik/` + BBC `category=News`. Don't lock the architecture to
+   "canonical item is the only evidence source". Aggregation weighting is
+   deliberately **not** designed yet. (0.93)
+5. **Ruleset versioning — mandatory.** Added `classification_ruleset_version`,
+   nullable (pre-v1 rows genuinely have none). Recorded even for unclassified
+   rows, because "unclassified" is a *result* of a ruleset, not an absence of
+   one. Never use `updated_at` as a substitute — that's lifecycle, not
+   provenance. (0.99)
+6. **Precision over coverage — LOCKED.** The goal is never "eliminate
+   Unclassified". `field=NULL, status=unclassified` beats
+   `field=Politik, confidence=0.31` that is wrong but looks complete. (0.99)
+
+### Benchmark: three layers + a holdout (0.98)
+
+ChatGPT agreed the circularity concern is real: labelling 191 items, writing
+keywords from those labels, then testing on the same items is self-assessment,
+not measurement.
+
+- **Layer 1 — Claude drafts** all 191: `draft_field`, `draft_confidence`,
+  `uncertain`, `reason`.
+- **Layer 2 — Izzat adjudicates.** Not all 191 at equal effort: Claude flags
+  high-confidence / low-confidence / boundary, Izzat focuses on boundary cases
+  and spot-checks the rest.
+- **Layer 3 — freeze** as ground truth.
+- **Dev/holdout split decided BEFORE rules are written** (~130 dev / ~61
+  holdout). Rules are authored against the development set only; the holdout is
+  untouched until ruleset v1 is considered finished.
+
+### Session breakdown
+
+| Step | Work |
+|---|---|
+| 1A | Schema migration (this file) |
+| 1B | Corpus labelling: Claude draft → Izzat adjudicate → freeze |
+| 1C | Ruleset architecture: desk → category → feed identity → content → geography |
+| 1D | Classifier v1, deterministic only |
+| 1E | Holdout benchmark: precision/recall/confusion/per-source/residual |
+| 1F | Ruleset revision from failure analysis only |
+| 1G | Production integration |
+
+UI work resumes only after all of the above passes.
+
+## Remaining open question
 
 1. **`topic` column retirement** — add/backfill/switch/drop across two
    migrations, or one cutover? The UI and `productionAdapter.js` both read
