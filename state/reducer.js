@@ -56,6 +56,21 @@ export function reduce(state, action, context = {}) {
 
     // --- The only two actions allowed to change activeSet membership. ---
     case ActionTypes.RELEASE_STORY: {
+      // STABLE SPATIAL SLOTS (locked 2026-08-12, per Izzat's live device-
+      // simulator finding + ChatGPT's architecture decision): the Active
+      // Set is 10 fixed positions, not an ordered list that reflows.
+      // Releasing slot N must refill exactly slot N with the replacement
+      // — every other slot's story AND position must stay untouched.
+      // Previously this returned `[...remaining, ...newlyAdmitted]`
+      // (engine.js's own array-append semantics), which silently shifted
+      // every slot after the released one up by one and appended the
+      // replacement at the END instead of the vacated position — verified
+      // wrong live against real Supabase data. Fixed here at the
+      // reducer/state layer, NOT inside engine.js: engine.js's job is only
+      // "which cluster should fill an open slot", it has no concept of
+      // slot identity — that's this reducer's responsibility.
+      const releasedEntry = state.activeSet.find(s => s.storyId === action.storyId);
+      const releasedSlot = releasedEntry?.slot;
       const remaining = state.activeSet.filter(s => s.storyId !== action.storyId);
       const eligibleLanguages = state.userContext.selectedLanguages;
 
@@ -77,6 +92,30 @@ export function reduce(state, action, context = {}) {
         ? selectActiveSetWithControl(eligible, control, state.activeSetCapacity, existingAsClusters)
         : existingAsClusters;
 
+      // `filled` is engine.js's own `[...existingAsClusters, ...newlyAdmitted]`
+      // — since existingAsClusters.length never changes here (we only ever
+      // open exactly one slot per RELEASE_STORY), anything beyond that
+      // length is the (at most one) newly admitted replacement. Extract it
+      // and place it at `releasedSlot` explicitly, instead of trusting its
+      // position in `filled`.
+      const newlyAdmitted = filled.slice(existingAsClusters.length);
+      let nextActiveSet;
+      if (newlyAdmitted.length > 0 && releasedSlot !== undefined) {
+        const replacement = newlyAdmitted[0];
+        const replacementEntry = {
+          slot: releasedSlot,
+          storyId: replacement.clusterKey,
+          representationId: replacement.representation?.rssGuid ?? replacement.canonical?.rssGuid,
+          _cluster: replacement,
+        };
+        nextActiveSet = [...remaining, replacementEntry].sort((a, b) => a.slot - b.slot);
+      } else {
+        // No eligible replacement exists — the slot stays empty rather
+        // than being force-filled or collapsing the array (model.js
+        // already documents activeSet.length < capacity as a normal state).
+        nextActiveSet = remaining;
+      }
+
       // L-045 placeholder (see docs/personal-layer-contract.md): record that
       // this story was released, not merely dropped. `releasedAt` is passed
       // in via context so this reducer stays pure (no Date.now() inside).
@@ -84,7 +123,7 @@ export function reduce(state, action, context = {}) {
 
       return {
         ...state,
-        activeSet: buildActiveSetSlots(filled),
+        activeSet: nextActiveSet,
         history: [...state.history, historyEntry],
       };
     }

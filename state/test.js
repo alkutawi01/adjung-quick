@@ -72,6 +72,39 @@ async function main() {
     afterRelease.history.length === state.history.length + 1 &&
     afterRelease.history[afterRelease.history.length - 1].storyId === releasedId);
 
+  // --- TEST 9: STABLE SPATIAL SLOTS (locked 2026-08-12) — RELEASE_STORY
+  // must refill exactly the vacated slot index, never append at the end.
+  // Found live by Izzat on the real device simulator: releasing slot #4
+  // was shifting slots #5-9 up by one and appending the replacement at
+  // slot #9 instead of #4. ---
+  function assertSlotPreserved(label, slotIndexToRelease) {
+    const before = state.activeSet;
+    const targetEntry = before.find(s => s.slot === slotIndexToRelease);
+    if (!targetEntry) { assert(label, false, `no entry at slot ${slotIndexToRelease}`); return; }
+    const after = reduce(state, actions.releaseStory(targetEntry.storyId), context);
+    const untouchedSlots = before.filter(s => s.slot !== slotIndexToRelease);
+    const allUntouchedPreserved = untouchedSlots.every(s => {
+      const match = after.activeSet.find(a => a.slot === s.slot);
+      return match && match.storyId === s.storyId;
+    });
+    const replacementAtSameSlot = (() => {
+      const replacement = after.activeSet.find(a => a.slot === slotIndexToRelease);
+      // Either the same slot has a NEW story (replacement found), or the
+      // slot is legitimately empty (no eligible candidate) — either way,
+      // no entry may exist claiming slot > the original max slot count
+      // (that would mean it got appended instead of placed in-slot).
+      const maxOriginalSlot = Math.max(...before.map(s => s.slot));
+      const noAppendedSlot = after.activeSet.every(a => a.slot <= maxOriginalSlot);
+      return noAppendedSlot && (!replacement || replacement.storyId !== targetEntry.storyId);
+    })();
+    assert(label, allUntouchedPreserved && replacementAtSameSlot,
+      `untouchedPreserved=${allUntouchedPreserved} replacementAtSameSlot=${replacementAtSameSlot}`);
+  }
+
+  assertSlotPreserved('TEST 9a — release slot 0: only slot 0 changes, all others keep position+story', 0);
+  assertSlotPreserved('TEST 9b — release middle slot 4: slots 0-3/5-9 retain same story AND position', 4);
+  assertSlotPreserved('TEST 9c — release slot 9 (last): only slot 9 changes', 9);
+
   // --- TEST 7: PIN/PRIORITIZE/REMOVE never mutate state.activeSet directly ---
   const beforeControl = state.activeSet;
   const controlTargetId = rankedQueue.find(c => !beforeControl.some(a => a.storyId === c.clusterKey))?.clusterKey;
