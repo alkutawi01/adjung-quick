@@ -33,7 +33,7 @@ export const EDITION_TAXONOMY = {
     { label: 'Agama', default_mapping: ['Religion'] }, // future candidate for Wheel display; still a valid classification result
     { label: 'Gaya Hidup', default_mapping: ['Lifestyle'] },
   ],
-  'en': [
+  'en-global': [
     { label: 'Politics', default_mapping: ['Politics'] },
     { label: 'Crime', default_mapping: ['Crime'] },
     { label: 'Economy', default_mapping: ['Economy'] },
@@ -50,7 +50,7 @@ export const EDITION_TAXONOMY = {
     { label: 'Religion', default_mapping: ['Religion'] },
     { label: 'Lifestyle', default_mapping: ['Lifestyle'] },
   ],
-  'ar': [
+  'ar-global': [
     { label: 'سياسة', default_mapping: ['Politics'] },
     { label: 'جريمة', default_mapping: ['Crime'] },
     { label: 'اقتصاد', default_mapping: ['Business', 'Economy'] }, // LOCKED merge, Arabic sources show no real split
@@ -66,13 +66,28 @@ export const EDITION_TAXONOMY = {
   ],
 };
 
+// EDITION POSITIONING (locked 2026-08-12, per Izzat + docs/edition-source-profile-model.md):
+//   ms-MY     — Malaysian local edition (Malaysian readers)
+//   en-global — international English edition, CNN/BBC-style (global readers)
+//   ar-global — international Arabic edition, Al Jazeera-style (global readers)
+// Renamed from 'en'/'ar' deliberately: those name a LANGUAGE, and the whole
+// point of this decision is that language does not determine audience.
+// Izzat: "saya tak nak Adjung Quick kelihatan seperti portal berasal dari
+// Malaysia."
 export const EDITION_GEOGRAPHY_RESIDUAL_LABEL = {
   // Used only when NO subject candidate exists at all — the pure residual
   // path, per the subject-beats-geography lock. 'Malaysia' geography ->
   // this edition's local label; anything else -> this edition's world label.
   'ms-MY': { local: 'Malaysia', world: 'Dunia' },
-  'en': { local: 'Malaysia', world: 'World' },
-  'ar': { local: 'ماليزيا', world: 'العالم' },
+  // local: null — en-global/ar-global have NO local-country concept at all.
+  // Deliberately not substituted with 'Asia' or 'العالم العربي' either;
+  // that would move the problem, not solve it. A story with no resolvable
+  // subject falls back to World / العالم regardless of its geography.
+  // Malaysia-as-a-field for these editions is a DEFERRED personalization
+  // feature (login / prior Malay-edition choice / shared location), never
+  // part of the base taxonomy — see docs/edition-source-profile-model.md.
+  'en-global': { local: null, world: 'World' },
+  'ar-global': { local: null, world: 'العالم' },
 };
 
 // Tier 3 of the resolver: default placement mapping. Only consulted when no

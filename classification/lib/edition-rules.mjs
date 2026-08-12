@@ -21,8 +21,8 @@ export const EDITION_RULES = {
       action: { display_field: 'Dunia' },
     },
   ],
-  'en': [],
-  'ar': [],
+  'en-global': [],
+  'ar-global': [],
 };
 
 // Evaluate an edition's rules against one story's Story Understanding

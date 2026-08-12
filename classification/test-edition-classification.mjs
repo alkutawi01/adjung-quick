@@ -25,7 +25,7 @@ for (const item of items) {
   const understanding = understandStory(item);
   const editions = classifyForAllEditions(understanding);
 
-  for (const ed of ['ms-MY', 'en', 'ar']) {
+  for (const ed of ['ms-MY', 'en-global', 'ar-global']) {
     const r = editions[ed];
     if (r.classification_status === 'unclassified') unclassifiedCount[ed]++;
     else byEditionField[ed][r.field] = (byEditionField[ed][r.field] ?? 0) + 1;
@@ -33,7 +33,7 @@ for (const item of items) {
 
   // Does the resolved field's underlying universal subject differ across editions?
   const subjects = new Set(
-    ['ms-MY', 'en', 'ar']
+    ['ms-MY', 'en-global', 'ar-global']
       .map(ed => editions[ed].classification_rule)
       .filter(Boolean)
       .map(rule => rule.split(' -> ')[0])
@@ -44,7 +44,7 @@ for (const item of items) {
   }
 }
 
-for (const ed of ['ms-MY', 'en', 'ar']) {
+for (const ed of ['ms-MY', 'en-global', 'ar-global']) {
   console.log(`\n=== ${ed} ===`);
   console.log(`  Unclassified: ${unclassifiedCount[ed]}/${items.length}`);
   for (const [field, count] of Object.entries(byEditionField[ed]).sort((a, b) => b[1] - a[1])) {
@@ -55,7 +55,7 @@ for (const ed of ['ms-MY', 'en', 'ar']) {
 console.log(`\nEDITIONS DISAGREEING ON UNDERLYING SUBJECT: ${editionsDiffer}/${items.length}`);
 for (const { item, editions } of differExamples) {
   console.log(`\n  "${item.title.slice(0, 65)}"`);
-  for (const ed of ['ms-MY', 'en', 'ar']) {
+  for (const ed of ['ms-MY', 'en-global', 'ar-global']) {
     console.log(`    ${ed.padEnd(6)} -> ${editions[ed].field}  (${editions[ed].classification_method}, ${editions[ed].confidence})`);
   }
 }

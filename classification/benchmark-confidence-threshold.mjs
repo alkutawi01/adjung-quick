@@ -19,7 +19,7 @@ import { understandStory } from './story-understanding.mjs';
 import { classifyForAllEditions } from './edition-classification.mjs';
 
 const THRESHOLDS = [0.40, 0.50, 0.60, 0.70, 0.80];
-const EDITIONS = ['ms-MY', 'en', 'ar'];
+const EDITIONS = ['ms-MY', 'en-global', 'ar-global'];
 
 const results = await Promise.all(RSS_SOURCES.map(fetchFeed));
 const items = results.filter(r => r.ok).flatMap(r =>
@@ -70,7 +70,7 @@ for (const { item, understanding, group } of sample) {
   console.log(`[${group}] "${item.title.slice(0, 70)}"`);
   console.log(`  top_candidate=${top ? `${top.value}@${top.confidence}` : 'none'}`);
   console.log(`  ms-MY: ${editions['ms-MY'].field ?? 'unclassified'} (${editions['ms-MY'].classification_method})   ` +
-    `en: ${editions['en'].field ?? 'unclassified'} (${editions['en'].classification_method})   ` +
-    `ar: ${editions['ar'].field ?? 'unclassified'} (${editions['ar'].classification_method})`);
+    `en: ${editions['en-global'].field ?? 'unclassified'} (${editions['en-global'].classification_method})   ` +
+    `ar: ${editions['ar-global'].field ?? 'unclassified'} (${editions['ar-global'].classification_method})`);
   console.log(`  chief_editor_judgement: ____   technical_error_or_editorial_preference: ____\n`);
 }

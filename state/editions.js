@@ -21,8 +21,13 @@ export const EDITIONS = {
       'Agama', 'Gaya Hidup',
     ],
   },
-  'en': {
-    editionId: 'en',
+  // en-global / ar-global: INTERNATIONAL editions, not "Malaysian news in
+  // English/Arabic". Named with the -global suffix deliberately so the
+  // positioning lives in the identifier itself — 'en' alone names a
+  // language, and the locked decision is that language does not determine
+  // audience. See docs/edition-source-profile-model.md.
+  'en-global': {
+    editionId: 'en-global',
     locale: 'en',
     direction: 'ltr',
     taxonomy: [
@@ -31,8 +36,8 @@ export const EDITIONS = {
       'Entertainment', 'Religion', 'Lifestyle',
     ],
   },
-  'ar': {
-    editionId: 'ar',
+  'ar-global': {
+    editionId: 'ar-global',
     locale: 'ar',
     direction: 'rtl',
     taxonomy: [

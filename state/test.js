@@ -130,8 +130,8 @@ async function main() {
 
   // Test 1 — Edition isolation: each edition's Wheel reads its OWN taxonomy.
   const msEdition = getEdition('ms-MY');
-  const enEdition = getEdition('en');
-  const arEdition = getEdition('ar');
+  const enEdition = getEdition('en-global');
+  const arEdition = getEdition('ar-global');
   assert('UI-1 TEST 1a — ms-MY taxonomy is ms-MY specific',
     msEdition.taxonomy.includes('Politik') && !msEdition.taxonomy.includes('Politics'));
   assert('UI-1 TEST 1b — en taxonomy is en specific',
@@ -146,9 +146,9 @@ async function main() {
   let editionState = createInitialState();
   editionState = reduce(editionState, actions.switchLanguage(['ms', 'en', 'ar']), context);
   const beforeEditionSwitch = editionState.activeSet.length;
-  const afterEditionSwitch = reduce(editionState, actions.switchEdition('en'), context);
+  const afterEditionSwitch = reduce(editionState, actions.switchEdition('en-global'), context);
   assert('UI-1 TEST 2a — SWITCH_EDITION updates activeEdition',
-    afterEditionSwitch.editionContext.activeEdition === 'en');
+    afterEditionSwitch.editionContext.activeEdition === 'en-global');
   assert('UI-1 TEST 2b — Active Set capacity unchanged by edition switch',
     afterEditionSwitch.activeSetCapacity === editionState.activeSetCapacity);
   assert('UI-1 TEST 2c — Active Set never exceeds capacity after edition switch',
@@ -167,7 +167,7 @@ async function main() {
 
   const withDroppedField = reduce(
     { ...editionState, userContext: { ...editionState.userContext, selectedTopic: 'Agama' } },
-    actions.switchEdition('ar'), context);
+    actions.switchEdition('ar-global'), context);
   assert('UI-1 TEST 3b — field absent from target edition is dropped, not auto-mapped',
     withDroppedField.userContext.selectedTopic === null,
     `got ${JSON.stringify(withDroppedField.userContext.selectedTopic)}`);

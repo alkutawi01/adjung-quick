@@ -129,9 +129,15 @@ gap is closed — this is real work, not a config change.
 
 **Malaysia as a field for `en-global`/`ar-global` readers** — per Izzat,
 a future *personalization* feature, not part of the base taxonomy.
-Trigger signals he named: reader is logged in, or reader has previously
-chosen the Malay edition. Default behavior until then: every edition is
-completely distinct, with no Malaysia in `en-global`/`ar-global` at all.
+Trigger signals he named: reader is logged in, reader has previously
+chosen the Malay edition, **or reader shares location and it resolves to
+Malaysia**. Default behavior until then: every edition is completely
+distinct, with no Malaysia in `en-global`/`ar-global` at all.
+
+Note on the location signal: it is the only one of the three that
+involves a permission prompt and personal data, so it needs its own
+privacy treatment when built (opt-in, never silent geolocation) — not
+designed here, flagged so it isn't implemented as an invisible default.
 
 ## What this changes in existing code (planned, not applied)
 

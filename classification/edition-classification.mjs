@@ -63,7 +63,12 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
     const residual = EDITION_GEOGRAPHY_RESIDUAL_LABEL[edition];
     const topGeo = geographyCandidates[0];
     if (residual && topGeo) {
-      const label = topGeo.value === 'Malaysia' ? residual.local : residual.world;
+        // residual.local is null for en-global/ar-global — those editions have
+      // no local-country concept (docs/edition-source-profile-model.md), so a
+      // Malaysia-geography story falls back to World/العالم like any other.
+      // Without the `&& residual.local` guard this would yield field=null
+      // while status='classified', violating edition_field_matches_status.
+    const label = (topGeo.value === 'Malaysia' && residual.local) ? residual.local : residual.world;
       return {
         edition_id: edition,
         field: label,
@@ -117,7 +122,12 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
   const residual = EDITION_GEOGRAPHY_RESIDUAL_LABEL[edition];
   const topGeo = geographyCandidates[0];
   if (residual && topGeo) {
-    const label = topGeo.value === 'Malaysia' ? residual.local : residual.world;
+      // residual.local is null for en-global/ar-global — those editions have
+      // no local-country concept (docs/edition-source-profile-model.md), so a
+      // Malaysia-geography story falls back to World/العالم like any other.
+      // Without the `&& residual.local` guard this would yield field=null
+      // while status='classified', violating edition_field_matches_status.
+    const label = (topGeo.value === 'Malaysia' && residual.local) ? residual.local : residual.world;
     return {
       edition_id: edition,
       field: label,
@@ -148,7 +158,7 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
 export function classifyForAllEditions(understanding, thresholdOverride) {
   return {
     'ms-MY': classifyForEdition(understanding, 'ms-MY', thresholdOverride),
-    'en': classifyForEdition(understanding, 'en', thresholdOverride),
-    'ar': classifyForEdition(understanding, 'ar', thresholdOverride),
+    'en-global': classifyForEdition(understanding, 'en-global', thresholdOverride),
+    'ar-global': classifyForEdition(understanding, 'ar-global', thresholdOverride),
   };
 }
