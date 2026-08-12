@@ -192,8 +192,24 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   // measurements. Using middleIndex (not currentIndex) is what guarantees
   // real neighbour items exist above/below even at the true first/last
   // logical Bidang.
-  const centerOffset =
-    trackHeight / 2 - (middleIndex * itemStep + itemStep / 2) + dragOffsetPx + wheelVisualOffsetPx;
+  const rawOffsetPx = dragOffsetPx + wheelVisualOffsetPx;
+  const centerOffset = trackHeight / 2 - (middleIndex * itemStep + itemStep / 2) + rawOffsetPx;
+
+  // BUG FOUND 2026-08-12 (real device, Izzat's report: highlight change
+  // isn't smooth/immediate — there are moments with NO active Bidang at
+  // all, which must never happen). Root cause: the active-item class and
+  // opacity/scale falloff were keyed on `middleIndex`, which only reflects
+  // the last COMMITTED selection — it doesn't move at all while a gesture
+  // is in progress. But the list itself visually slides via rawOffsetPx
+  // during that same gesture, so the item that's actually sitting at the
+  // track's visual center keeps changing while the "active" class stays
+  // stuck on the old (now-scrolled-away) item — a moment with zero visibly
+  // active items, exactly matching the "no bidang aktif" report. FIXED:
+  // derive a LIVE index from the current raw offset, continuously, so
+  // whichever item is nearest the visual center is always the one styled
+  // active — never lagging behind the drag, and never zero.
+  const liveIndex = clampIndex(currentIndex + Math.round(-rawOffsetPx / itemStep));
+  const liveMiddleIndex = allValues.length + liveIndex;
 
   return (
     <div className="bidang-wheel" aria-label="Bidang">
@@ -210,15 +226,15 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
           style={{ transform: `translateY(${centerOffset}px)`, transition: 'none' }}
         >
           {tripledValues.map((value, domIndex) => {
-            const dist = Math.min(3, Math.abs(domIndex - middleIndex) - (dragOffsetPx ? Math.abs(dragOffsetPx) / itemStep : 0));
+            const dist = Math.min(3, Math.abs(domIndex - liveMiddleIndex));
             const t = Math.max(0, Math.min(1, dist / 3));
             return (
               <div
                 key={domIndex}
                 data-value={value ?? ''}
-                className={`bidang-wheel__item${domIndex === middleIndex ? ' bidang-wheel__item--active' : ''}`}
+                className={`bidang-wheel__item${domIndex === liveMiddleIndex ? ' bidang-wheel__item--active' : ''}`}
                 style={{ opacity: 1 - t * 0.75, transform: `scale(${1 - t * 0.28})` }}
-                aria-hidden={domIndex !== middleIndex}
+                aria-hidden={domIndex !== liveMiddleIndex}
               >
                 {value ?? 'Semua'}
               </div>
