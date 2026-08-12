@@ -111,17 +111,52 @@ editions (
 )
 ```
 
-**Open tension, flagged not resolved:** `docs/universal-classification-model.md`
-locked the Edition Resolver as **read-time, not precomputed** ("category
-mapping is an editorial decision, not a fact about the story"). A stored
-`edition_story_classifications` table looks like precomputation. Possible
-reconciliation: the *signal* (`subject`, `geography`) is stored once
-(Story Understanding, unchanged), and `edition_story_classifications` stores
-the **result of applying that edition's rules**, refreshed by a
-re-classification pass when edition rules change (matching the
-`classification_ruleset_version` mechanism already designed) — closer to a
-materialized view than hand-set data. Needs explicit confirmation before
-Sesi 3 (Classification Engine v2), not assumed.
+**Tension resolved, 2026-08-12 (ChatGPT, confirmed my reconciliation).**
+`docs/universal-classification-model.md`'s "read-time, not precomputed" lock
+applied to the *decision logic*, not necessarily the *result*. ChatGPT walked
+back "pure read-time resolver" as too idealistic for production scale (191
+items now, but not forever — thousands of clusters × multiple editions ×
+real-time ranking would mean redoing classification on every Wheel render).
+Correct framing: `edition_story_classifications` is a **derived editorial
+classification cache** ("materialized edition view"), not hand-set truth and
+not a live per-request computation either. When an edition's ruleset version
+changes, affected editions get **recomputed**, not manually edited row by row
+— the `classification_ruleset_version` mechanism is exactly the recompute
+trigger.
+
+**Classification Ownership principle (LOCKED):**
+
+```
+Story Understanding  → system-owned, language-independent  (the facts)
+Edition Classification → edition-owned, derived              (how it's seen)
+Wheel                 → presentation-only                    (what's shown)
+```
+
+This answers "who owns a category?" cleanly: facts about a story live in
+Story Understanding; how an edition chooses to place it lives in Edition
+Classification; the Wheel never owns anything, it only renders.
+
+Refined `edition_story_classifications` shape (still PROPOSAL, not created):
+
+```sql
+edition_story_classifications (
+  story_id              REFERENCES story_clusters(id),
+  edition_id             REFERENCES editions(id),
+  field                  TEXT,
+  sub_field              TEXT,
+  classification_method  TEXT,
+  classification_rule    TEXT,
+  confidence              NUMERIC(4,3),
+  ruleset_version         TEXT,
+  created_at              TIMESTAMPTZ,
+  PRIMARY KEY (story_id, edition_id)
+)
+```
+
+`ruleset_version` isn't just an audit trail — it's what answers "why was this
+story Politik yesterday and Dunia today?" (*"kerana edition ms-MY ruleset v2
+digunakan"*) and what triggers batch recomputation when an edition's mapping
+rules change, rather than manual per-story edits.
 
 ### 2. Edition becomes explicit in onboarding/preferences
 
@@ -166,7 +201,7 @@ Contract.
 | Sesi | Focus | Output |
 |---|---|---|
 | 1 | **Architecture Migration** (this doc) | Architecture freeze. No code. |
-| 2 | Edition Taxonomy Design | Taxonomy matrix per edition, referencing real outlets: ms-MY (Astro Awani, Bernama, Harian Metro, BH), en (BBC, CNN, Al Jazeera English), ar (Al Jazeera Arabic, BBC Arabic) |
+| 2 | Edition Taxonomy Design | **Bottom-up, corrected 2026-08-12**: start from each edition's real reference portals' actual navigation categories (ms-MY: Astro Awani, Bernama, Harian Metro, BH; en: BBC, CNN, Al Jazeera English; ar: Al Jazeera Arabic, BBC Arabic) — not from the Story Understanding subject list downward. Question is "what is this edition's real editorial experience?", not "what's the universal Bidang?". Map to Story Understanding signals only after each edition's real taxonomy is captured. |
 | 3 | Classification Engine v2 | `story → signals → edition classifier → edition placement`, replacing the single `story → field` model |
 | 4 | Benchmark, redone | Re-label the 190-item corpus per-edition, not globally |
 | 5 | Production Ingestion | RSS → source desk → rules → confidence, now edition-aware |
