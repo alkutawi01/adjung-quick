@@ -24,7 +24,11 @@ BEGIN;
 -- Architecture, not a data anomaly:
 --   "Lebanon parliament votes..." -> ms-MY: Dunia | en: Politics | ar: سياسة
 CREATE TABLE IF NOT EXISTS edition_story_classifications (
-  story_id    UUID NOT NULL REFERENCES story_clusters(id) ON DELETE CASCADE,
+  -- TEXT, not UUID: story_clusters.id is TEXT (it holds clusterKey from
+  -- lab/engine.js, not a generated UUID — see db/schema.sql:38). Getting
+  -- this wrong fails at migration time with "Key columns story_id and id
+  -- are of incompatible types: uuid and text".
+  story_id    TEXT NOT NULL REFERENCES story_clusters(id) ON DELETE CASCADE,
   edition_id  TEXT NOT NULL,          -- 'ms-MY' | 'en' | 'ar' — matches state/editions.js's editionId
 
   -- NULL when unclassified. Per docs/structural-evidence-fallback-policy.md,
@@ -67,5 +71,16 @@ CREATE INDEX IF NOT EXISTS idx_esc_edition_field
 
 CREATE INDEX IF NOT EXISTS idx_esc_story
   ON edition_story_classifications (story_id);
+
+-- Reader access. This is public editorial data — the same class as
+-- story_clusters/rss_items/sources, which the app already reads with the
+-- anon key. Without this the UI fails with "permission denied for table
+-- edition_story_classifications" (found live, 2026-08-12).
+--
+-- SELECT only: writes stay service-role (db/classify-production.js). This is
+-- deliberately NOT the pattern used by saved_stories/history_entries in
+-- db/schema-identity.sql — those are per-user personal data and use RLS with
+-- auth.uid() policies. Editorial placement is not personal data.
+GRANT SELECT ON edition_story_classifications TO anon, authenticated;
 
 COMMIT;
