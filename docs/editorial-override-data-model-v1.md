@@ -11,9 +11,12 @@ Follows `docs/editorial-override-design-v1.md` (the "why"); this is the
 
 ---
 
-## 0. The architecture rule this rests on
+## 0. CORE INVARIANT
 
-ChatGPT named it, and it deserves to outlive this document:
+ChatGPT named this, then explicitly raised it from "architecture rule"
+to **core invariant** — because it will protect far more than overrides:
+editor notes, user reports, fact-checking, legal takedowns. None of
+those can ever live inside a table the pipeline regenerates.
 
 > **Generated Data ≠ Editorial State**
 >
@@ -140,7 +143,7 @@ Conflict cases worth stating explicitly:
 
 | Situation | Result |
 |---|---|
-| Story hidden **and** pinned | Hidden. Log the conflict for review. |
+| Story hidden **and** pinned | **Hidden.** Log the conflict for review. Worth stating plainly because it looks backwards at first glance — `pin` is the strongest *promotion*, but promotion never beats restriction. Editor A pins, Editor B hides → the story stays hidden. |
 | Story hidden **and** reclassified | Hidden; the reclassify still records intent for when the hide expires. |
 | Source disabled **and** a story from it pinned | Source disable wins — the story isn't ingested, so nothing to pin. |
 | Two active reclassifies, same story+edition | Most recent `created_at` wins; the older stays visible in history. |
@@ -184,48 +187,59 @@ phase runs on.
 
 ---
 
-## 6. ONE OPEN QUESTION — raised, not silently resolved
+## 6. Where `boost` and `pin` enter the pipeline — RESOLVED 2026-08-13
 
-**Where does `boost` enter the ranking pipeline?**
+This was raised as a contradiction rather than quietly decided, and
+ChatGPT confirmed the correction.
 
-ChatGPT's reply drew it as:
-
-```
-candidate scoring → diversity selection → editorial boost → composition
-```
-
-But that placement contradicts the rationale given alongside it
-(*"ranking masih boleh menolak jika terlalu lemah"* — ranking can still
-reject a boosted story). Verified against the real code
-(`ranking/diversity-selection.mjs`): `selectDiverseCandidates()` picks
-`capacity` (10) candidates out of the whole pool. Anything applied
-*after* it can only reorder what already survived — so a story ranked
-#15 could never be boosted in at all, which removes most of the point of
-a promote.
-
-**Recommended instead — boost at the scoring stage:**
+### 6.1 `boost` is a scoring modifier
 
 ```
-candidate scoring + editorial boost → diversity selection → composition
+candidate scoring (+ editorial boost) → diversity selection → composition → Active Set
 ```
 
-That genuinely delivers what ChatGPT described:
-- the story competes with a stronger score, but **can still lose**
-- diversity selection still applies (a boosted story from an
-  over-represented source can still be held back)
-- composition still applies
-- explainability is preserved — the boost appears as one more scoring
-  reason alongside freshness and trust
+**Not** after diversity selection. Verified against the real code:
+`selectDiverseCandidates()` (`ranking/diversity-selection.mjs`) picks
+`capacity` (10) out of the whole pool, so anything applied afterwards
+can only reorder survivors. A story ranked #15 could never be boosted
+in — meaning the editor presses Promote, the system accepts it, and the
+reader never sees any change. ChatGPT's own words for that outcome:
+*"bug paling buruk."*
 
-`pin` is the opposite and stays where ChatGPT put it — it bypasses the
-contest entirely, which is exactly why it must be rare, audited, and
-carry a mandatory expiry.
+Worked example:
 
-**Needs confirmation before implementation.** Flagged rather than
-quietly decided, because getting it wrong makes `boost` look
-implemented while being nearly inert — the kind of bug that is only
-discovered when an editor complains that promoting a story does
-nothing.
+```
+Story X before:  freshness 40 + trust 80 + diversity 70  →  score 65
+Editorial boost: +20
+Story X after:                                              score 85
+   ↓ still passes through diversity selection
+   ↓ still passes through composition
+```
+
+So the story **can rise, and can still lose.** A boosted story from an
+over-represented source can still be held back by diversity selection.
+Boost changes the probability; it does not bypass the system. It also
+stays explainable — the boost appears as one more scoring reason
+alongside freshness and trust.
+
+### 6.2 `pin` is not a scoring modifier at all
+
+```
+Active Set = Pinned stories + Ranked selection
+```
+
+Putting `pin` into scoring would be wrong in principle, not just in
+mechanics. An editor pinning a story is not claiming *"this scores
+highly"* — they are saying *"this needs to be at the front regardless of
+score."* National emergency, major government announcement, public
+crisis.
+
+That's why `pin` carries the strictest requirements: rare, audited,
+mandatory expiry, and a required reason.
+
+**Neither is implemented yet.** Per ChatGPT: the ranking pipeline
+contract (`docs/ranking-engine-contract-v1.md`) must be updated to
+reflect this before any code is written.
 
 ---
 

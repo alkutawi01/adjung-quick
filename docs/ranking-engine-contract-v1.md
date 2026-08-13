@@ -292,3 +292,69 @@ classification calibration arc.
 2. Implement the Editorial Ranking Engine against both benchmarks.
 3. Verify benchmark cases rank/select as expected before wiring into
    `db/classify-production.js` / the Active Set selection path.
+
+---
+
+## AMENDMENT 2026-08-13 — Editorial Override insertion points
+
+Added after `docs/editorial-override-data-model-v1.md` §6 resolved where
+human editorial decisions enter this pipeline. **Not yet implemented** —
+recorded here first, per ChatGPT: the pipeline contract must state this
+before any override code is written.
+
+### The pipeline, with editorial control included
+
+```
+candidate scoring  (+ editorial BOOST modifier)
+        ↓
+diversity selection
+        ↓
+editorial composition
+        ↓
+Active Set  =  PINNED stories  +  ranked selection
+```
+
+### `boost` — inside the contest
+
+An editorial boost is a **scoring modifier**, applied at the candidate
+scoring stage alongside freshness, source trust, and classification
+confidence. It is not a separate later stage.
+
+Consequences, all intentional:
+- A boosted story competes more strongly but **can still lose**.
+- Diversity selection still applies — a boosted story from an
+  over-represented source can still be held back.
+- Editorial composition still applies.
+- The boost is visible in `reasons[]` like any other scoring factor, so
+  explainability is preserved.
+
+**Why not after diversity selection:** `selectDiverseCandidates()` picks
+`capacity` out of the whole pool, so a later modifier could only reorder
+survivors. A story outside the top `capacity` could never be promoted at
+all — the editor would press Promote, the system would accept it, and
+the reader would see no change.
+
+### `pin` — outside the contest
+
+A pin does not participate in scoring at all:
+
+```
+Active Set = Pinned stories + Ranked selection
+```
+
+An editor pinning a story is not asserting that it scores well; they are
+asserting it must be at the front regardless of score (national
+emergency, major announcement, public crisis). Encoding that as a very
+large score bonus would misrepresent the intent and pollute
+explainability.
+
+Pins therefore consume Active Set capacity before ranked selection runs,
+and carry the strictest requirements: rare, audited, mandatory expiry,
+required reason.
+
+### Unchanged by this amendment
+
+Candidate scoring inputs, the diversity dominance discount, and
+editorial composition all keep their existing behaviour and parameters.
+This amendment adds where human decisions enter — it does not retune
+anything.
