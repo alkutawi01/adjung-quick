@@ -21,6 +21,8 @@ import { writeFileSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { RSS_SOURCES } from '../lab/sources.js';
+import { RANKING_FLAGS } from '../state/rankingFlags.js';
+import { loadFieldCandidates, editorialSelect } from '../ranking/shadow-runner.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OBSERVATION_DIR = `${__dirname}/observations`;
@@ -91,6 +93,36 @@ async function gatherMetrics() {
   const silentSources = allSilent.filter(id => (registryStatus.get(id) ?? 'active') === 'active');
   const knownBrokenSources = allSilent.filter(id => (registryStatus.get(id) ?? 'active') !== 'active');
 
+  // Ranking pilot stability — per ChatGPT's suggested metric list for
+  // the Observation Layer. Records WHICH stories the Editorial Ranking
+  // Engine currently selects for each field that's actually on
+  // editorial_v1 (only ms-MY.Politik today, read from RANKING_FLAGS so
+  // this follows activation automatically rather than hardcoding).
+  //
+  // Interpreting it: low overlap day-over-day is NOT automatically bad —
+  // a news reader SHOULD churn as new stories arrive. What this makes
+  // visible is the difference between normal churn and something
+  // structurally wrong (e.g. the pilot field's candidate pool collapsing,
+  // or the selection freezing entirely).
+  const rankingPilots = {};
+  for (const [edition, fields] of Object.entries(RANKING_FLAGS)) {
+    for (const [field, version] of Object.entries(fields)) {
+      if (version !== 'editorial_v1') continue;
+      const key = `${edition}.${field}`;
+      try {
+        const candidates = await loadFieldCandidates(edition, field);
+        const selected = editorialSelect(candidates, 10);
+        rankingPilots[key] = {
+          version,
+          candidatePoolSize: candidates.length,
+          selectedStoryIds: selected.map(s => s.storyId),
+        };
+      } catch (err) {
+        rankingPilots[key] = { version, error: err.message };
+      }
+    }
+  }
+
   return {
     observedAt: new Date().toISOString(),
     counts: {
@@ -105,6 +137,7 @@ async function gatherMetrics() {
     silentSources,
     knownBrokenSources,
     editions,
+    rankingPilots,
   };
 }
 
@@ -154,6 +187,20 @@ export function evaluateAlerts(current, previous) {
       if (beforeUnclassified != null && nowUnclassified > beforeUnclassified * 1.5 && nowUnclassified - beforeUnclassified >= 10) {
         alerts.push(`${ed}: unclassified jumped sharply (${beforeUnclassified} → ${nowUnclassified}).`);
       }
+    }
+  }
+
+  // Ranking pilot: only alert on structurally wrong states, never on
+  // ordinary day-to-day churn (a news reader is SUPPOSED to change).
+  for (const [key, pilot] of Object.entries(current.rankingPilots ?? {})) {
+    if (pilot.error) {
+      alerts.push(`Ranking pilot ${key} failed to evaluate: ${pilot.error}`);
+      continue;
+    }
+    if (pilot.candidatePoolSize === 0) {
+      alerts.push(`Ranking pilot ${key} has an EMPTY candidate pool — the field the Editorial Ranking Engine is piloting on has no stories at all.`);
+    } else if (pilot.selectedStoryIds.length === 0) {
+      alerts.push(`Ranking pilot ${key} selected nothing despite ${pilot.candidatePoolSize} candidates available — selection is broken, not merely quiet.`);
     }
   }
 
@@ -213,6 +260,23 @@ function report(current, previous) {
       if (!e.fields[field]) console.log(`  ${field.padEnd(22)} ${String(0).padStart(4)}  (${-was})`);
     }
     if (e.unclassified) console.log(`  ${'(unclassified)'.padEnd(22)} ${String(e.unclassified).padStart(4)}${delta(e.unclassified, pe?.unclassified)}`);
+  }
+
+  const pilots = Object.entries(current.rankingPilots ?? {});
+  if (pilots.length) {
+    console.log('\nRANKING PILOT');
+    for (const [key, pilot] of pilots) {
+      if (pilot.error) { console.log(`  ${key} — ERROR: ${pilot.error}`); continue; }
+      const before = previous?.rankingPilots?.[key]?.selectedStoryIds;
+      let stability = '';
+      if (before?.length) {
+        const kept = pilot.selectedStoryIds.filter(id => before.includes(id)).length;
+        const pct = Math.round((kept / before.length) * 100);
+        stability = `  |  ${pct}% of yesterday's selection retained (${kept}/${before.length}) — churn is normal for a news reader, this is context not a score`;
+      }
+      console.log(`  ${key} (${pilot.version}) — ${pilot.selectedStoryIds.length} selected from ${pilot.candidatePoolSize} candidates${delta(pilot.candidatePoolSize, previous?.rankingPilots?.[key]?.candidatePoolSize)}`);
+      if (stability) console.log(`   ${stability}`);
+    }
   }
 
   const alerts = evaluateAlerts(current, previous);

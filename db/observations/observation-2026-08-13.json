@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-08-13T07:58:01.933Z",
+  "observedAt": "2026-08-13T08:04:26.342Z",
   "counts": {
     "sources": 43,
     "sourcesContributing": 41,
@@ -65,6 +65,24 @@
         "اقتصاد": 2,
         "كوارث": 1
       }
+    }
+  },
+  "rankingPilots": {
+    "ms-MY.Politik": {
+      "version": "editorial_v1",
+      "candidatePoolSize": 36,
+      "selectedStoryIds": [
+        "www.utusan.com.my/nasional/politik/2026/08/bersama-bakal-kemuka-calon-bayangan-pru-ke-16",
+        "www.astroawani.com/berita-politik/alexander-sah-mahu-bersara-sebagai-ahli-parlimen-sasar-kerusi-dun-baharu",
+        "www.hmetro.com.my/mutakhir/2026/08/1397194/tun-dr-mahathir-tun-dr-siti-hasmah-ukir-sejarah-cipta-3-rekod",
+        "www.utusan.com.my/berita/2026/08/umno-pahang-terbuka-kerjasama-dengan-pas-parti-politik-lain-wan-rosdy",
+        "www.astroawani.com/berita-politik/kayveas-gagal-cabar-pelantikan-maglin-sebagai-presiden-myppp",
+        "www.hmetro.com.my/mutakhir/2026/08/1397238/80-peratus-kandungan-ruu-mara-baharu-tumpu-perkukuh-tadbir-urus-asyraf",
+        "www.utusan.com.my/nasional/2026/08/tindakan-mp-bersatu-bahas-rci-th-bijak-tepat-fahmi",
+        "www.hmetro.com.my/mutakhir/2026/08/1397270/pm-anwar-ucap-takziah-pemergian-bekas-pm-china-zhu-rongji",
+        "www.astroawani.com/berita-politik/pru16-jangan-beri-harapan-palsu-kepada-orang-melayu-bn-pn-perlu-buat-keputusan-jelas-penganalisis",
+        "www.utusan.com.my/terkini/2026/08/keputusan-kekal-larangan-berjudi-mendukacitakan-rakyat-kedah"
+      ]
     }
   }
 }
