@@ -100,6 +100,43 @@ designed here.
 No `state/*.js` file has been edited yet. This table is the plan Session
 UI-1's actual state changes will follow.
 
+## Edition Locale Authority (added 2026-08-13, after a real production bug)
+
+**Active Set membership MUST be constrained by the active edition's own
+locale. Representation preference MUST NOT expand edition eligibility.**
+
+Found live by Izzat ("berita melayu takkan keluar dalam edisi arab" —
+Malay news shouldn't appear in the Arabic edition): every call site that
+built Active Set membership (`state/reducer.js`'s `SELECT_TOPIC`,
+`RELEASE_STORY`, `SWITCH_EDITION`, plus `App.jsx`'s cold-start effect) was
+passing `representationPreference`/`selectedLanguages` — which defaults to
+`['ms']` — as the eligibility filter, completely independent of which
+edition was actually active. Since almost every cluster has a Malay
+member, switching to `ar-global` still resolved a Malay representation for
+nearly every story and rendered it inside the Arabic edition.
+
+The fix: a dedicated `editionEligibleLanguages(state)` helper
+(`state/reducer.js`) returns `[getEdition(activeEdition).locale]` — never
+`representationPreference`. This is the single source of truth for Active
+Set membership eligibility. `representationPreference` still exists and
+still matters (O-012B above) — but only for choosing among representations
+of a story ALREADY admitted to the current edition (e.g. the Brief view),
+never for deciding whether a story belongs in the edition's Active Set at
+all.
+
+**The exact anti-pattern to never reintroduce:**
+```js
+selectedLanguages.includes(cluster.language)   // or representationPreference —
+                                                 // used as a MEMBERSHIP test
+```
+If new code needs to know "is this story eligible for the current
+edition," it must go through the edition's own locale, not through a
+reader preference field. A regression test exists for this specific
+failure mode: `state/test.js` `UI-1 TEST 2e`/`2f` — switches to
+`en-global`/`ar-global` with `representationPreference` deliberately set
+to include ALL languages, and asserts no wrong-language representation is
+ever admitted regardless.
+
 ## Why language was never really the same thing as edition
 
 Per ChatGPT: earlier architecture assumed "language = edition." What the

@@ -121,11 +121,24 @@ export default function App() {
 
   const openStory = useMemo(() => {
     if (!state.brief.open) return null;
-    const cluster = rankedQueue.find(c => c.clusterKey === state.brief.storyId);
+    // BUG FIX (2026-08-13, same class as the reducer's Active Set membership
+    // fix — ChatGPT's UI-2A audit instruction specifically asked for this
+    // pattern to be found and removed): this used to re-resolve a
+    // representation via selectRepresentation(cluster, selectedLanguages),
+    // completely ignoring the edition-correct representation the Active Set
+    // slot already carries (`_cluster.representation`). With
+    // selectedLanguages defaulting to ['ms'], opening a story from a
+    // non-Malay edition's Active Set could show a DIFFERENT, wrong-language
+    // representation in the Brief than the card the reader actually tapped.
+    // Fix: reuse the slot's already-resolved, edition-correct representation
+    // first — never re-derive from representationPreference/selectedLanguages,
+    // per docs/edition-state-model.md's Edition Locale Authority principle.
+    const slot = state.activeSet.find(s => s.storyId === state.brief.storyId);
+    const cluster = slot?._cluster ?? rankedQueue.find(c => c.clusterKey === state.brief.storyId);
     if (!cluster) return null;
-    const rep = selectRepresentation(cluster, state.userContext.selectedLanguages) ?? cluster.canonical;
+    const rep = cluster.representation ?? cluster.canonical;
     return { title: rep.title, description: rep.description, link: rep.link, sourceId: rep.sourceId };
-  }, [state.brief, rankedQueue, state.userContext.selectedLanguages]);
+  }, [state.brief, state.activeSet, rankedQueue]);
 
   const closeBriefAndRestoreFocus = () => {
     pendingFocusStoryId.current = state.brief.storyId;

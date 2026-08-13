@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import SourceLink from './SourceLink.jsx';
 
-// Brief — §5 of the contract. Resolves the open story's current
-// representation from rankedQueue + the reader's selectedLanguages, same
-// data the Active Set itself already uses (no separate "reading mode" state).
+// Brief — §5 of the contract. Receives the ALREADY-resolved, edition-correct
+// representation from App.jsx's openStory (same representation the Active
+// Set card itself showed — see the Edition Locale Authority fix, 2026-08-13).
+// No separate "reading mode" state, and never re-derives representation
+// from a separate language preference.
 //
 // Keyboard, per keyboard-interaction-contract.md §C and its clarification:
 // - Focus moves into the Brief when it opens, so Esc/↑/↓ work immediately.

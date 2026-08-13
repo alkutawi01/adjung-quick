@@ -17,7 +17,6 @@ import { ActionTypes } from './actions.js';
 import { selectActiveSetWithControl } from '../lab/engine.js';
 import { selectRepresentation } from './representation.js';
 import { getEdition } from './editions.js';
-import { getRepresentationPreference } from './model.js';
 
 function toActiveSetEntries(clusters, eligibleLanguages) {
   return clusters
