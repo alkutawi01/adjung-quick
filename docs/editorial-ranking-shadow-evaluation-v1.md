@@ -84,34 +84,49 @@ per ChatGPT): Politik (many sources), Agama (moderate), Pendidikan
   "how much change should raise concern." This evaluation doesn't
   attempt to set that threshold.
 
-## 5. Manual review sample — PENDING, needs Izzat's input
-
-Per ChatGPT: shadow metrics alone are not sufficient — stability 30%
-could be very good or very bad depending on what specifically changed.
-The following 10 stories (5 promoted by editorial, 5 demoted) are
-prepared for review; **the Better/Worse/Equivalent judgment and reason
-columns are intentionally left blank** — this requires an actual human
-editorial call, not something to be filled in without Izzat's input.
+## 5. Manual review sample — COMPLETE (Izzat's editorial judgment, 2026-08-13)
 
 **Promoted by editorial (in editorial's Active Set, not in legacy's):**
 
-| # | Field | Title | Source | Reason (from engine) | Izzat: Better/Worse/Equivalent | Why |
-|---|---|---|---|---|---|---|
-| 1 | Teknologi | Manus Kembali Beroperasi Sebagai Syarikat Bebas... | rss-amanz | fresh, trusted_source, source_diversity_discounted | | |
-| 2 | Teknologi | SpaceXAI Memperkenalkan Grok Bot – AI Berejen... | rss-amanz | fresh, trusted_source, source_diversity_discounted | | |
-| 3 | Agama | Be the Villager: How Small Acts Can Restore Fading Compassion | rss-ikim | trusted_source, source_diversity_preserved | | |
-| 4 | Agama | BENGKEL TAHSIN QIRAATUL QURAN NEGERI PULAU PINANG... | rss-jaipp | source_diversity_preserved | | |
-| 5 | Pendidikan | Akses Pendidikan Untuk Semua | rss-kpm | fresh, trusted_source, source_diversity_discounted | | |
+| # | Field | Title | Source | Izzat's verdict | Why |
+|---|---|---|---|---|---|
+| 1 | Teknologi | Manus Kembali Beroperasi Sebagai Syarikat Bebas... | rss-amanz | ✅ Better | Real industry value — a company/ecosystem change, not just a new product. Fits Adjung. |
+| 2 | Teknologi | SpaceXAI Memperkenalkan Grok Bot... | rss-amanz | ⚖️ Equivalent / slightly better | Conditional on actual content — genuine AI-agent news has value, but AI news easily turns into hype; needs care. |
+| 3 | Agama | Be the Villager: How Small Acts Can Restore Fading Compassion | rss-ikim | ✅ Better | A good example — thoughtful/values content, not sensationalism. Matches Adjung's identity of meaningful curation. |
+| 4 | Agama | BENGKEL TAHSIN QIRAATUL QURAN NEGERI PULAU PINANG... | rss-jaipp | ✅ Better | Local, but represents real religious/educational activity — more appropriate than chasing personalities or controversy. |
+| 5 | Pendidikan | Akses Pendidikan Untuk Semua | rss-kpm | ⚖️ Equivalent | Title too generic — could be valuable if the content has real new policy, but the title alone reads weak. |
 
 **Demoted by editorial (in legacy's Active Set, not in editorial's):**
 
-| # | Field | Title | Source | Izzat: Better/Worse/Equivalent | Why |
+| # | Field | Title | Source | Izzat's verdict | Why |
 |---|---|---|---|---|---|
-| 1 | Teknologi | HONOR Robot Phone Dilancarkan – Telefon Dengan Kamera... | rss-amanz | | |
-| 2 | Agama | Ujian buat Imam al-Bukhari di tanah kelahirannya | rss-utusan-agama | | |
-| 3 | Agama | Bicara al-Quran tentang makhluk perosak | rss-utusan-agama | | |
-| 4 | Politik | [TERKINI] Wong Chen umum keluar PKR, sertai Bersama | rss-awani-politik | | |
-| 5 | Pendidikan | Hari Pertama Persekolahan Sesi 2024/2025 | rss-kpm | | |
+| 1 | Teknologi | HONOR Robot Phone Dilancarkan... | rss-amanz | ✅ Correctly demoted | Reads as a product announcement — not wrong, but low long-term value. Adjung shouldn't become a gadget portal. |
+| 2 | Agama | Ujian buat Imam al-Bukhari di tanah kelahirannya | rss-utusan-agama | ❌ **INCORRECTLY demoted** | Reads as historical/religious knowledge content with real value. The engine may be too aggressive dropping stories with no "trend" signal. |
+| 3 | Agama | Bicara al-Quran tentang makhluk perosak | rss-utusan-agama | ⚖️ Equivalent | Depends on the actual content — fairly niche title. Not necessarily needed in a limited slot, but not weak content either. |
+| 4 | Politik | Wong Chen umum keluar PKR, sertai Bersama | rss-awani-politik | ✅ Correctly demoted | Individual-politician news typically goes stale fast. For Adjung, should only rank up if there's a real national/policy implication. |
+| 5 | Pendidikan | Hari Pertama Persekolahan Sesi 2024/2025 | rss-kpm | ✅ Correctly demoted | (No further reason given — consistent with the pattern above: routine/recurring institutional content, low distinct value.) |
+
+### Net result: 8/10 correct or acceptable, 1 real miss, 1 conditional
+
+**The one clear regression**: "Ujian buat Imam al-Bukhari di tanah
+kelahirannya" — Izzat's only unambiguous "incorrectly demoted" verdict.
+His stated reason points at a real gap in the current model: **the
+engine has no way to recognize depth/knowledge-value content that lacks
+a "trend" signal** (no freshness spike, no source-diversity trigger,
+nothing Candidate Scoring or Composition currently measures). This
+content was demoted purely because something else scored/discounted
+higher — not because anything was wrong with it.
+
+**A broader editorial principle surfaced, beyond this specific sample**:
+Izzat's reasoning across multiple verdicts converges on a consistent
+philosophy — favor lasting/thoughtful content, be wary of pure product-
+announcement churn ("Adjung shouldn't become a gadget portal") and
+individual-politician news that goes stale fast (should only surface with
+real national/policy implication). This reads as a real signal for
+**Editorial Composition classes A-D** (headline/update/context/niche —
+still undefined, `docs/editorial-composition-policy-v1.md`) once those
+get an operational definition: depth/evergreen value looks like a
+genuine candidate dimension, distinct from freshness or source trust.
 
 ## Next
 
