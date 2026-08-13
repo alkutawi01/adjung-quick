@@ -195,6 +195,49 @@ async function main() {
     }
   }
 
+  // --- TEST 11: a released story never returns (2026-08-13, live bug —
+  // Izzat: "berita yg telah di-swap kembali semula" — a swiped-away
+  // story reappeared later). Two distinct paths that both used to leak
+  // this, both now fixed via excludeEverReleased() in reducer.js: ---
+  {
+    // 11a: RELEASE_STORY called twice in the same Bidang — the FIRST
+    // released story must not be pulled back in as the SECOND release's
+    // replacement, even if it's still the top-ranked candidate overall.
+    const s1 = reduce(state, actions.selectTopic(richestTopic), context);
+    const firstReleaseId = s1.activeSet[0]?.storyId;
+    if (firstReleaseId) {
+      const s2 = reduce(s1, actions.releaseStory(firstReleaseId), context);
+      const secondReleaseId = s2.activeSet.find(a => a.storyId !== firstReleaseId)?.storyId;
+      const s3 = secondReleaseId ? reduce(s2, actions.releaseStory(secondReleaseId), context) : s2;
+      assert('TEST 11a — a story released 2 RELEASE_STORY calls ago does not resurface as a later replacement',
+        !s3.activeSet.some(a => a.storyId === firstReleaseId),
+        `firstReleaseId=${firstReleaseId} got=${JSON.stringify(s3.activeSet.map(a => a.storyId))}`);
+    } else {
+      assert('TEST 11a — (skipped: no live candidates this run)', true);
+    }
+
+    // 11b: the more common real-world path — release a story, navigate
+    // AWAY (SELECT_TOPIC to a different Bidang, which fully rebuilds the
+    // Active Set from rankedQueue), then navigate BACK. The released
+    // story must still be excluded from the fresh rebuild, not just from
+    // RELEASE_STORY's own single-slot-fill pass.
+    const beforeAway = reduce(state, actions.selectTopic(richestTopic), context);
+    const releasedId = beforeAway.activeSet[0]?.storyId;
+    if (releasedId) {
+      const afterReleaseThenAway = reduce(
+        reduce(beforeAway, actions.releaseStory(releasedId), context),
+        actions.selectTopic(topicWithStories === richestTopic ? rankedQueue[1]?.topic ?? topicWithStories : topicWithStories),
+        context
+      );
+      const backAgain = reduce(afterReleaseThenAway, actions.selectTopic(richestTopic), context);
+      assert('TEST 11b — a released story stays excluded after navigating away and back (SELECT_TOPIC full rebuild)',
+        !backAgain.activeSet.some(a => a.storyId === releasedId),
+        `releasedId=${releasedId} got=${JSON.stringify(backAgain.activeSet.map(a => a.storyId))}`);
+    } else {
+      assert('TEST 11b — (skipped: no live candidates this run)', true);
+    }
+  }
+
   // --- TEST 7: PIN/PRIORITIZE/REMOVE never mutate state.activeSet directly ---
   const beforeControl = state.activeSet;
   const controlTargetId = rankedQueue.find(c => !beforeControl.some(a => a.storyId === c.clusterKey))?.clusterKey;

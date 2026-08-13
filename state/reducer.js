@@ -26,6 +26,24 @@ function toActiveSetEntries(clusters, eligibleLanguages) {
     .filter(x => x.representation !== null); // Type 2 exclusion: no eligible representation
 }
 
+// BUG FOUND LIVE (2026-08-13, Izzat: "berita yg telah di-swap kembali
+// semula" — a released/swiped-away story reappeared later). A swiped
+// story must NEVER return to the Active Set — the only way back is
+// History (a separate, not-yet-finalized surface per Izzat's own note),
+// never by silently resurfacing here. `state.history` already logs
+// every RELEASE_STORY (storyId + releasedAt); this makes that log the
+// permanent exclusion source for every path that (re)computes candidate
+// pools, not just RELEASE_STORY's own single-slot-fill pass. Applied at
+// all four sites that build `eligible` from `rankedQueue`: SELECT_TOPIC,
+// SWITCH_LANGUAGE, SWITCH_EDITION, and RELEASE_STORY — a story released
+// in one Bidang/edition/language context must stay excluded no matter
+// which of those changes next.
+function excludeEverReleased(clusters, history) {
+  if (history.length === 0) return clusters; // common case, skip the Set allocation
+  const everReleasedIds = new Set(history.map(h => h.storyId));
+  return clusters.filter(c => !everReleasedIds.has(c.clusterKey));
+}
+
 // BUG FOUND live (2026-08-13, Izzat: "berita melayu takkan keluar dalam
 // edisi arab" — Malay news showing up in the Arabic edition). Root cause:
 // every toActiveSetEntries() call below used to pass representationPreference
@@ -100,7 +118,7 @@ export function reduce(state, action, context = {}) {
     // positions; only which stories are eligible to fill them changed.
     case ActionTypes.SELECT_TOPIC: {
       const eligibleLanguages = editionEligibleLanguages(state);
-      const inBidang = rankedQueue.filter(c => c.topic === action.topic);
+      const inBidang = excludeEverReleased(rankedQueue.filter(c => c.topic === action.topic), state.history);
       const eligible = toActiveSetEntries(inBidang, eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }));
 
@@ -170,14 +188,11 @@ export function reduce(state, action, context = {}) {
       // actually fills the slot, correctly, every time.
       const inBidang = rankedQueue.filter(c => c.topic === state.userContext.selectedTopic);
 
-      // Excludes the just-released story from THIS selection pass — without
-      // this it's often still the top-ranked candidate and gets immediately
-      // re-selected into the very slot it just left, making RELEASE_STORY a
-      // no-op from the reader's perspective. Not the same as Editorial
-      // Control's REMOVE (permanent exclusion) — a released story can still
-      // reappear later (new RSS, or once §Story Lifecycle / History governs
-      // re-eligibility properly). For now: exclude for this pass only.
-      const eligible = toActiveSetEntries(inBidang, eligibleLanguages)
+      // Permanently excludes every story ever released (see
+      // excludeEverReleased's own comment) — plus the story being released
+      // THIS pass, which isn't in state.history yet (that entry is only
+      // appended below, after this selection completes).
+      const eligible = toActiveSetEntries(excludeEverReleased(inBidang, state.history), eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }))
         .filter(c => c.clusterKey !== action.storyId);
 
@@ -244,7 +259,7 @@ export function reduce(state, action, context = {}) {
       // handled uniformly here because toActiveSetEntries() re-resolves
       // representation for every cluster under the new language context.
       const eligibleLanguages = action.selectedLanguages;
-      const eligible = toActiveSetEntries(rankedQueue, eligibleLanguages)
+      const eligible = toActiveSetEntries(excludeEverReleased(rankedQueue, state.history), eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }));
 
       const freshSelection = control
@@ -280,7 +295,7 @@ export function reduce(state, action, context = {}) {
       // action.editionId indirectly via nextEdition below) — this is the
       // exact fix for the "Malay news in Arabic edition" bug.
       const eligibleLanguages = [nextEdition.locale];
-      const eligible = toActiveSetEntries(rankedQueue, eligibleLanguages)
+      const eligible = toActiveSetEntries(excludeEverReleased(rankedQueue, state.history), eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }));
       const freshSelection = selectFieldActiveSet(eligible, nextEdition.editionId, fieldSurvives ? currentField : null, state.activeSetCapacity, control);
 
