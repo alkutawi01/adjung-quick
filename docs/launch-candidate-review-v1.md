@@ -1,6 +1,13 @@
 # Launch Candidate Review v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` → **DECIDED 2026-08-13** `[x] Implementation pending` `[ ] Closed`
+
+## Izzat's decision: Option A — Launch with accepted risks
+
+Restore rehearsal, monitoring, and deployment rollback (beyond ranking)
+are accepted as known, open gaps to close AFTER launch, not blockers to
+launch itself. Not a decision that these gaps don't matter — a decision
+about sequencing, made explicitly rather than by default.
 
 Per ChatGPT: the final checkpoint before an actual launch decision —
 synthesizes everything from this session's readiness work
