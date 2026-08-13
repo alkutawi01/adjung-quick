@@ -129,6 +129,12 @@ export const RSS_SOURCES = [
   // what a source actually publishes, not by what we wish filled the gap.
   { id: 'rss-amanz', name: 'Amanz', url: 'https://cms.amanz.my/feed/', language: 'ms', trustScore: 85, knownCategory: 'teknologi', sourceType: 'specialised' },
 
+  // JHEAIPP — Penang state Islamic affairs department, found live by Izzat
+  // 2026-08-13. Small (4 items at verification time) but real programme/
+  // event announcements, same authority_niche shape as JAKIM/IKIM/Utusan
+  // Agama — adds state-level Agama coverage alongside the federal sources.
+  { id: 'rss-jaipp', name: 'JHEAIPP (Pulau Pinang)', url: 'https://jaipp.penang.gov.my/index.php/en/component/content/category/15-berita?Itemid=567&format=feed&type=rss', language: 'ms', trustScore: 80, knownCategory: 'agama', sourceType: 'authority_niche' },
+
   // NOTE: Bernama's Malay feed (rss-bernama-bm, registered above at line ~21)
   // was RECOVERED by the same change — it answers HTTP 500 while serving
   // valid RSS, so it was being discarded before lab/rss.js started trusting
