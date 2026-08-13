@@ -1,6 +1,58 @@
 # Exhaustive Codebase Audit — Findings v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` `[x] Implementation pending` `[ ] Closed`
+
+## Triage (per ChatGPT, 2026-08-13) — this opens FASA 2.5
+
+Per ChatGPT: this audit is real enough to warrant its own sub-phase —
+**FASA 2.5 — Production Safety & Product Reliability Review** — running
+alongside FASA 2's Editorial Correctness work, not replacing it.
+
+**Fixed now** (isolated, no design decision, verified live):
+- ✅ `ui/src/components/StoryCard.jsx:95` (CRITICAL) — touch tap now opens
+  directly; mouse behavior unchanged. Verified live: touch dispatch opens
+  the Brief, mouse dispatch only highlights.
+- ✅ `ui/src/components/TopicWheel.jsx:174` / `StoryCard.jsx` (HIGH) —
+  drag gestures now scoped by `pointerId`; a second concurrent touch is
+  ignored outright instead of corrupting shared drag state. Verified
+  live: a simulated interfering second touch during an active swipe no
+  longer disrupts the first finger's release.
+- ✅ `ranking/candidate-scoring.mjs:28` (HIGH) — `freshnessScore()` now
+  degrades to 0 instead of crashing on a missing/unparseable
+  `publishedAt`.
+- ✅ `state/reducer.js:195` editorial_v1 test gap (HIGH) — added TEST 10
+  in `state/test.js`, pinned explicitly to `ms-MY`/Politik so the one
+  production-active ranking path is actually exercised, not skipped.
+- ✅ `package.json:12` (LOW) — wired `db/edition-representation-eligibility.test.mjs`
+  and `db/production-classification-acceptance.test.mjs` into `npm test`
+  (both were already passing, zero behavior change).
+
+All fixes committed, 129 assertions across 9 suites passing.
+
+**Frozen — needs design review before any change** (per ChatGPT, explicit):
+- ❌ `db/ingest-production.js:74,59` (CRITICAL) — the destructive-rebuild
+  guard's safety model itself needs redesigning, not patching. **Do not
+  run production ingestion until this is resolved.** Needs
+  `docs/ingestion-safety-guard-v2-decision.md` (fail-closed on query
+  failure, transaction boundary, partial-failure handling, emergency vs.
+  normal-refresh distinction).
+- ❌ `db/ingest-production.js:78`, `db/ingest-production.js:80-82`,
+  `db/classify-production.js:152` (HIGH) — truncate-then-refill pattern.
+  Real fix is an atomic swap / staging table / versioned dataset, not a
+  try/catch. Folds into the same ingestion-lifecycle design work as the
+  guard above (`docs/ingestion-lifecycle-v2-design.md`, already started).
+- ❌ `ranking/diversity-selection.mjs:20` near-duplicate check (HIGH) —
+  do not touch the algorithm. Next step: reproduce the failing test,
+  understand why, assess live impact — decision after that, not before.
+- ❌ `ui/src/style.css:271` Active Set no-scroll clipping (MEDIUM) — the
+  "no scroll, fits one screen" constraint is Izzat's own product rule;
+  needs a design decision, not a CSS patch.
+- ❌ RTM feed overlap / taxonomy items (MEDIUM/DECISION) — editorial
+  calls, not code changes.
+
+**Backlog** (LOW/IMPROVEMENT, no urgency): remaining CSS/RTL items, JAKIM
+fetch-path redirect/gzip handling, MOSTI cert monitoring, BBC http://
+URL, accessibility gaps, script/style-content stripHtml edge case.
 
 Category: **Architecture & Risk Audit** (per ChatGPT's classification — not
 feature development; read-only, no production/ranking/classification
