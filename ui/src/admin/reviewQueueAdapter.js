@@ -50,7 +50,18 @@ export async function fetchReviewQueue(supabase, editionId) {
     // reclassify written) drops out of the active queue per the plan doc's
     // Detected -> Pending Review -> Resolved lifecycle. The override row
     // itself remains the permanent audit trail; it just isn't re-shown here.
-    supabase.from('story_overrides').select('story_id').eq('edition_id', editionId).eq('active', true).in('story_id', storyIds),
+    // `.gt('expires_at')` added 2026-08-13
+    // (docs/override-expiry-enforcement-bugfix-v1.md). Without it, an
+    // EXPIRED override still excluded its story from the queue — so once
+    // the reader-side fix let that story reappear to readers, it would
+    // remain invisible to the admin's own Review Queue. Reader and admin
+    // would hold different beliefs about the same story, and the admin
+    // could never re-decide it.
+    supabase.from('story_overrides').select('story_id')
+      .eq('edition_id', editionId)
+      .eq('active', true)
+      .gt('expires_at', new Date().toISOString())
+      .in('story_id', storyIds),
     supabase.from('sources').select('id, name'),
   ]);
   if (clustersErr) throw new Error(`fetchReviewQueue: story_clusters — ${clustersErr.message}`);
