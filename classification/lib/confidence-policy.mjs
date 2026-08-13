@@ -21,6 +21,26 @@ export const DEFAULT_CONFIDENCE_POLICY = {
 // the benchmark hasn't tested yet, not a decision.
 export const EDITION_CONFIDENCE_POLICY_OVERRIDES = {};
 
+// Per-subject override — added 2026-08-13, per Izzat's direct decision
+// after the niche-field calibration found that Disaster/Environment/
+// Health's real vocabulary (classification/lib/content-rules.mjs) is
+// Tier 5 ONLY for ms-MY sources (mainstream Malay newsrooms have no
+// dedicated "bencana"/URL-desk structure to corroborate via Tier 2/3,
+// unlike Guardian/Al Jazeera's literal /environment/ URL paths) — so a
+// single Tier 5 hit (0.4) can never clear the default 0.6 gate,
+// permanently keeping these Bidang at zero regardless of vocabulary.
+// Lowered specifically for these three subjects, not globally, to avoid
+// raising noise for subjects (Politics, Crime, etc.) that already clear
+// the gate via stronger tiers. 0.35 is deliberately just under a single
+// content-rule hit's 0.4 — not a re-run benchmark like the original 0.6,
+// a targeted unblock; revisit if false-positive reports come in (see
+// docs/niche-field-coverage-audit.md's "kemarau emas" disclosed risk).
+export const SUBJECT_CONFIDENCE_OVERRIDES = {
+  Disaster: 0.35,
+  Environment: 0.35,
+  Health: 0.35,
+};
+
 export function policyForEdition(edition, thresholdOverride) {
   const base = { ...DEFAULT_CONFIDENCE_POLICY, ...(EDITION_CONFIDENCE_POLICY_OVERRIDES[edition] ?? {}) };
   if (thresholdOverride != null) base.min_subject_confidence = thresholdOverride;
@@ -35,6 +55,7 @@ export function policyForEdition(edition, thresholdOverride) {
 export function checkConfidenceGate(edition, topSubjectCandidate, thresholdOverride) {
   const policy = policyForEdition(edition, thresholdOverride);
   if (!topSubjectCandidate) return { pass: true, policy };
-  if (topSubjectCandidate.confidence >= policy.min_subject_confidence) return { pass: true, policy };
+  const effectiveThreshold = SUBJECT_CONFIDENCE_OVERRIDES[topSubjectCandidate.value] ?? policy.min_subject_confidence;
+  if (topSubjectCandidate.confidence >= effectiveThreshold) return { pass: true, policy };
   return { pass: false, action: policy.low_confidence_action, policy };
 }
