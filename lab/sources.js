@@ -95,8 +95,13 @@ export const RSS_SOURCES = [
   // for a feed that isn't even reachable reliably in the first place. Kept
   // registered rather than deleted, with status: 'failed_tls', so the gap
   // stays visible in the pipeline instead of being silently forgotten.
-  { id: 'rss-jakim-berita', name: 'JAKIM — Berita', url: 'https://www.islam.gov.my/ms/berita?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama', status: 'failed_tls', statusReason: 'missing intermediate certificate (UNABLE_TO_VERIFY_LEAF_SIGNATURE)', sourceType: 'authority_niche' },
-  { id: 'rss-jakim-kenyataan', name: 'JAKIM — Kenyataan Media', url: 'https://www.islam.gov.my/ms/kenyataan-media?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama', status: 'failed_tls', statusReason: 'missing intermediate certificate (UNABLE_TO_VERIFY_LEAF_SIGNATURE)', sourceType: 'authority_niche' },
+  // FIXED 2026-08-13: previously status:'failed_tls' — islam.gov.my serves
+  // an incomplete chain (omits the GlobalSign intermediate). Rather than
+  // leaving Bidang Agama without its two authority sources, the missing
+  // intermediate is now supplied via `extraCa`, restoring FULL chain
+  // verification (verified live: authorized: true). See lab/certs/README.md.
+  { id: 'rss-jakim-berita', name: 'JAKIM — Berita', url: 'https://www.islam.gov.my/ms/berita?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama', extraCa: 'globalsign-ecc-ov-ssl-ca-2018.pem', sourceType: 'authority_niche' },
+  { id: 'rss-jakim-kenyataan', name: 'JAKIM — Kenyataan Media', url: 'https://www.islam.gov.my/ms/kenyataan-media?format=feed&type=rss', language: 'ms', trustScore: 85, knownCategory: 'agama', extraCa: 'globalsign-ecc-ov-ssl-ca-2018.pem', sourceType: 'authority_niche' },
 
   // Agama alternatives (2026-08-12), found per ChatGPT's instruction to keep
   // searching rather than rely on JAKIM alone. Both verified: valid feed,

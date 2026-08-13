@@ -123,7 +123,64 @@ export function parseRssXml(xmlString, source) {
   return items;
 }
 
-export async function fetchFeed(source) {
+// Some publishers serve an incomplete TLS chain — their server omits the
+// intermediate certificate linking its own cert to a trusted root.
+// Browsers usually hide this (they cache intermediates seen elsewhere);
+// Node fails with UNABLE_TO_VERIFY_LEAF_SIGNATURE. Supplying the missing
+// intermediate restores a COMPLETE verification chain — this is not
+// `rejectUnauthorized: false`, which would accept any certificate at all
+// including a man-in-the-middle. Verification still fully applies.
+//
+// Only sources that explicitly declare `extraCa` in lab/sources.js take
+// this path; every other source uses fetch() and Node's default trust
+// store, unchanged. See lab/certs/README.md.
+async function fetchWithExtraCa(source) {
+  const [https, tls, fs, path, url] = await Promise.all([
+    import('node:https'), import('node:tls'), import('node:fs'),
+    import('node:path'), import('node:url'),
+  ]);
+  const here = path.dirname(url.fileURLToPath(import.meta.url));
+  const caPem = fs.readFileSync(path.join(here, 'certs', source.extraCa), 'utf-8');
+  const agent = new https.Agent({ ca: [caPem, ...tls.rootCertificates] });
+
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      source.url,
+      { agent, headers: { 'User-Agent': 'AdjungQuickLab/0.1 (+editorial-ranking-laboratory)' }, timeout: 15000 },
+      res => {
+        let body = '';
+        res.setEncoding('utf-8');
+        res.on('data', chunk => { body += chunk; });
+        // Same shape as a fetch() Response for the fields fetchFeed uses
+        // (status / ok / text()), so nothing downstream needs to know
+        // which path produced it.
+        res.on('end', () => resolve({
+          status: res.statusCode,
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          text: async () => body,
+        }));
+      }
+    );
+    req.on('timeout', () => { req.destroy(new Error('timeout')); });
+    req.on('error', reject);
+  });
+}
+
+// Transient network failures deserve a retry; permanent ones don't.
+// Bernama is the real case (verified 2026-08-13): the same two feeds
+// timed out on one run and answered instantly on the next, seconds
+// apart. Without a retry, ingestion silently misses that publisher's
+// stories on the unlucky runs — and the resulting gap looks like "no
+// news from Bernama today" rather than "the fetch flaked", which would
+// quietly corrupt the Fasa 1 evidence baseline.
+//
+// Deliberately narrow: only connection-level failures retry. An HTTP
+// error, an empty feed, or a TLS trust failure are all real answers
+// about the source, and retrying them just wastes time.
+const RETRYABLE_FETCH_ERRORS = /timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|fetch failed/i;
+
+export async function fetchFeed(source, attempt = 1) {
+  const MAX_ATTEMPTS = 3;
   // Source Health (per ChatGPT, 2026-08-12): a source marked with a known,
   // diagnosed failure status (e.g. 'failed_tls' — JAKIM's missing
   // intermediate certificate) short-circuits here instead of re-attempting
@@ -135,10 +192,12 @@ export async function fetchFeed(source) {
     return { source, ok: false, error: `source status: ${source.status}`, items: [], skipped: true };
   }
   try {
-    const res = await fetch(source.url, {
-      headers: { 'User-Agent': 'AdjungQuickLab/0.1 (+editorial-ranking-laboratory)' },
-      signal: AbortSignal.timeout(15000),
-    });
+    const res = source.extraCa
+      ? await fetchWithExtraCa(source)
+      : await fetch(source.url, {
+          headers: { 'User-Agent': 'AdjungQuickLab/0.1 (+editorial-ranking-laboratory)' },
+          signal: AbortSignal.timeout(15000),
+        });
     // Trust the PAYLOAD, not the status code. Bernama's Malay feed returns
     // HTTP 500 while serving perfectly valid RSS (verified 2026-08-12: 10
     // real items, "Dunia : Transit Melalui Selat Hormuz..."). Rejecting on
@@ -168,6 +227,13 @@ export async function fetchFeed(source) {
     }
     return { source, ok: true, items };
   } catch (err) {
-    return { source, ok: false, error: err.message, items: [] };
+    if (attempt < MAX_ATTEMPTS && RETRYABLE_FETCH_ERRORS.test(err.message)) {
+      await new Promise(r => setTimeout(r, 1000 * attempt));
+      return fetchFeed(source, attempt + 1);
+    }
+    return {
+      source, ok: false, items: [],
+      error: attempt > 1 ? `${err.message} (after ${attempt} attempts)` : err.message,
+    };
   }
 }
