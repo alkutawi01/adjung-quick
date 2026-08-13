@@ -90,7 +90,10 @@ async function main() {
     selected.forEach(s => { selectedBySource[s.sourceId] = (selectedBySource[s.sourceId] ?? 0) + 1; });
     console.log(`Active Set: ${selected.length}/10 slots`);
     console.log('Selected source distribution:', JSON.stringify(selectedBySource));
-    console.log(`Composition swaps made: ${Object.keys(compositionReasons).length / 2}`); // each swap writes 2 entries (in + out)
+    const reasonValues = Object.values(compositionReasons).flat();
+    const swapCount = reasonValues.filter(r => r === 'source_diversity_opportunity').length;
+    console.log(`Composition swaps made: ${swapCount}`);
+    console.log(`No-swap reason (if any): ${reasonValues.filter(r => r !== 'source_diversity_opportunity' && r !== 'displaced_for_source_diversity').join(', ') || 'n/a (no dominance detected)'}`);
     console.log('');
   }
 

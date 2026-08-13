@@ -65,17 +65,33 @@ export function applyEditorialComposition(candidates, options = {}) {
     .sort((a, b) => a.score - b.score); // ascending — weakest first
   const weakestDominant = dominantSourceCandidates[0];
 
-  const underrepresentedAlternatives = (options.alternativePool ?? [])
+  const otherSourceCandidates = (options.alternativePool ?? [])
     .filter(c => c.sourceId !== dominantSource)
-    .filter(c => !selected.some(s => s.storyId === c.storyId))
+    .filter(c => !selected.some(s => s.storyId === c.storyId));
+
+  // Per ChatGPT (2026-08-13, after the small-field production benchmark):
+  // "0 swap" is not one category. Distinguish WHY nothing was swapped —
+  // these are structurally different situations that happen to produce
+  // the same mechanical outcome:
+  if (otherSourceCandidates.length === 0) {
+    // No candidate from any other source exists in the pool AT ALL —
+    // this is a genuine single-source field (Sains/Pendidikan in
+    // docs/ranking-engine-small-field-production-benchmark.md: only
+    // rss-mosti / rss-kpm exist for that field, period).
+    compositionReasons[weakestDominant.storyId] = ['no_diversity_candidate_available'];
+    return { selected, compositionReasons };
+  }
+
+  const underrepresentedAlternatives = otherSourceCandidates
     .filter(c => c.score >= weakestDominant.score * qualityFloorRatio)
     .sort((a, b) => b.score - a.score); // strongest qualifying alternative first
 
   if (underrepresentedAlternatives.length === 0) {
-    // No candidate clears the quality floor — nothing to swap. This is
-    // exactly Case C (genuine dominant event): if every source is
-    // legitimately reporting the same big story, there's no real
-    // alternative sitting in the pool to swap in.
+    // Alternatives DO exist, but none clear the quality floor — this is
+    // Case C (genuine dominant event): every source is legitimately
+    // reporting the same big story, so what's sitting in the pool from
+    // other sources is real but genuinely weaker, not a viable swap.
+    compositionReasons[weakestDominant.storyId] = ['dominant_event_preserved'];
     return { selected, compositionReasons };
   }
 

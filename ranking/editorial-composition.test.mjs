@@ -57,13 +57,21 @@ console.log('\nEDITORIAL COMPOSITION v0.1 — benchmark tests\n');
 // --- Case C: Genuine Dominant Event (the crucial counter-case) ---
 {
   const dominantSelected = Array.from({ length: 10 }, (_, i) => ({ storyId: `event-${i}`, sourceId: 'astro', score: 95 - i }));
-  // No alternative pool at all — every source is legitimately covering
-  // the same big event, there IS no other real story sitting around.
-  const { selected, compositionReasons } = applyEditorialComposition(dominantSelected, { alternativePool: [] });
-  assert('Case C — no forced swap when there is genuinely no qualifying alternative (dominant event, not dominant source bias)',
+  // Alternatives DO exist (other sources reported the same event too),
+  // but they're genuinely weaker coverage — not a viable swap. This is
+  // what distinguishes "dominant_event_preserved" from
+  // "no_diversity_candidate_available" (Case E below): here there IS
+  // something in the pool, it just doesn't clear the quality floor.
+  const alternativePool = [
+    { storyId: 'bernama-weak', sourceId: 'bernama', score: 20 },
+    { storyId: 'metro-weak', sourceId: 'metro', score: 15 },
+  ];
+  const { selected, compositionReasons } = applyEditorialComposition(dominantSelected, { alternativePool });
+  assert('Case C — no forced swap when existing alternatives are genuinely too weak (dominant event, not dominant source bias)',
     selected.every((c, i) => c.storyId === dominantSelected[i].storyId), 'set should be unchanged');
-  assert('Case C — no composition reasons recorded (nothing was swapped)',
-    Object.keys(compositionReasons).length === 0);
+  assert('Case C — reason recorded as dominant_event_preserved, distinct from no_diversity_candidate_available',
+    Object.values(compositionReasons).flat().includes('dominant_event_preserved'),
+    JSON.stringify(compositionReasons));
 }
 
 // --- Case D: Topic/Angle Diversity — v0.1 explicitly does not implement this (per policy §, out of v0.1 scope) ---
@@ -90,7 +98,10 @@ console.log('\nEDITORIAL COMPOSITION v0.1 — benchmark tests\n');
   // No real alternative pool — this IS the whole field, 5 candidates total.
   const { selected, compositionReasons } = applyEditorialComposition(smallField, { alternativePool: [] });
   assert('Case E — small field (5 real candidates, 4 from MOSTI) is not force-diversified with fake candidates',
-    selected.length === 5 && Object.keys(compositionReasons).length === 0);
+    selected.length === 5 && selected.every((c, i) => c.storyId === smallField[i].storyId));
+  assert('Case E — reason recorded as no_diversity_candidate_available (genuine single-source field, distinct from Case C)',
+    Object.values(compositionReasons).flat().includes('no_diversity_candidate_available'),
+    JSON.stringify(compositionReasons));
 }
 
 // --- Transparency: every replacement carries a reason ---
