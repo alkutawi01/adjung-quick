@@ -1,6 +1,17 @@
 # Editor Bootstrap Runbook v1 (2026-08-13)
 
-Status: `[x] Observation` `[ ] Decision needed` `[x] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[ ] Decision needed` `[ ] Implementation pending` `[x] Closed`
+
+## Executed 2026-08-13
+
+Izzat created his account (`alkutawi01@gmail.com`) via the Supabase
+Dashboard's own Users panel — confirmed live via `auth.admin.listUsers()`.
+The bootstrap `INSERT` (Step 3) was run against production with his real
+`user_id` (`419b2649-8d04-47cb-9540-43b9a67dd7e7`), `role: 'admin'`.
+Verified two ways: the Step 4 SQL check, and a live call to
+`db/editor-auth.mjs`'s `getEditorRole()` against the real account —
+both confirm `role = 'admin'`. Fasa 3.6.1 Foundation is now fully
+verified end-to-end, not just schema-deployed.
 
 Category: **Runbook.** How to turn Izzat's own Supabase Auth account
 into the first `admin` row in `editors`
