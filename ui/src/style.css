@@ -365,3 +365,14 @@ body {
 }
 
 .app-error { padding: 24px; color: #a00; font-family: Georgia, serif; }
+
+/* Desktop: mobile-first layout stays edge-to-edge below this width, but
+   above it the reading column centers itself (same 640px measure as
+   .brief already uses) instead of stretching full-bleed across a wide
+   viewport — per Izzat, "align ke tengah skrin macam amanz.my". */
+@media (min-width: 720px) {
+  .app {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
