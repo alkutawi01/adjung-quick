@@ -107,5 +107,30 @@ const hoursAgo = h => new Date(NOW.getTime() - h * 60 * 60 * 1000).toISOString()
     selected[0].reasons.length > 0, JSON.stringify(selected[0].reasons));
 }
 
+// --- Quality vs Diversity conflict (per ChatGPT, 2026-08-13): does
+// diversity destroy quality, or gently make room for it? Astro Awani
+// holds the 3 genuinely best stories; Bernama and Metro trail well
+// behind on raw score. Diversity should still surface Bernama/Metro,
+// but NOT by burying Astro Awani's clearly-best story to do it. ---
+{
+  const candidates = [
+    { storyId: 'awani-a', title: 'Astro Awani top story A', sourceId: 'astro-awani', publishedAt: hoursAgo(1), trustScore: 90, classificationConfidence: 0.7 },
+    { storyId: 'awani-b', title: 'Astro Awani story B different topic', sourceId: 'astro-awani', publishedAt: hoursAgo(1), trustScore: 90, classificationConfidence: 0.65 },
+    { storyId: 'awani-c', title: 'Astro Awani story C another topic', sourceId: 'astro-awani', publishedAt: hoursAgo(1), trustScore: 90, classificationConfidence: 0.6 },
+    { storyId: 'bernama-d', title: 'Bernama story D on a real but lower-profile topic', sourceId: 'bernama', publishedAt: hoursAgo(1), trustScore: 80, classificationConfidence: 0.5 },
+    { storyId: 'metro-e', title: 'Metro story E on a real but lower-profile topic', sourceId: 'metro', publishedAt: hoursAgo(1), trustScore: 78, classificationConfidence: 0.5 },
+  ];
+  const scored = scoreCandidates(candidates, NOW);
+  const selected = selectDiverseCandidates(scored, 5);
+  const selectedIds = selected.map(s => s.storyId);
+  assert('Quality preserved: Astro Awani\'s clearly-best story (highest raw score) is NOT excluded to force diversity',
+    selectedIds.includes('awani-a'), `selected=${JSON.stringify(selectedIds)}`);
+  assert('Diversity still surfaces the trailing sources: Bernama and Metro both make it in',
+    selectedIds.includes('bernama-d') && selectedIds.includes('metro-e'), `selected=${JSON.stringify(selectedIds)}`);
+  const awaniCount = selected.filter(s => s.sourceId === 'astro-awani').length;
+  assert('Diversity gently makes room rather than eliminating the dominant source entirely: Astro Awani keeps at least 1, but not all 3, of the 5 slots',
+    awaniCount >= 1 && awaniCount < 3, `awaniCount=${awaniCount}`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed.\n`);
 if (failed > 0) process.exit(1);
