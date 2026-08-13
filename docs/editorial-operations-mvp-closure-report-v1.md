@@ -82,6 +82,7 @@ auth-lock bug.
 | **`content_mismatch` detection** | Needs `classify-production.js` to persist evidence it currently discards | `docs/review-queue-ui-implementation-plan-v1.md` |
 | **Silent-source detection in digest** | Requires a full `rss_items` scan; stays CLI-only | `docs/admin-digest-implementation-plan-v1.md` |
 | **Digest history/trends** | Data exists in `db/observations/`; no UI | This report |
+| **Pin replacement visibility** | Needs composition recomputed in a speculative post-pin state, not just candidate ranking | `docs/pin-governance-design-v1.md` §8 |
 
 ## Real risks carried into Fasa 4
 

@@ -101,15 +101,34 @@ Follows the locked precedence in
 Encouragingly, three of these four already hold in shipped code — pin
 governance is mostly about *limits*, not new precedence logic.
 
-## 8. Open question for Izzat (not decided here)
+## 8. Deferred Decision: Replacement Preview
 
-Pin's real cost is invisible: pinning story X silently evicts whatever
-would have held slot 10. Should the admin be shown what a pin displaces
-before confirming?
+**Recorded, not implemented.** Per ChatGPT's addition to this design.
 
-Honest answer: it's computable but not cheap, and it may be more
-information than a busy admin wants. Flagged rather than assumed —
-this is Izzat's call, not mine.
+A pin is never simply "+1 story". It is always:
+
+```
++1 pinned story
+-1 slot that something else would have held
+```
+
+The Active Set has a fixed 10 slots, so pinning necessarily evicts
+whatever would have occupied the last one. That cost is currently
+invisible to the admin at the moment of deciding.
+
+Possible future behaviour — before a pin is confirmed, show its effect:
+
+> "Berita ini akan mengambil tempat slot yang kini diisi oleh X."
+
+**Deferred because** it requires computing composition *after* the pin
+is applied, not merely candidate ranking — a full re-run of the
+selection pipeline in a speculative state, which the current
+architecture doesn't expose. Not hard in principle, but not the small
+addition it appears to be.
+
+Open question that remains Izzat's to answer, not mine: whether a busy
+admin actually wants this information at decision time, or whether it
+becomes one more thing to read past. Flagged rather than assumed.
 
 ## What is explicitly NOT decided
 
