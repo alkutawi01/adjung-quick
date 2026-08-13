@@ -29,7 +29,12 @@ CREATE TABLE IF NOT EXISTS edition_story_classifications (
   -- this wrong fails at migration time with "Key columns story_id and id
   -- are of incompatible types: uuid and text".
   story_id    TEXT NOT NULL REFERENCES story_clusters(id) ON DELETE CASCADE,
-  edition_id  TEXT NOT NULL,          -- 'ms-MY' | 'en' | 'ar' — matches state/editions.js's editionId
+  -- 'ms-MY' | 'en-global' | 'ar-global' — matches state/editions.js's
+  -- editionId exactly. (Corrected 2026-08-13: this comment previously
+  -- read 'en' | 'ar', which never matched either the code or the real
+  -- data. Harmless in itself — nothing reads a comment — but a real trap
+  -- for anyone writing a new table that joins on edition_id.)
+  edition_id  TEXT NOT NULL,
 
   -- NULL when unclassified. Per docs/structural-evidence-fallback-policy.md,
   -- "Unclassified" is an honest, legitimate outcome (evidence too weak to
