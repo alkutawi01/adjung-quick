@@ -11,6 +11,7 @@ import TopicWheel from './components/TopicWheel.jsx';
 import ActiveSetList from './components/ActiveSetList.jsx';
 import Brief from './components/Brief.jsx';
 import EditionSwitcher from './components/EditionSwitcher.jsx';
+import { t } from './i18n.js';
 
 // Phase 2A/Candidate-B Core Reading Shell. Per Izzat's visual-direction
 // correction (2026-08-11): ONE composition, not a desktop-specific
@@ -145,15 +146,15 @@ export default function App() {
     dispatch(closeBrief());
   };
 
-  if (loadError) {
-    return <div className="app-error">Gagal memuatkan berita: {loadError}</div>;
-  }
-
   // UI-2A (docs/ui-2-navigation-contract.md §4): dir/lang follow the ACTIVE
   // EDITION, not a separate language setting — direction is an edition
   // property (state/editions.js), so ar-global renders RTL from the very
   // root, before any child component needs to know about it individually.
   const currentEdition = getEdition(state.editionContext.activeEdition);
+
+  if (loadError) {
+    return <div className="app-error">{t(currentEdition.locale, 'loadError')}: {loadError}</div>;
+  }
 
   // Full-screen Brief: a state transition at ANY viewport width, never a
   // permanently-visible empty third pane (Izzat's explicit correction).
@@ -164,6 +165,7 @@ export default function App() {
           story={openStory}
           sourceName={sourceNames.get(openStory?.sourceId) ?? openStory?.sourceId}
           onClose={closeBriefAndRestoreFocus}
+          locale={currentEdition.locale}
         />
       </main>
     );
@@ -190,6 +192,7 @@ export default function App() {
           selectedTopic={state.userContext.selectedTopic}
           activeSetCapacity={state.activeSetCapacity}
           highlightedStoryId={state.selection.highlightedStoryId}
+          locale={currentEdition.locale}
           onSelect={id => dispatch(selectStory(id))}
           onOpen={id => dispatch(openBrief(id))}
           onRelease={id => dispatch(releaseStory(id))}

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import SourceLink from './SourceLink.jsx';
+import { t } from '../i18n.js';
 
 // Brief — §5 of the contract. Receives the ALREADY-resolved, edition-correct
 // representation from App.jsx's openStory (same representation the Active
@@ -11,7 +12,7 @@ import SourceLink from './SourceLink.jsx';
 // - Focus moves into the Brief when it opens, so Esc/↑/↓ work immediately.
 // - Esc calls onClose (App.jsx owns restoring focus to the triggering card).
 // - ↑/↓ scroll WITHIN the Brief only — never change Story selection behind it.
-export default function Brief({ story, sourceName, onClose }) {
+export default function Brief({ story, sourceName, onClose, locale }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export default function Brief({ story, sourceName, onClose }) {
       onKeyDown={handleKeyDown}
     >
       <button className="brief__close" onClick={onClose} aria-label="Close brief">
-        ← Kembali
+        {t(locale, 'back')}
       </button>
       {/* Topic display removed (KIV) — per Izzat's 2026-08-11 decision, see StoryCard.jsx */}
       <h1 className="brief__title" dir="auto">{story.title}</h1>

@@ -23,6 +23,8 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { understandStory } from '../classification/story-understanding.mjs';
 import { classifyForAllEditions } from '../classification/edition-classification.mjs';
+import { isEditionEligible } from './edition-representation-eligibility.mjs';
+import { EDITIONS } from '../state/editions.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -42,7 +44,7 @@ async function main() {
   // own signals (link/categories/title), not the cluster's legacy topic.
   const [{ data: clusters, error: cErr }, { data: items, error: iErr }] = await Promise.all([
     supabase.from('story_clusters').select('id, topic, workspace_state'),
-    supabase.from('rss_items').select('id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at'),
+    supabase.from('rss_items').select('id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at, language'),
   ]);
   if (cErr) throw new Error(`story_clusters — ${cErr.message}`);
   if (iErr) throw new Error(`rss_items — ${iErr.message}`);
@@ -62,6 +64,7 @@ async function main() {
   // en/ar were renamed to en-global/ar-global.
   const stats = {};
   let noItems = 0;
+  let skippedIneligible = 0;
 
   for (const cluster of active) {
     const members = itemsByCluster.get(cluster.id) ?? [];
@@ -80,6 +83,18 @@ async function main() {
     const editions = classifyForAllEditions(understanding);
 
     for (const [editionId, result] of Object.entries(editions)) {
+      // Edition Representation Eligibility Gate (docs/edition-representation-eligibility-policy.md,
+      // 2026-08-13): a placement row is never created for an edition the
+      // cluster has no representation in — found live when en-global's
+      // "Religion" showed 20 classified stories that were all Malay-only,
+      // permanently invisible in the UI (Edition Locale Authority). Story
+      // Understanding / Edition Classification stay untouched; this gate
+      // sits after them, before persistence.
+      if (!isEditionEligible({ members }, EDITIONS[editionId].locale)) {
+        skippedIneligible++;
+        continue;
+      }
+
       if (!stats[editionId]) stats[editionId] = {};
       const bucket = stats[editionId];
       const key = result.field ?? '(unclassified)';
@@ -100,6 +115,7 @@ async function main() {
   }
 
   if (noItems > 0) console.log(`(${noItems} clusters skipped — no member items fetched)\n`);
+  if (skippedIneligible > 0) console.log(`(${skippedIneligible} edition placements skipped — no representation in that edition's locale, per Edition Representation Eligibility Gate)\n`);
 
   for (const [editionId, bucket] of Object.entries(stats)) {
     const total = Object.values(bucket).reduce((a, b) => a + b, 0);
@@ -115,6 +131,20 @@ async function main() {
     console.log(`DRY RUN — ${rows.length} rows would be upserted. Re-run with --write to apply.\n`);
     return;
   }
+
+  // BUG FOUND live (2026-08-13, right after adding the Representation
+  // Eligibility Gate above): upsert alone does NOT delete rows that this
+  // run no longer produces. The gate's whole purpose is to STOP writing
+  // ineligible placements (e.g. a Malay-only story's en-global "Religion"
+  // row) — but every ineligible row written by an EARLIER run (before the
+  // gate existed) stayed in the table untouched, since upsert only
+  // touches rows present in `rows`. Confirmed live: table had 2595 rows
+  // after a --write that only produced 867. Truncate first — this script
+  // already fully regenerates its output from `active` every run (same
+  // full-recompute pattern as db/ingest-production.js), so there is no
+  // partial/incremental state here worth preserving between runs.
+  const { error: truncateErr } = await supabase.from('edition_story_classifications').delete().not('story_id', 'is', null);
+  if (truncateErr) throw new Error(`truncate edition_story_classifications — ${truncateErr.message}`);
 
   // Upsert in batches; onConflict on the composite PK makes this safely
   // re-runnable (a later calibration round re-runs the same script).

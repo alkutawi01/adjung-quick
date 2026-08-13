@@ -1,4 +1,5 @@
 import StoryCard from './StoryCard.jsx';
+import { t } from '../i18n.js';
 
 // Renders state.activeSet, filtered by the currently selected topic — the
 // Bidang wheel's whole purpose is to change which stories are visible.
@@ -19,7 +20,7 @@ import StoryCard from './StoryCard.jsx';
 // unrelated slots never reflow, because the underlying state.activeSet
 // (all 10 engine-controlled slots) is completely untouched by this view
 // filter — Stable Spatial Slots still governs the real data underneath.
-export default function ActiveSetList({ activeSet, sourceNames, highlightedStoryId, selectedTopic, activeSetCapacity, onSelect, onOpen, onRelease }) {
+export default function ActiveSetList({ activeSet, sourceNames, highlightedStoryId, selectedTopic, activeSetCapacity, locale, onSelect, onOpen, onRelease }) {
   // selectedTopic == null only during cold start, before the Bidang list has
   // loaded (there is no "Semua"/All pseudo-Bidang — removed 2026-08-12 per
   // Izzat). Once a real Bidang is selected, the view always filters to it.
@@ -40,8 +41,10 @@ export default function ActiveSetList({ activeSet, sourceNames, highlightedStory
       >
         {/* Per docs/ui-2-navigation-contract.md §2 / docs/empty-bidang-policy.md:
             an empty field is a normal editorial-standard state, not a
-            failure — "Tiada berita" reads as a bug/dead-end. */}
-        Belum ada berita yang memenuhi piawaian editorial hari ini.
+            failure — "Tiada berita" reads as a bug/dead-end. Localized per
+            edition (2026-08-13 fix, Izzat live-test: this stayed Malay
+            even inside en-global/ar-global — screenshot confirmed). */}
+        {t(locale, 'emptyField')}
       </div>
     );
   }
