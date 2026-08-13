@@ -1,6 +1,13 @@
 # Geography Navigation Contract v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[x] Closed`
+
+## SUPERSEDED 2026-08-13 — see `docs/ms-my-taxonomy-review-v1.md` §RESOLVED
+
+Izzat chose the simpler industry-standard shape (flat Wheel list) over
+the Model 2 mode-switch this document specified. Kept for the data
+contract reasoning (still true — no schema change, `field` stays the
+source of truth), not for the navigation model.
 
 Category: **[DECISION] contract document. No UI, classifier, or schema
 change here.** Per ChatGPT: answer data model, navigation model, Active

@@ -1,6 +1,13 @@
 # Geography Navigation Implementation Plan v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[x] Closed`
+
+## SUPERSEDED 2026-08-13 — see `docs/ms-my-taxonomy-review-v1.md` §RESOLVED
+
+Not implemented as planned here. Izzat's simpler decision (flat Wheel
+list) required only 2 file changes and no new reducer/action/component —
+see the actual implementation recorded in
+`docs/ms-my-taxonomy-review-v1.md`.
 
 Category: **[DECISION] planning document. No code written here.**
 

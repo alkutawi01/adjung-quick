@@ -1,11 +1,38 @@
 # ms-MY Taxonomy Reality Review v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` → **DECIDED 2026-08-13** `[x] Implementation pending` `[x] Closed`
 
-Category: **Review document. Taxonomy NOT changed, classifier NOT
-changed, no field added/renamed.** Answers, with real data, the question
-Izzat raised directly with ChatGPT: does `ms-MY` need a "Nasional" Bidang
-it currently lacks?
+## RESOLVED — Izzat's final decision (2026-08-13)
+
+> "tukar ke Nasional, saya setuju. dan jadikan Nasional dan Dunia mcm
+> bidang2 lain."
+
+This **overrides** the "separate navigation mode" design this session
+converged on (`docs/geography-residual-navigation-policy-v1.md` →
+`docs/geography-navigation-contract-v1.md` →
+`docs/geography-navigation-implementation-plan-v1.md`, all superseded —
+kept for the reasoning trail, not for implementation). Izzat's own
+question — *"macam mana portal berita biasa buat utk isu-isu macam
+ni?"* — corrected the over-engineering: real Malay portals (Astro
+Awani, Utusan, BH) just list Nasional/Dunia as ordinary menu items next
+to Politik/Sukan — no special mode.
+
+**Implemented and verified live** (`https://adjung-quick.vercel.app`):
+- `classification/lib/edition-taxonomy.mjs`: local residual label
+  `'Malaysia'` → `'Nasional'`
+- `state/editions.js`: `ms-MY.taxonomy` now includes `Nasional` (first —
+  the cold-start default, per `App.jsx`'s `taxonomy[0]`) and `Dunia` as
+  ordinary Bidang, 16 total
+- `classify-production.js --write` re-applied: `Nasional: 63` (exact
+  same stories, pure relabel), `Dunia: 46` (unchanged, was already
+  reachable)
+- Confirmed live: Wheel shows all 16 items, Nasional loads as the
+  cold-start default with real content (10/10 slots filled), Dunia
+  unaffected
+
+Category: **Review document** — the original data findings below remain
+valid and are what informed Izzat's decision; only the navigation-shape
+recommendation at the bottom was superseded by his simpler call.
 
 Data source: `db/classification-observatory.mjs` (all 896 active
 clusters, 2026-08-13) plus a direct 20-story sample pull per bucket

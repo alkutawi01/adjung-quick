@@ -1,6 +1,14 @@
 # Geography Residual Navigation Policy v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[x] Closed`
+
+## SUPERSEDED 2026-08-13 — see `docs/ms-my-taxonomy-review-v1.md` §RESOLVED
+
+Izzat overrode Option B (recommended below) with a simpler,
+industry-standard call: treat Nasional/Dunia as ordinary Bidang, no
+separate navigation mode. Kept for its still-valid diagnosis (the 109
+orphaned stories, the subject-vs-geography distinction) — the option
+recommendation below was not the final decision.
 
 Category: **[RISK] policy document. No classifier, taxonomy, or UI code
 changed here.**
