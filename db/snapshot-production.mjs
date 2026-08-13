@@ -44,18 +44,31 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistS
 // Chunked .in()/select — same lesson as ranking/shadow-runner.mjs's
 // earlier fix, applied here from the start since some of these tables
 // (rss_items, edition_story_classifications) are large.
-async function selectAllChunked(table, columns) {
-  const rows = [];
-  let from = 0;
-  const PAGE = 1000;
-  while (true) {
-    const { data, error } = await supabase.from(table).select(columns).range(from, from + PAGE - 1);
-    if (error) throw new Error(`${table}: ${error.message}`);
-    rows.push(...data);
-    if (data.length < PAGE) break;
-    from += PAGE;
+// Same transient-error retry as db/daily-observation.mjs — Supabase
+// intermittently returns "JWT issued at future" (clock skew, clears on
+// retry). Hit repeatedly on 2026-08-13, including mid-launch.
+const TRANSIENT_PATTERNS = [/JWT issued at future/i, /fetch failed/i];
+
+async function selectAllChunked(table, columns, attempts = 3) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const rows = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase.from(table).select(columns).range(from, from + PAGE - 1);
+        if (error) throw new Error(`${table}: ${error.message}`);
+        rows.push(...data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return rows;
+    } catch (err) {
+      if (!TRANSIENT_PATTERNS.some(p => p.test(err.message)) || i === attempts) throw err;
+      console.log(`  (transient error on ${table}: ${err.message} — retry ${i}/${attempts - 1})`);
+      await new Promise(r => setTimeout(r, 1500 * i));
+    }
   }
-  return rows;
 }
 
 async function main() {

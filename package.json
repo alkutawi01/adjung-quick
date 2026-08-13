@@ -9,10 +9,16 @@
     "lab": "node lab/run.js",
     "lab:match": "node lab/run-match.js",
     "lab:control": "node lab/run-control.js",
-    "test": "node lab/test.js && node state/test.js",
+    "test": "node lab/test.js && node state/test.js && node ranking/editorial-composition.test.mjs && node ranking/shadow-runner.test.mjs && node classification/content-rules.test.mjs && node db/production-write-guard.test.mjs && node db/daily-observation.test.mjs",
     "test:engine": "node lab/test.js",
     "test:state": "node state/test.js",
-    "test:identity": "node db/identity-test.js"
+    "test:ranking": "node ranking/editorial-composition.test.mjs && node ranking/shadow-runner.test.mjs",
+    "test:classification": "node classification/content-rules.test.mjs",
+    "test:safety": "node db/production-write-guard.test.mjs && node db/daily-observation.test.mjs",
+    "test:snapshot": "node db/snapshot-regression.test.mjs",
+    "test:identity": "node db/identity-test.js",
+    "observe": "node db/daily-observation.mjs",
+    "snapshot": "node db/snapshot-production.mjs"
   },
   "engines": {
     "node": ">=20"

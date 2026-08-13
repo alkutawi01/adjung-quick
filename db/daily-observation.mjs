@@ -37,18 +37,43 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistS
 
 const EDITIONS = ['ms-MY', 'en-global', 'ar-global'];
 
-async function selectAllChunked(table, columns) {
-  const rows = [];
-  let from = 0;
-  const PAGE = 1000;
-  while (true) {
-    const { data, error } = await supabase.from(table).select(columns).range(from, from + PAGE - 1);
-    if (error) throw new Error(`${table}: ${error.message}`);
-    rows.push(...data);
-    if (data.length < PAGE) break;
-    from += PAGE;
+// Supabase intermittently rejects a request with "JWT issued at future"
+// — a clock-skew artifact between this machine and Supabase's auth
+// service, not a code fault, and it clears on an immediate retry. Hit
+// repeatedly on 2026-08-13. Retried here rather than left manual,
+// because this script is meant to be a daily habit: a command that
+// randomly fails and needs rerunning is a command that stops being run.
+const TRANSIENT_PATTERNS = [/JWT issued at future/i, /fetch failed/i];
+
+async function withRetry(label, fn, attempts = 3) {
+  let lastError;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (!TRANSIENT_PATTERNS.some(p => p.test(err.message)) || i === attempts) throw err;
+      console.log(`  (transient error on ${label}: ${err.message} — retry ${i}/${attempts - 1})`);
+      await new Promise(r => setTimeout(r, 1500 * i));
+    }
   }
-  return rows;
+  throw lastError;
+}
+
+async function selectAllChunked(table, columns) {
+  return withRetry(table, async () => {
+    const rows = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase.from(table).select(columns).range(from, from + PAGE - 1);
+      if (error) throw new Error(`${table}: ${error.message}`);
+      rows.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return rows;
+  });
 }
 
 function countBy(rows, key) {
@@ -110,7 +135,7 @@ async function gatherMetrics() {
       if (version !== 'editorial_v1') continue;
       const key = `${edition}.${field}`;
       try {
-        const candidates = await loadFieldCandidates(edition, field);
+        const candidates = await withRetry(key, () => loadFieldCandidates(edition, field));
         const selected = editorialSelect(candidates, 10);
         rankingPilots[key] = {
           version,

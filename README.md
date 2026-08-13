@@ -24,12 +24,31 @@ Two layers so far:
 ## What's actually proven here (run it yourself)
 
 ```bash
-npm test              # everything: engine + state regression (26 assertions)
-npm run test:engine    # lab/ only
-npm run test:state     # state/ only
-npm run lab            # full pipeline: fetch -> dedup -> score -> rank -> Active Set
-npm run lab:match      # Tier-1 story-match candidates as a labelled CSV
-npm run lab:control    # Pin/Prioritize/Remove correctness demo, with assertions
+npm test                   # 97 assertions across 7 suites (engine, state, ranking,
+                           #   classification, write-guard, observation)
+npm run test:engine        # lab/ only
+npm run test:state         # state/ only
+npm run test:ranking       # Editorial Ranking Engine (composition + shadow chunking)
+npm run test:classification # content-rule HTML extraction
+npm run test:safety        # production write guard + observation alert thresholds
+npm run lab                # full pipeline: fetch -> dedup -> score -> rank -> Active Set
+npm run lab:match          # Tier-1 story-match candidates as a labelled CSV
+npm run lab:control        # Pin/Prioritize/Remove correctness demo, with assertions
+```
+
+Two suites are deliberately **not** in `npm test`, because both need
+something a fresh clone doesn't have:
+
+```bash
+npm run test:snapshot   # needs a local snapshot first: npm run snapshot
+npm run test:identity   # writes real rows to the shared Supabase project
+```
+
+Post-launch operations (both read-only against production):
+
+```bash
+npm run observe    # daily metrics + day-over-day diff + alerts (Fasa 1)
+npm run snapshot   # data export -> local file + Google Drive backup
 ```
 
 `lab:control` is the one worth running first — it proves, against real RSS
