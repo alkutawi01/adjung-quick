@@ -45,6 +45,18 @@ async function main() {
   // 10 slots OF THE SELECTED BIDANG.
   const topicWithStories = rankedQueue[0].topic;
   const afterSelectTopic = reduce(state, actions.selectTopic(topicWithStories), context);
+
+  // Richest topic by candidate count — used below wherever a test needs a
+  // Bidang guaranteed to have enough real candidates for a replacement to
+  // actually happen (TEST 6e, TEST 9a-c). Since the Bidang-scoped Active
+  // Set decision (2026-08-12), RELEASE_STORY/slot-preservation tests must
+  // run against a SELECTED Bidang — a real reader is always inside one
+  // (App.jsx auto-selects on cold start), so testing release before any
+  // topic is selected (selectedTopic === null) is not a realistic scenario.
+  const topicCounts = rankedQueue
+    .reduce((counts, c) => (counts.set(c.topic, (counts.get(c.topic) ?? 0) + 1), counts), new Map());
+  const [richestTopic] = [...topicCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? [null];
+  const scopedState = reduce(state, actions.selectTopic(richestTopic), context);
   assert('TEST 2 — SELECT_TOPIC scopes activeSet to the selected Bidang',
     afterSelectTopic.activeSet.length > 0 &&
     afterSelectTopic.activeSet.every(s => s._cluster.topic === topicWithStories),
@@ -87,16 +99,35 @@ async function main() {
     afterRelease.history.length === state.history.length + 1 &&
     afterRelease.history[afterRelease.history.length - 1].storyId === releasedId);
 
+  // BUG FOUND LIVE (2026-08-13, Izzat: "saya dah cuba semua bidang, takde
+  // yg ganti pun" — RELEASE_STORY's replacement pool wasn't scoped to the
+  // selected Bidang, so lab/engine.js's coverage-first diversity pass
+  // admitted a DIFFERENT topic's story into the vacated slot — which then
+  // silently vanished behind ActiveSetList's own topic filter, making
+  // every release look like a no-op regardless of how many same-topic
+  // candidates existed). Pick a Bidang with real volume so a replacement
+  // should be possible, then verify any replacement that DOES appear is
+  // the SAME topic as the one selected — never a different topic hidden
+  // by the render-time filter.
+  const beforeScopedRelease = scopedState.activeSet;
+  const scopedReleasedId = beforeScopedRelease[0]?.storyId;
+  const afterScopedRelease = scopedReleasedId
+    ? reduce(scopedState, actions.releaseStory(scopedReleasedId), context)
+    : scopedState;
+  assert('TEST 6e — RELEASE_STORY replacement (if any) is the SAME topic as the selected Bidang, never a different one hidden by the render filter',
+    afterScopedRelease.activeSet.every(s => s._cluster?.topic === richestTopic),
+    `richestTopic=${richestTopic} got=${JSON.stringify(afterScopedRelease.activeSet.map(s => s._cluster?.topic))}`);
+
   // --- TEST 9: STABLE SPATIAL SLOTS (locked 2026-08-12) — RELEASE_STORY
   // must refill exactly the vacated slot index, never append at the end.
   // Found live by Izzat on the real device simulator: releasing slot #4
   // was shifting slots #5-9 up by one and appending the replacement at
   // slot #9 instead of #4. ---
   function assertSlotPreserved(label, slotIndexToRelease) {
-    const before = state.activeSet;
+    const before = scopedState.activeSet;
     const targetEntry = before.find(s => s.slot === slotIndexToRelease);
     if (!targetEntry) { assert(label, false, `no entry at slot ${slotIndexToRelease}`); return; }
-    const after = reduce(state, actions.releaseStory(targetEntry.storyId), context);
+    const after = reduce(scopedState, actions.releaseStory(targetEntry.storyId), context);
     const untouchedSlots = before.filter(s => s.slot !== slotIndexToRelease);
     const allUntouchedPreserved = untouchedSlots.every(s => {
       const match = after.activeSet.find(a => a.slot === s.slot);

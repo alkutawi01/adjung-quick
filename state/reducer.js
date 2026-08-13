@@ -133,16 +133,34 @@ export function reduce(state, action, context = {}) {
       const remaining = state.activeSet.filter(s => s.storyId !== action.storyId);
       const eligibleLanguages = editionEligibleLanguages(state);
 
-      // BUG FOUND running the vertical slice against real RSS (2026-08-11):
-      // without this exclusion, the just-released story — often still the
-      // top-ranked candidate — gets immediately re-selected into the very
-      // slot it just left, making RELEASE_STORY a no-op from the reader's
-      // perspective. It must be excluded from THIS selection pass. This is
-      // not the same as Editorial Control's REMOVE (permanent exclusion) —
-      // a released story can still reappear later (new RSS, or once §Story
-      // Lifecycle / History — Fasa 1A — governs re-eligibility properly).
-      // For now: exclude for this pass only.
-      const eligible = toActiveSetEntries(rankedQueue, eligibleLanguages)
+      // BUG FOUND LIVE (2026-08-13, Izzat: "saya dah cuba semua bidang,
+      // takde yg ganti pun" — swiping a card away never replaced it, in
+      // EVERY Bidang, even ones with plenty of candidates like Politik/53
+      // or Pendidikan/193). Root cause: `rankedQueue` here was never scoped
+      // to the SELECTED Bidang, unlike SELECT_TOPIC's `inBidang` filter.
+      // Since the Bidang-scoped Active Set decision (2026-08-12), every
+      // slot in state.activeSet shares the SAME topic — so
+      // lab/engine.js's fillSlots() "coverage first" pass (designed for
+      // the OLD multi-topic Active Set) saw that topic already in
+      // `existingTopics` and deliberately picked a replacement from a
+      // DIFFERENT topic to maximise diversity. That replacement WAS
+      // admitted into activeSet — it just immediately vanished, because
+      // ActiveSetList's render-time filter (`slot._cluster?.topic ===
+      // selectedTopic`) hid it. From the reader's side: swipe, then
+      // nothing happens. Fix: scope to the selected Bidang FIRST, same as
+      // SELECT_TOPIC — with only one topic in the candidate pool,
+      // fillSlots' Pass 2 (ranked fallback, no topic constraint) is what
+      // actually fills the slot, correctly, every time.
+      const inBidang = rankedQueue.filter(c => c.topic === state.userContext.selectedTopic);
+
+      // Excludes the just-released story from THIS selection pass — without
+      // this it's often still the top-ranked candidate and gets immediately
+      // re-selected into the very slot it just left, making RELEASE_STORY a
+      // no-op from the reader's perspective. Not the same as Editorial
+      // Control's REMOVE (permanent exclusion) — a released story can still
+      // reappear later (new RSS, or once §Story Lifecycle / History governs
+      // re-eligibility properly). For now: exclude for this pass only.
+      const eligible = toActiveSetEntries(inBidang, eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }))
         .filter(c => c.clusterKey !== action.storyId);
 
