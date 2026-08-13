@@ -17,6 +17,8 @@ import { ActionTypes } from './actions.js';
 import { selectActiveSetWithControl } from '../lab/engine.js';
 import { selectRepresentation } from './representation.js';
 import { getEdition } from './editions.js';
+import { getRankingVersion } from './rankingFlags.js';
+import { selectEditorialActiveSet } from './editorialRankingAdapter.js';
 
 function toActiveSetEntries(clusters, eligibleLanguages) {
   return clusters
@@ -43,6 +45,23 @@ function toActiveSetEntries(clusters, eligibleLanguages) {
 // to pull a story into an edition it doesn't belong in.
 function editionEligibleLanguages(state) {
   return [getEdition(state.editionContext.activeEdition).locale];
+}
+
+// Feature-flag dispatch, per docs/editorial-ranking-activation-policy-v1.md
+// §5: the ONLY place production code branches on rankingFlags — never a
+// hardcoded field check, always through getRankingVersion(). `eligible`
+// is already capped to `capacity` candidates for the legacy path (top-N
+// by editorial_score order, since `eligible` arrives pre-sorted from
+// productionAdapter.js); the editorial path gets the FULL eligible pool
+// so Diversity Selection/Composition have real alternatives to choose
+// from, and caps internally.
+function selectFieldActiveSet(eligible, editionId, field, capacity, control) {
+  if (getRankingVersion(editionId, field) === 'editorial_v1') {
+    return selectEditorialActiveSet(eligible, capacity);
+  }
+  return control
+    ? selectActiveSetWithControl(eligible, control, capacity, [])
+    : eligible.slice(0, capacity);
 }
 
 function buildActiveSetSlots(clusterEntries) {
@@ -85,9 +104,7 @@ export function reduce(state, action, context = {}) {
       const eligible = toActiveSetEntries(inBidang, eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }));
 
-      const selected = control
-        ? selectActiveSetWithControl(eligible, control, state.activeSetCapacity, [])
-        : eligible.slice(0, state.activeSetCapacity);
+      const selected = selectFieldActiveSet(eligible, state.editionContext.activeEdition, action.topic, state.activeSetCapacity, control);
 
       return {
         ...state,
@@ -165,17 +182,33 @@ export function reduce(state, action, context = {}) {
         .filter(c => c.clusterKey !== action.storyId);
 
       const existingAsClusters = remaining.map(s => s._cluster ?? s);
-      const filled = control
-        ? selectActiveSetWithControl(eligible, control, state.activeSetCapacity, existingAsClusters)
-        : existingAsClusters;
 
-      // `filled` is engine.js's own `[...existingAsClusters, ...newlyAdmitted]`
-      // — since existingAsClusters.length never changes here (we only ever
-      // open exactly one slot per RELEASE_STORY), anything beyond that
-      // length is the (at most one) newly admitted replacement. Extract it
-      // and place it at `releasedSlot` explicitly, instead of trusting its
-      // position in `filled`.
-      const newlyAdmitted = filled.slice(existingAsClusters.length);
+      // editorial_v1 (docs/editorial-ranking-activation-policy-v1.md §5):
+      // RELEASE_STORY is INCREMENTAL — it must only ever fill the one
+      // vacated slot, never recompute the other 9 (Stable Spatial Slots).
+      // So the editorial path runs the full pipeline over `eligible` to
+      // get its preferred ORDER, then picks the first candidate not
+      // already occupying a slot — same single-slot-fill contract as the
+      // legacy path below, just sourced from editorial ranking instead of
+      // Editorial Control's queue.
+      let newlyAdmitted;
+      if (getRankingVersion(state.editionContext.activeEdition, state.userContext.selectedTopic) === 'editorial_v1') {
+        const existingKeys = new Set(existingAsClusters.map(c => c.clusterKey));
+        const editorialOrder = selectEditorialActiveSet(eligible, eligible.length);
+        const replacement = editorialOrder.find(c => !existingKeys.has(c.clusterKey));
+        newlyAdmitted = replacement ? [replacement] : [];
+      } else {
+        const filled = control
+          ? selectActiveSetWithControl(eligible, control, state.activeSetCapacity, existingAsClusters)
+          : existingAsClusters;
+        // `filled` is engine.js's own `[...existingAsClusters, ...newlyAdmitted]`
+        // — since existingAsClusters.length never changes here (we only ever
+        // open exactly one slot per RELEASE_STORY), anything beyond that
+        // length is the (at most one) newly admitted replacement. Extract it
+        // and place it at `releasedSlot` explicitly, instead of trusting its
+        // position in `filled`.
+        newlyAdmitted = filled.slice(existingAsClusters.length);
+      }
       let nextActiveSet;
       if (newlyAdmitted.length > 0 && releasedSlot !== undefined) {
         const replacement = newlyAdmitted[0];
@@ -249,9 +282,7 @@ export function reduce(state, action, context = {}) {
       const eligibleLanguages = [nextEdition.locale];
       const eligible = toActiveSetEntries(rankedQueue, eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }));
-      const freshSelection = control
-        ? selectActiveSetWithControl(eligible, control, state.activeSetCapacity, [])
-        : eligible.slice(0, state.activeSetCapacity);
+      const freshSelection = selectFieldActiveSet(eligible, nextEdition.editionId, fieldSurvives ? currentField : null, state.activeSetCapacity, control);
 
       return {
         ...state,
