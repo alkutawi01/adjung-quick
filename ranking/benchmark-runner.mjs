@@ -16,7 +16,7 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { scoreCandidates } from './candidate-scoring.mjs';
 import { selectDiverseCandidates } from './diversity-selection.mjs';
-import { applyCompositionConstraints } from './editorial-composition.mjs';
+import { applyEditorialComposition } from './editorial-composition.mjs';
 import { RSS_SOURCES } from '../lab/sources.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -63,8 +63,14 @@ async function loadPolitikCandidates() {
 
 function runPipeline(candidates, now) {
   const scored = scoreCandidates(candidates, now);
-  const selected = selectDiverseCandidates(scored, 10);
-  return applyCompositionConstraints(selected);
+  const diversitySelected = selectDiverseCandidates(scored, 10);
+  // alternativePool: every scored candidate NOT already selected by
+  // Diversity Selection — Composition's only source of swap candidates,
+  // per docs/editorial-composition-policy-v1.md (it never re-ranks, only
+  // considers what Diversity Selection left on the table).
+  const alternativePool = scored.filter(c => !diversitySelected.some(s => s.storyId === c.storyId));
+  const { selected } = applyEditorialComposition(diversitySelected, { alternativePool });
+  return selected;
 }
 
 async function main() {
