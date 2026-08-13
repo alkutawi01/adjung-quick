@@ -6,6 +6,78 @@ FASA 3.6.5. Per ChatGPT: answer the governance questions before Pin
 exists as code. *"Jangan beri pistol sebelum ada peraturan
 penggunaannya."*
 
+## Izzat's decisions (2026-08-13) — both now locked
+
+**1. Purpose: B confirmed** ("ya"). Pin means *"the editor wants readers
+to see this"*, not *"the most important story today"*. Importance stays
+ranking's job.
+
+**2. Pin behaviour: priority placement, appears first.** Izzat's own
+words: *"diberi keutamaan je. mungkin muncul dlm aktif set pertama."*
+
+This is a **refinement of §2 below, not just an answer about preview** —
+it changes what Pin is:
+
+| | Original draft | Izzat's decision |
+|---|---|---|
+| Guarantee | Membership in the Active Set | Membership **and position** — appears first |
+| Framing | "bypasses the ranking contest" | "just given priority" |
+
+So Pin is now a **positional** guarantee: the pinned story appears, and
+it appears at the top. Section 7's conflict table is unaffected.
+
+**On the replacement preview (§8): not wanted.** Izzat's framing is
+prioritisation, not eviction, so a "this will displace X" prompt does not
+match how he thinks about the action. §8 stays deferred and unbuilt.
+
+## Pin Placement Guarantee (locked)
+
+The nuance above was reviewed and resolved into governance rather than
+left as a footnote. **Pin has two distinct effects**, and both are
+intended:
+
+1. **Position guarantee** — a pinned story appears at the **first
+   position** of the Active Set.
+2. **Membership guarantee** — if the story is **not already** in the
+   Active Set, the system **brings it in**.
+
+**Pin is therefore not merely re-sorting.** It is an intervention in the
+Active Set.
+
+**Consequence, acknowledged not hidden**: when the membership guarantee
+engages, one Active Set slot is taken from another candidate. This is
+recorded here as a real technical cost of the action. It is deliberately
+**not** surfaced as a replacement preview (§8) — Izzat's framing is
+prioritisation, and a preview would contradict it.
+
+### Why pin is NOT restricted to stories already in the Active Set
+
+That restriction was considered and **rejected**. It would make pin
+purely a re-sort, which sounds safer but destroys the entire point of
+Purpose B: the stories that most need pinning — a public-safety notice,
+an official statement with low engagement — are exactly the ones ranking
+would *not* place in the top 10 on their own. A pin that can only
+reorder what already won cannot intervene in the real problem.
+
+### Admin-facing language
+
+The system must never expose the displacement mechanic to the admin:
+
+| | |
+|---|---|
+| ❌ | "Berita ini akan menggantikan berita X." |
+| ✅ | "Berita ini akan diberi keutamaan dan dipaparkan di bahagian teratas." |
+
+The system manages slots. The admin states editorial intent.
+
+### Why the 2-pin limit now matters *more*
+
+Under the original "re-sort" reading, a high pin count was untidy. Under
+the confirmed reading, each pin actively displaces a candidate — so the
+limit is what keeps ranking alive rather than decorative. **The limit
+stays at 2 active pins per (edition, field)**, unchanged, along with
+admin-only, mandatory expiry, and mandatory reason.
+
 ## 1. Purpose — A or B?
 
 ChatGPT posed two readings that look alike but aren't:
@@ -40,6 +112,9 @@ job.
 | Works where | `editorial_v1` fields only | Any field (it doesn't need scoring) |
 
 One line: **boost argues, pin decides.**
+
+Updated per Izzat's decision above: pin guarantees not just *presence*
+but *position* — the pinned story appears first in the Active Set.
 
 Note the asymmetry — pin works everywhere precisely *because* it skips
 scoring, so it does not carry Boost's `editorial_v1`-only limitation.
