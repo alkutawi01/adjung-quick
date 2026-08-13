@@ -16,6 +16,7 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { assertWriteAllowed } from './production-write-guard.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,6 +26,13 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY) {
   console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY in .env');
   process.exit(1);
 }
+
+// Found during docs/production-write-guard-v1.md's follow-up script
+// audit (2026-08-13): this script creates real Supabase Auth users and
+// writes saved_stories/history_entries against whatever DB SUPABASE_URL
+// points at — previously unguarded, the most invasive of the 2 gaps
+// found in that audit.
+assertWriteAllowed();
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 

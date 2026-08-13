@@ -17,6 +17,7 @@ import { createClient } from '@supabase/supabase-js';
 import { RSS_SOURCES } from '../lab/sources.js';
 import { fetchFeed } from '../lab/rss.js';
 import { understandStory } from '../classification/story-understanding.mjs';
+import { assertWriteAllowed } from './production-write-guard.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -26,6 +27,13 @@ const SAMPLE_SOURCE_IDS = ['rss-mosti', 'rss-kpm', 'rss-amanz', 'rss-utusan-agam
 const TEST_PREFIX = 'sampleverify-';
 
 async function main() {
+  // Found during docs/production-write-guard-v1.md's follow-up script
+  // audit (2026-08-13): this script DOES write (insert + delete test
+  // rows) against whatever DB SUPABASE_URL points at — previously
+  // unguarded, despite ingest-production.js/classify-production.js
+  // being guarded. Cleanup-scoped writes are still writes.
+  assertWriteAllowed();
+
   console.log('\nSAMPLE INGESTION VERIFICATION (Step 3) — 5 sources, no truncation\n');
 
   const sources = SAMPLE_SOURCE_IDS.map(id => RSS_SOURCES.find(s => s.id === id)).filter(Boolean);
