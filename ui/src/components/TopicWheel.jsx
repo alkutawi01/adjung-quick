@@ -236,8 +236,26 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   // slides, same as before the liveIndex fix.
   const continuousCenterPos = middleIndex - rawOffsetPx / itemStep;
 
+  // Explicit navigation buttons (Issue 3, 2026-08-13 — Izzat: "saya dah
+  // ckp perlu butang navigasi", asked twice, since mouse-wheel scroll
+  // can't reliably move exactly one Bidang per tick). Deliberately call
+  // the SAME selectIndex() every other input mechanism already funnels
+  // through (drag, native wheel, keyboard ArrowUp/Down) — no separate
+  // button-only logic, so there is only ever one definition of "move one
+  // Bidang." Wrap-around is already locked (see WRAP-AROUND note above):
+  // pressing ↑ on the first Bidang goes to the last, and vice versa —
+  // the same behavior scroll/drag/keyboard already have, not a new
+  // disabled-at-edges rule invented just for these buttons.
   return (
     <div className="bidang-wheel" aria-label="Bidang">
+      <button
+        type="button"
+        className="bidang-wheel__nav-btn bidang-wheel__nav-btn--up"
+        aria-label="Previous Bidang"
+        onClick={() => selectIndex(currentIndex - 1)}
+      >
+        ▲
+      </button>
       <nav
         className="bidang-wheel__track"
         ref={trackRef}
@@ -267,6 +285,14 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
           })}
         </div>
       </nav>
+      <button
+        type="button"
+        className="bidang-wheel__nav-btn bidang-wheel__nav-btn--down"
+        aria-label="Next Bidang"
+        onClick={() => selectIndex(currentIndex + 1)}
+      >
+        ▼
+      </button>
     </div>
   );
 }
