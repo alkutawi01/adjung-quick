@@ -18,7 +18,8 @@
     "test:snapshot": "node db/snapshot-regression.test.mjs",
     "test:identity": "node db/identity-test.js",
     "observe": "node db/daily-observation.mjs",
-    "snapshot": "node db/snapshot-production.mjs"
+    "snapshot": "node db/snapshot-production.mjs",
+    "classification-observatory": "node db/classification-observatory.mjs"
   },
   "engines": {
     "node": ">=20"
