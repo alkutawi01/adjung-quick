@@ -28,14 +28,15 @@ work per Option A).
 6. Launch record
 ```
 
-## 1. Freeze release candidate
+## 1. Freeze release candidate — ✅ DONE 2026-08-13
 
-- [ ] Confirm current branch/commit is what ships — no in-flight
-      uncommitted changes (`git status` clean)
-- [ ] Confirm ranking flag state: `ms-MY.Politik` → `editorial_v1`,
-      everything else → `legacy` (`state/rankingFlags.js`)
-- [ ] Tag this commit as the release candidate (e.g. `v1.0.0-rc1`) —
-      **requires explicit confirmation before tagging/pushing**
+- [x] Confirm current branch/commit is what ships — no in-flight
+      uncommitted changes (`git status` clean) — confirmed clean
+- [x] Confirm ranking flag state: `ms-MY.Politik` → `editorial_v1`,
+      everything else → `legacy` (`state/rankingFlags.js`) — confirmed
+- [x] Tag this commit as the release candidate: `v1.0.0-rc1` (local tag
+      only — **not pushed to origin**, per standing practice of
+      confirming again before any shared/remote action)
 
 ## 2. Snapshot production
 
