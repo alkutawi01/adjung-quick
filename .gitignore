@@ -3,9 +3,19 @@ node_modules/
 .env.*
 !.env.example
 
+# Vite build output — Vercel builds this itself from source (vercel.json's
+# buildCommand), so a committed copy would only ever be stale.
+ui/dist/
+
 .vercel
 .env*
 
 # Local staging snapshots (db/snapshot-production.mjs) — real production
 # data copies, never committed. See docs/staging-environment-setup-plan-v1.md.
 db/snapshots/
+
+# NOTE: db/observations/ is deliberately NOT ignored. Unlike snapshots
+# (full article data), observation files hold only aggregate counts —
+# no article text, no user data, no credentials — and the whole point of
+# them is day-over-day history, which has to survive across Izzat's two
+# machines to be useful. See db/daily-observation.mjs.

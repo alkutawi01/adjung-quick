@@ -1,0 +1,70 @@
+{
+  "observedAt": "2026-08-13T07:58:01.933Z",
+  "counts": {
+    "sources": 43,
+    "sourcesContributing": 41,
+    "clusters": 865,
+    "items": 917,
+    "placements": 867,
+    "savedStories": 0,
+    "historyEntries": 0
+  },
+  "silentSources": [],
+  "knownBrokenSources": [
+    "rss-jakim-berita",
+    "rss-jakim-kenyataan"
+  ],
+  "editions": {
+    "ms-MY": {
+      "total": 725,
+      "classified": 709,
+      "unclassified": 16,
+      "fields": {
+        "Pendidikan": 193,
+        "Malaysia": 64,
+        "Politik": 36,
+        "Dunia": 46,
+        "Jenayah": 28,
+        "Sukan": 91,
+        "Hiburan": 61,
+        "Bisnes": 93,
+        "Agama": 24,
+        "Gaya Hidup": 25,
+        "Sains": 5,
+        "Teknologi": 31,
+        "Bencana": 8,
+        "Alam Sekitar": 4
+      }
+    },
+    "en-global": {
+      "total": 91,
+      "classified": 53,
+      "unclassified": 38,
+      "fields": {
+        "Crime": 3,
+        "Culture": 1,
+        "World": 19,
+        "Environment": 4,
+        "Health": 2,
+        "Disaster": 7,
+        "Politics": 5,
+        "Business": 5,
+        "Economy": 2,
+        "Sports": 2,
+        "Science": 2,
+        "Technology": 1
+      }
+    },
+    "ar-global": {
+      "total": 51,
+      "classified": 22,
+      "unclassified": 29,
+      "fields": {
+        "رياضة": 6,
+        "سياسة": 13,
+        "اقتصاد": 2,
+        "كوارث": 1
+      }
+    }
+  }
+}
