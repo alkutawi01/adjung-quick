@@ -25,6 +25,7 @@ import { understandStory } from '../classification/story-understanding.mjs';
 import { classifyForAllEditions } from '../classification/edition-classification.mjs';
 import { isEditionEligible } from './edition-representation-eligibility.mjs';
 import { EDITIONS } from '../state/editions.js';
+import { assertWriteAllowed } from './production-write-guard.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,6 +39,11 @@ const WRITE = process.argv.includes('--write');
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 async function main() {
+  // Per docs/production-write-guard-v1.md: only --write mode is
+  // destructive (it truncates edition_story_classifications) — a
+  // --dry-run never writes, so it never needs the guard.
+  if (WRITE) assertWriteAllowed();
+
   console.log(`\nPRODUCTION CLASSIFICATION WIRING — ${WRITE ? 'WRITE MODE' : 'DRY RUN (no writes)'}\n`);
 
   // Pull clusters + their member items. The classifier needs the item's

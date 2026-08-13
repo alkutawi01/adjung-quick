@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { RSS_SOURCES } from '../lab/sources.js';
 import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
+import { assertWriteAllowed } from './production-write-guard.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -27,6 +28,10 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 async function main() {
+  // Per docs/production-write-guard-v1.md: fails immediately, before any
+  // network call or write, if DATABASE_ENV isn't explicitly set safe.
+  assertWriteAllowed();
+
   console.log('Fetching real RSS...\n');
   const results = await Promise.all(RSS_SOURCES.map(fetchFeed));
   const allItems = results.filter(r => r.ok).flatMap(r => r.items);
