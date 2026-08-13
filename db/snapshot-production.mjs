@@ -102,9 +102,31 @@ async function main() {
   console.log(`  history_entries: ${historyEntries.length}`);
   console.log(`  ruleset versions present: ${snapshot.rulesetVersions.join(', ')}`);
 
+  checkUpgradeTriggers(snapshot);
   backupToGoogleDrive(snapshot);
 
   console.log('\nDone. Read-only — no production data was modified.\n');
+}
+
+// Trigger B check from docs/production-safety-decision-proposal-v1.md
+// §1: "Upgrade before saved_stories/history_entries hold real,
+// meaningful user data." Automatable today — the other two triggers
+// (A: sustained traffic, C: unattended automated jobs) aren't, since
+// this project has no traffic tracking and no scheduler yet (both
+// deliberately not built per Izzat's 2026-08-13 "skip for now"
+// decision) — those stay manual judgment calls until/unless that
+// changes. This check fires every run once real rows exist; not
+// silenced after the first warning on purpose — a real trust-affecting
+// gap deserves to stay visible, not be dismissed once and forgotten.
+function checkUpgradeTriggers(snapshot) {
+  const realUserDataRows = snapshot.counts.savedStories + snapshot.counts.historyEntries;
+  if (realUserDataRows === 0) return;
+  console.log(`\n⚠️  SUPABASE UPGRADE TRIGGER B FIRED — real user data exists now.`);
+  console.log(`   saved_stories: ${snapshot.counts.savedStories}, history_entries: ${snapshot.counts.historyEntries}`);
+  console.log(`   Per docs/production-safety-decision-proposal-v1.md: this data has no`);
+  console.log(`   short-lived rationale (unlike news items) — losing it on a Free-Plan`);
+  console.log(`   backup gap is a real trust failure, not an accepted risk. Revisit the`);
+  console.log(`   Supabase Pro decision now.`);
 }
 
 // Dated copy into the Google Drive sync folder, so the local sync app
