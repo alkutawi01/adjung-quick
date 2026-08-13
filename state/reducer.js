@@ -25,6 +25,27 @@ function toActiveSetEntries(clusters, eligibleLanguages) {
     .filter(x => x.representation !== null); // Type 2 exclusion: no eligible representation
 }
 
+// BUG FOUND live (2026-08-13, Izzat: "berita melayu takkan keluar dalam
+// edisi arab" — Malay news showing up in the Arabic edition). Root cause:
+// every toActiveSetEntries() call below used to pass representationPreference
+// (defaults to ['ms'] per getRepresentationPreference's fallback) as the
+// ACTIVE SET MEMBERSHIP filter — completely independent of which edition
+// was actually active. So ar-global's Active Set was still being filtered
+// for Malay-eligible representations, and since nearly every cluster has a
+// Malay member, selectRepresentation() happily returned it — a Malay
+// article rendering inside the Arabic edition's Wheel.
+//
+// Fix: Active Set MEMBERSHIP must be anchored to the ACTIVE EDITION's own
+// locale — a story cannot occupy a slot in an edition's Active Set unless
+// it has a representation in THAT edition's language. This is distinct
+// from representationPreference (docs/edition-state-model.md O-012B),
+// which only matters for choosing among several representations of an
+// ALREADY-eligible story (e.g. in the Brief view) — it must never be able
+// to pull a story into an edition it doesn't belong in.
+function editionEligibleLanguages(state) {
+  return [getEdition(state.editionContext.activeEdition).locale];
+}
+
 function buildActiveSetSlots(clusterEntries) {
   return clusterEntries.map((c, i) => ({
     slot: i,
@@ -60,7 +81,7 @@ export function reduce(state, action, context = {}) {
     // Stable Spatial Slots is UNAFFECTED — still exactly `capacity` fixed
     // positions; only which stories are eligible to fill them changed.
     case ActionTypes.SELECT_TOPIC: {
-      const eligibleLanguages = getRepresentationPreference(state);
+      const eligibleLanguages = editionEligibleLanguages(state);
       const inBidang = rankedQueue.filter(c => c.topic === action.topic);
       const eligible = toActiveSetEntries(inBidang, eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }));
@@ -111,7 +132,7 @@ export function reduce(state, action, context = {}) {
       const releasedEntry = state.activeSet.find(s => s.storyId === action.storyId);
       const releasedSlot = releasedEntry?.slot;
       const remaining = state.activeSet.filter(s => s.storyId !== action.storyId);
-      const eligibleLanguages = state.userContext.selectedLanguages;
+      const eligibleLanguages = editionEligibleLanguages(state);
 
       // BUG FOUND running the vertical slice against real RSS (2026-08-11):
       // without this exclusion, the just-released story — often still the
@@ -204,8 +225,11 @@ export function reduce(state, action, context = {}) {
       // Active Set is rebuilt because edition determines placement/ranking,
       // but capacity and the stable-spatial-slot model are untouched — the
       // slot count never changes with edition (docs/edition-state-model.md,
-      // Active Set stays 10 stable slots regardless of edition).
-      const eligibleLanguages = state.userContext.selectedLanguages;
+      // Active Set stays 10 stable slots regardless of edition). Eligibility
+      // uses the NEW edition's own locale (editionEligibleLanguages reads
+      // action.editionId indirectly via nextEdition below) — this is the
+      // exact fix for the "Malay news in Arabic edition" bug.
+      const eligibleLanguages = [nextEdition.locale];
       const eligible = toActiveSetEntries(rankedQueue, eligibleLanguages)
         .map(x => ({ ...x.cluster, representation: x.representation }));
       const freshSelection = control

@@ -15,6 +15,11 @@ export const EDITIONS = {
     editionId: 'ms-MY',
     locale: 'ms',
     direction: 'ltr',
+    // UI-2A (per ChatGPT, 2026-08-13): label communicates EDITION identity
+    // ("which editorial worldview"), never just the language name alone —
+    // "Malay" would wrongly imply this is a translation switch. Malaysia
+    // context is real for this edition only (docs/edition-source-profile-model.md).
+    label: 'Malaysia · Malay Edition',
     taxonomy: [
       'Politik', 'Jenayah', 'Bisnes', 'Sukan', 'Alam Sekitar', 'Bencana',
       'Kesihatan', 'Pendidikan', 'Teknologi', 'Sains', 'Budaya', 'Hiburan',
@@ -30,6 +35,11 @@ export const EDITIONS = {
     editionId: 'en-global',
     locale: 'en',
     direction: 'ltr',
+    // Deliberately "Global", never "Global · Malaysia" or similar — per
+    // ChatGPT's explicit instruction: Malaysia context does not appear in
+    // en-global/ar-global for v1, only as a possible future personalization
+    // feature (login / prior ms-MY choice / shared location).
+    label: 'Global · English Edition',
     taxonomy: [
       'Politics', 'Crime', 'Economy', 'Business', 'Sports', 'Environment',
       'Disaster', 'Health', 'Education', 'Technology', 'Science', 'Culture',
@@ -40,12 +50,18 @@ export const EDITIONS = {
     editionId: 'ar-global',
     locale: 'ar',
     direction: 'rtl',
+    label: 'Global · Arabic Edition',
     taxonomy: [
       'سياسة', 'جريمة', 'اقتصاد', 'رياضة', 'بيئة', 'كوارث', 'صحة وعلوم',
       'تعليم', 'تكنولوجيا', 'ثقافة وفنون', 'دين', 'منوعات',
     ],
   },
 };
+
+// Stable iteration order for the edition switcher UI — Object.keys() order
+// is technically insertion order for string keys, but naming it explicitly
+// avoids that being an implicit dependency.
+export const EDITION_IDS = ['ms-MY', 'en-global', 'ar-global'];
 
 export const DEFAULT_EDITION_ID = 'ms-MY';
 

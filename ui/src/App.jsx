@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createInitialState } from '../../state/model.js';
 import { reduce } from '../../state/reducer.js';
-import { selectTopic, selectStory, openBrief, closeBrief, releaseStory } from '../../state/actions.js';
+import { selectTopic, selectStory, openBrief, closeBrief, releaseStory, switchEdition } from '../../state/actions.js';
 import { selectRepresentation } from '../../state/representation.js';
 import { getEdition } from '../../state/editions.js';
 import { selectActiveSet } from '../../lab/engine.js';
@@ -10,6 +10,7 @@ import { fetchRankedQueue, fetchSourceNames } from './adapter/productionAdapter.
 import TopicWheel from './components/TopicWheel.jsx';
 import ActiveSetList from './components/ActiveSetList.jsx';
 import Brief from './components/Brief.jsx';
+import EditionSwitcher from './components/EditionSwitcher.jsx';
 
 // Phase 2A/Candidate-B Core Reading Shell. Per Izzat's visual-direction
 // correction (2026-08-11): ONE composition, not a desktop-specific
@@ -57,10 +58,17 @@ export default function App() {
         // Active Set from the FIRST Bidang's stories, not the global top-10.
         // Matching state/reducer.js's SELECT_TOPIC — otherwise cold start and
         // every subsequent Bidang change would use two different rules.
-        const firstTopic = getEdition(state.editionContext.activeEdition).taxonomy[0];
+        const activeEdition = getEdition(state.editionContext.activeEdition);
+        const firstTopic = activeEdition.taxonomy[0];
+        // BUG FIX (2026-08-13, matching state/reducer.js's editionEligibleLanguages):
+        // eligibility must be the ACTIVE EDITION's own locale, not
+        // representationPreference/selectedLanguages (defaults to ['ms']) —
+        // otherwise a Malay representation gets pulled into a non-Malay
+        // edition's Active Set on cold start / edition switch, since almost
+        // every cluster has a Malay member.
         const eligible = queue
           .filter(c => c.topic === firstTopic)
-          .map(c => ({ ...c, representation: selectRepresentation(c, state.userContext.selectedLanguages) }))
+          .map(c => ({ ...c, representation: selectRepresentation(c, [activeEdition.locale]) }))
           .filter(c => c.representation !== null);
         const initial = selectActiveSet(eligible, state.activeSetCapacity);
         setState(s => ({
@@ -128,11 +136,17 @@ export default function App() {
     return <div className="app-error">Gagal memuatkan berita: {loadError}</div>;
   }
 
+  // UI-2A (docs/ui-2-navigation-contract.md §4): dir/lang follow the ACTIVE
+  // EDITION, not a separate language setting — direction is an edition
+  // property (state/editions.js), so ar-global renders RTL from the very
+  // root, before any child component needs to know about it individually.
+  const currentEdition = getEdition(state.editionContext.activeEdition);
+
   // Full-screen Brief: a state transition at ANY viewport width, never a
   // permanently-visible empty third pane (Izzat's explicit correction).
   if (state.brief.open) {
     return (
-      <main className="app">
+      <main className="app" dir={currentEdition.direction} lang={currentEdition.locale}>
         <Brief
           story={openStory}
           sourceName={sourceNames.get(openStory?.sourceId) ?? openStory?.sourceId}
@@ -143,8 +157,14 @@ export default function App() {
   }
 
   return (
-    <main className="app">
-      <div className="app__masthead">Adjung Quick</div>
+    <main className="app" dir={currentEdition.direction} lang={currentEdition.locale}>
+      <div className="app__masthead">
+        <span className="app__masthead-title">Adjung Quick</span>
+        <EditionSwitcher
+          activeEdition={state.editionContext.activeEdition}
+          onSwitch={id => dispatch(switchEdition(id))}
+        />
+      </div>
       <div className="app__body">
         <TopicWheel
           topics={topics}

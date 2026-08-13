@@ -171,6 +171,31 @@ async function main() {
   assert('UI-1 TEST 2d — SWITCH_EDITION closes Brief',
     afterEditionSwitch.brief.open === false);
 
+  // BUG FOUND LIVE (2026-08-13, Izzat: "berita melayu takkan keluar dalam
+  // edisi arab"): editionState above deliberately seeds
+  // selectedLanguages=['ms','en','ar'] (ALL three) via switchLanguage() a
+  // few lines up — which accidentally masked this exact bug in every
+  // earlier version of this test, since 'ms' being in the eligible set
+  // let a Malay representation slip into a non-Malay edition's Active Set
+  // without failing TEST 2a-2d above. This test targets that specific gap:
+  // even with all languages "preferred", switching to en-global must never
+  // seat a Malay-only representation — membership is edition-locale-bound,
+  // representationPreference is not allowed to override it.
+  assert('UI-1 TEST 2e — SWITCH_EDITION never admits a representation in the WRONG edition language (regression for the "Malay news in Arabic edition" bug)',
+    afterEditionSwitch.activeSet.every(s => {
+      const rep = s._cluster?.representation;
+      return !rep || rep.language === 'en';
+    }),
+    `offending languages: ${JSON.stringify(afterEditionSwitch.activeSet.map(s => s._cluster?.representation?.language))}`);
+
+  const afterArSwitch = reduce(editionState, actions.switchEdition('ar-global'), context);
+  assert('UI-1 TEST 2f — same check for ar-global',
+    afterArSwitch.activeSet.every(s => {
+      const rep = s._cluster?.representation;
+      return !rep || rep.language === 'ar';
+    }),
+    `offending languages: ${JSON.stringify(afterArSwitch.activeSet.map(s => s._cluster?.representation?.language))}`);
+
   // Test 3 — Field invalidation: a field that exists in the new edition
   // carries over; one that doesn't is dropped to null (never auto-mapped).
   const withSurvivingField = reduce(

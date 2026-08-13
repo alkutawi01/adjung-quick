@@ -38,7 +38,10 @@ export default function ActiveSetList({ activeSet, sourceNames, highlightedStory
         className="active-set-list active-set-list--empty"
         style={{ '--capacity': activeSetCapacity }}
       >
-        Tiada berita untuk Bidang ini buat masa ini.
+        {/* Per docs/ui-2-navigation-contract.md §2 / docs/empty-bidang-policy.md:
+            an empty field is a normal editorial-standard state, not a
+            failure — "Tiada berita" reads as a bug/dead-end. */}
+        Belum ada berita yang memenuhi piawaian editorial hari ini.
       </div>
     );
   }
