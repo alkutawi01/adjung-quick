@@ -40,8 +40,22 @@ const PHRASE_RULES = [
   { subject: 'Environment', phrases: ['perubahan iklim', 'climate change', 'pencemaran', 'pollution', 'kualiti udara', 'air quality'] },
 ];
 
+// Bug found 2026-08-13 (live, post-launch): some sources (e.g.
+// rss-astro-awani) store `description` as raw, uncleaned HTML —
+// including full <img> tag attributes. A real story about Trump/Selat
+// Hormuz was misclassified Health because its description's <img
+// alt="...an event to sign an executive order regarding vaccine
+// flexibility..."> — an unrelated photo caption for a DIFFERENT past
+// event, embedded as markup, not real article content — contained the
+// word "vaccine". Strip HTML tags (and everything inside their angle
+// brackets, including attributes) before content-rule matching, so
+// markup can never masquerade as real title/description text.
+function stripHtml(s) {
+  return (s || '').replace(/<[^>]*>/g, ' ');
+}
+
 export function extractContentEvidence(title, description) {
-  const text = `${title || ''} ${description || ''}`.toLowerCase();
+  const text = `${stripHtml(title)} ${stripHtml(description)}`.toLowerCase();
   const hits = [];
   for (const { subject, phrases } of PHRASE_RULES) {
     const matched = phrases.filter(p => text.includes(p.toLowerCase()));
