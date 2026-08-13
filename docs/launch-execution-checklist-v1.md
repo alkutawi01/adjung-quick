@@ -60,33 +60,44 @@ work per Option A).
       `CONFIRM_PRODUCTION_WRITE` documented but commented out (not set
       by default)
 
-## 4. Vercel deployment
+## 4. Vercel deployment — ✅ DONE 2026-08-13
 
-**Real, hard-to-reverse action — requires Izzat's explicit go-ahead at
-this exact step, not implied by the checklist existing.**
+- [x] Target confirmed: Vercel project `adjung-quick`
+      (`prj_12KgDObW4YHH9bOIXcZiea4PgjNV`), linked to GitHub
+      `alkutawi01/adjung-quick` for auto-deploy on push to `main`
+      (discovered live — not a separate manual Vercel deploy step)
+- [x] Deployed via `git push origin main` + `git push origin v1.0.0-rc1`
+      (commit `e5c20a7`)
+- [x] Confirmed live: `https://adjung-quick.vercel.app` serving bundle
+      `index-BMDsxkuX.js` — matches the exact hash from Step 3's local
+      `vite build`
 
-- [ ] Confirm target: production Vercel project/domain
-- [ ] Deploy
-- [ ] Confirm deployment URL is live and serving the new build
+## 5. Smoke test — ✅ DONE 2026-08-13
 
-## 5. Smoke test
+- [x] Live URL loads, Active Set renders for `ms-MY` (default Politik)
+- [x] Switched to `en-global` — UI chrome + Bidang names correctly in
+      English
+- [x] Switched to `ar-global` — `<main dir="rtl">` confirmed, Arabic
+      Bidang names render correctly
+- [x] `ms-MY.Politik` showing ranking pilot output (editorial_v1)
+- [x] Swiped/released a card — replaced with a genuinely different
+      Politik story (not vanished, not stuck) — confirms the
+      `RELEASE_STORY` topic-scoping fix works live in production
+- [x] No console errors on initial load
 
-- [ ] Load the live URL, confirm Active Set renders for `ms-MY`
-- [ ] Switch edition to `en-global`, confirm i18n/locale correctness
-- [ ] Switch edition to `ar-global`, confirm RTL renders correctly
-- [ ] Confirm `ms-MY.Politik` shows ranked (not legacy) ordering
-- [ ] Swipe/release one card, confirm replacement behavior works live
-- [ ] Confirm no console errors on initial load
+## 6. Launch record — ✅ Adjung Quick v1.0 Launch — 2026-08-13
 
-## 6. Launch record
-
-- [ ] Record actual launch date/time, deployed commit hash, and result
-      of smoke test in this document
-- [ ] Update `docs/launch-readiness-gate-v1.md` and
-      `docs/launch-candidate-review-v1.md` to reference this record
-- [ ] Explicitly reconfirm the accepted-risk items (monitoring, restore
-      rehearsal, deployment rollback beyond ranking, source precision,
-      Editorial Value Dimension) as the standing post-launch backlog
+- **Deployed commit:** `e5c20a7` (tagged `v1.0.0-rc1`)
+- **Live URL:** `https://adjung-quick.vercel.app` (not on a public
+  domain yet — known only to Izzat, per his own decision)
+- **Smoke test result:** all checks passed, no blockers found
+- **Accepted-risk items carried into the post-launch backlog** (per
+  Option A, `docs/launch-candidate-review-v1.md`): restore rehearsal,
+  monitoring, deployment rollback (non-ranking), source precision,
+  niche field coverage (Bencana/Kesihatan/Alam Sekitar), Editorial Value
+  Dimension
+- See `docs/launch-readiness-gate-v1.md` and
+  `docs/launch-candidate-review-v1.md` for full context
 
 ## What this checklist does NOT authorize
 
