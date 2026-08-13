@@ -58,6 +58,30 @@ live, deployed.
 
 ---
 
+**Date:** 2026-08-13
+**Area:** Classification
+**Observation:** Izzat spotted a real story ("Konflik Asia Barat: Trump
+dakwa AS akan terus kekalkan penguasaan Selat Hormuz" — a geopolitics
+story) misclassified as Kesihatan in `ms-MY`. Root cause: `rss-astro-awani`
+stores `description` as raw, uncleaned HTML; an unrelated `<img
+alt="...vaccine flexibility...">` caption (a different photo, a
+different event entirely) got matched by the `Health` content-rule
+phrase `vaccine` added in this session's earlier calibration.
+**Impact:** One false-positive placement, live, user-facing — the exact
+"kemarau emas" class of risk disclosed (but not this specific shape) in
+`docs/post-launch-classification-calibration-v1.md` §5.
+**Classification:** Bug technical (A) — HTML markup was never stripped
+before Tier 5 content matching, a pre-existing gap this calibration's
+new phrases (vaccine, wabak, outbreak, etc.) happened to expose.
+**Action:** Fixed — `classification/lib/content-rules.mjs` now strips
+all HTML tags/attributes before matching. Verified the exact story no
+longer misclassifies. Re-ran `classify-production.js --write`; Kesihatan
+in `ms-MY` correctly returned to 0 (that story was never really Health —
+this isn't a new coverage regression, it's the false positive being
+removed). No other test suite regressions.
+
+---
+
 ## Day 1 after launch — baseline (2026-08-13, immediately post-calibration)
 
 ```
