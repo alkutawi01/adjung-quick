@@ -58,6 +58,50 @@ higher bar).
 
 **Status: open, unresolved, deliberately not blocking UI-2.**
 
+## 3. RTM Category Feed Mismatch (Extended) — now confirmed on 2 feeds
+
+**Affected**: `rss-rtm-sukan`, `rss-rtm-ekonomi`.
+
+**Issue**: an RTM per-category feed's declared category
+(`source_known_category`, Tier 1 evidence) does not always match the
+actual subject of every item it publishes.
+
+- `rss-rtm-sukan`: a car-crash death involving a student and a
+  financial-aid announcement classified `Sports@0.9`
+  (`docs/niche-field-coverage-audit.md`).
+- `rss-rtm-ekonomi`: "Ribut Kristin ragut empat nyawa di Portugal" (a
+  fatal storm — Bencana subject matter) classified `Economy@0.9`
+  (`docs/niche-field-coverage-audit.md`'s Additional Coverage Findings,
+  2026-08-13).
+
+**Root cause**: not a classifier bug — Tier 1 evidence
+(`source_known_category`) is doing exactly what it's designed to do
+(fire with high confidence). The source registry's assumption that these
+RTM feeds are narrowly single-subject is what's wrong, at least for some
+items.
+
+**Risk**: feed category metadata does not necessarily represent the real
+subject of every item — Tier 1 evidence can cause false placement when
+that assumption fails.
+
+**Explicitly NOT done**: disabling `rss-rtm-ekonomi` or `rss-rtm-sukan`.
+Per ChatGPT: it's unknown whether a feed is genuinely mixed-subject
+throughout, or whether only a small fraction of items are mismatched —
+disabling either source needs a precision audit first, not a reaction to
+2 examples.
+
+**Future improvement candidates (not now, next calibration cycle)**:
+- **Source Intelligence Layer**: not all Tier 1 evidence should carry
+  equal strength — a specialised newsroom's own category feed (e.g.
+  Astro Awani's, already verified narrowly-scoped) is a stronger signal
+  than a mixed government feed's category label.
+- **Negative evidence**: detect when a source's declared category
+  conflicts with the title's actual subject signal (e.g. "ekonomi"
+  source label vs. a title that reads as disaster content) and treat
+  that conflict as its own signal, rather than trusting Tier 1 blindly.
+
+**Status: Open. No classifier change.**
+
 ## Source Content Profile (new concept)
 
 Per ChatGPT: `excludePatterns` on a source entry in `lab/sources.js` is the

@@ -96,3 +96,35 @@ calibration decision:**
    tender-notice filter in `docs/known-issues.md` — different failure
    shape: wrong CONTENT under a correctly-labeled feed URL, not
    non-news content mixed with real news).
+
+## Additional Coverage Findings (2026-08-13, triggered by Izzat: "masih tiada berita bencana, kesihatan, alam sekitar? pelik")
+
+**Bidang**: Bencana, Kesihatan, Alam Sekitar (`ms-MY`)
+
+**Observation**: all three fields have **zero** classified stories —
+confirmed live against `edition_story_classifications`, not just "low
+coverage" like Sains/Pendidikan.
+
+**Diagnosis**: real content exists in the RSS feeds already ingested —
+found genuine stories about haze closing schools in Sarawak (Astro
+Awani/RTM), an earthquake in Colombia, a fatal storm in Portugal,
+wildfires/extreme heat in the UK. Direct `understandStory()` calls on
+these exact titles mostly return **no subject candidate at all** — same
+Case B shape as the Education/Sains findings above: the classifier's
+subject vocabulary has no entries for "jerebu", "gempa", "ribut",
+"kebakaran hutan" mapping to Bencana (or health-adjacent terms to
+Kesihatan).
+
+**Status**: calibration backlog. No classifier change made — same
+discipline as every other finding in this document.
+
+### RTM Category Feed Mismatch — now confirmed on a SECOND feed
+
+While diagnosing the above, found `rss-rtm-ekonomi` exhibits the exact
+same failure shape already documented for `rss-rtm-sukan`: "Ribut
+Kristin ragut empat nyawa di Portugal" (a fatal storm — clearly Bencana
+subject matter) was classified `Economy@0.9`, purely because
+`rss-rtm-ekonomi`'s `source_known_category: 'ekonomi'` (Tier 1 evidence)
+fired regardless of actual content. See `docs/known-issues.md`'s
+extended RTM Category Feed Mismatch section for the full pattern —
+recorded there, not duplicated here.
