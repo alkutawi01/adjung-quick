@@ -1,6 +1,35 @@
 # Production Safety Decision Proposal v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` → **DECIDED 2026-08-13** `[x] Implementation pending` `[ ] Closed`
+
+## Izzat's decision (2026-08-13)
+
+> "setuju. lgpun quick ni cuma portal berita, bukan ada maklumat sensitif
+> dan kritikal pun. jadi saya harap boleh autosave ke google drive pun
+> dah cukup. lgpun hayat berita2 tu mungkin paling lama seminggu je.
+> bukan sampai sebulan."
+
+Approved: **stay on Supabase Free Plan, use free Google Drive sync as
+the backup destination** instead of paying for Supabase Pro backups —
+not a partial stopgap, a considered decision given the actual data
+sensitivity (a public news portal, no sensitive/critical data) and
+short content shelf-life (~1 week).
+
+**Implemented**: `db/snapshot-production.mjs` now also writes a dated
+copy (`production-snapshot-YYYY-MM-DD.json`) into `G:\My Drive\Adjung
+Quick Backups\` (Google Drive for Desktop, already installed on this
+machine — confirmed, zero new software/cost) — Drive's own sync client
+uploads it to the cloud automatically. Old dated copies beyond 14 days
+(double the ~1-week news lifespan) are pruned automatically so the
+folder doesn't grow forever. Skips gracefully with a warning (not a
+failure) on a machine without Drive mounted, since Izzat works across 2
+computers.
+
+**Supabase upgrade triggers (§1 below) still stand** — this decision is
+about the FREE alternative for backup specifically, not a rejection of
+ever upgrading. If real users start depending on `saved_stories`/
+`history_entries`, that data (unlike news items) has no natural
+short-lived rationale — worth revisiting then.
 
 Per ChatGPT's post-launch direction: two real, disclosed gaps from
 `docs/restore-rehearsal-v1.md` need an actual decision, not just a

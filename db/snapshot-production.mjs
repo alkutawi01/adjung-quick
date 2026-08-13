@@ -16,12 +16,22 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync, readdirSync, statSync, unlinkSync } from 'fs';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_DIR = `${__dirname}/snapshots`;
+
+// Per Izzat's decision (2026-08-13): a portal-berita snapshot isn't
+// sensitive/critical data, and stories live ~1 week anyway — Google
+// Drive's free desktop sync app (already installed on this machine,
+// confirmed at G:\My Drive) is sufficient as an off-machine copy. No
+// Supabase Pro backup needed for this. If Drive isn't mounted (e.g. the
+// other computer, per Izzat's 2-machine setup), this step is skipped
+// with a warning, not a failure — the local snapshot is still written.
+const GOOGLE_DRIVE_BACKUP_DIR = 'G:\\My Drive\\Adjung Quick Backups';
+const GOOGLE_DRIVE_RETENTION_DAYS = 14; // double the ~1 week news shelf-life Izzat described
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -91,7 +101,39 @@ async function main() {
   console.log(`  saved_stories: ${savedStories.length}`);
   console.log(`  history_entries: ${historyEntries.length}`);
   console.log(`  ruleset versions present: ${snapshot.rulesetVersions.join(', ')}`);
+
+  backupToGoogleDrive(snapshot);
+
   console.log('\nDone. Read-only — no production data was modified.\n');
+}
+
+// Dated copy into the Google Drive sync folder, so the local sync app
+// uploads it automatically — zero new infrastructure, per Izzat's
+// explicit decision. Old dated copies beyond GOOGLE_DRIVE_RETENTION_DAYS
+// are pruned so the folder doesn't grow forever (this only ever touches
+// files this script itself wrote, never anything else in the folder).
+function backupToGoogleDrive(snapshot) {
+  if (!existsSync('G:\\My Drive')) {
+    console.log(`\nGoogle Drive backup SKIPPED — G:\\My Drive not found on this machine (Drive for Desktop not installed/mounted here).`);
+    return;
+  }
+  mkdirSync(GOOGLE_DRIVE_BACKUP_DIR, { recursive: true });
+  const dateStamp = snapshot.snapshotDate.slice(0, 10); // YYYY-MM-DD
+  const backupPath = `${GOOGLE_DRIVE_BACKUP_DIR}\\production-snapshot-${dateStamp}.json`;
+  writeFileSync(backupPath, JSON.stringify(snapshot, null, 2));
+  console.log(`\nGoogle Drive backup written: ${backupPath} (syncs automatically via Drive for Desktop)`);
+
+  const cutoff = Date.now() - GOOGLE_DRIVE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  let pruned = 0;
+  for (const file of readdirSync(GOOGLE_DRIVE_BACKUP_DIR)) {
+    if (!/^production-snapshot-\d{4}-\d{2}-\d{2}\.json$/.test(file)) continue;
+    const filePath = `${GOOGLE_DRIVE_BACKUP_DIR}\\${file}`;
+    if (statSync(filePath).mtimeMs < cutoff) {
+      unlinkSync(filePath);
+      pruned++;
+    }
+  }
+  if (pruned > 0) console.log(`Pruned ${pruned} Google Drive backup(s) older than ${GOOGLE_DRIVE_RETENTION_DAYS} days.`);
 }
 
 main().catch(err => {
