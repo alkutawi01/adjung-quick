@@ -11,6 +11,7 @@
 // db/ingest-production.js) is used as-is.
 
 import { createClient } from '@supabase/supabase-js';
+import { resolveStoryField } from '../../../state/editorialStateResolver.mjs';
 
 // import.meta.env only exists under Vite — guarded so this module can also
 // be imported by plain-Node scripts (e.g. the acceptance test) that only
@@ -19,7 +20,13 @@ const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL ?? 'http://localhost';
 const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY ?? 'placeholder';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: false },
+  // Distinct storageKey (2026-08-13, found live via the /admin build):
+  // main.jsx statically imports both this module and
+  // ui/src/admin/adminSupabase.js on every page load regardless of route,
+  // so both GoTrueClient instances always exist together in one browser
+  // context. Without separate keys they'd default to the same
+  // "sb-<project-ref>-auth-token" storage key — see adminSupabase.js.
+  auth: { persistSession: false, storageKey: 'adjung-quick-reader-auth' },
 });
 
 // Fetches the current Ranked Queue from Supabase and reshapes it into the
@@ -30,7 +37,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // `World` for en-global — that divergence is the Edition Architecture
 // working, not a data inconsistency.
 export async function fetchRankedQueue(editionId = 'ms-MY') {
-  const [{ data: sources, error: sourcesErr }, { data: clusters, error: clustersErr }, { data: items, error: itemsErr }, { data: placements, error: placementsErr }] =
+  const [{ data: sources, error: sourcesErr }, { data: clusters, error: clustersErr }, { data: items, error: itemsErr }, { data: placements, error: placementsErr }, { data: overrides, error: overridesErr }] =
     await Promise.all([
       supabase.from('sources').select('id, trust_score'),
       supabase.from('story_clusters').select('id, topic, editorial_score, workspace_state'),
@@ -42,22 +49,51 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
       supabase.from('edition_story_classifications')
         .select('story_id, field, classification_status, classification_confidence')
         .eq('edition_id', editionId),
+      // FASA 3.6.3a — Resolver Integration: this is the ONE place a human
+      // editorial decision (ui/src/admin's Review Queue) actually reaches a
+      // reader. Without this query, story_overrides rows exist in the
+      // database but readers never see their effect — a real gap found and
+      // closed 2026-08-13, not a hypothetical.
+      //
+      // Queries public_active_overrides (a narrow VIEW,
+      // db/schema-public-active-overrides-view.sql), NOT story_overrides
+      // directly — story_overrides' own RLS is signed-in-editors-only by
+      // design (db/schema-editorial-state.sql), and rightly so: it also
+      // carries `reason`/`created_by`, an editor's internal note and an
+      // auth.users reference, neither of which a reader needs or should be
+      // able to pull via direct REST access. The view exposes only
+      // story_id/edition_id/override_type/new_field, for active rows only.
+      supabase.from('public_active_overrides')
+        .select('story_id, override_type, new_field')
+        .eq('edition_id', editionId),
     ]);
 
   if (sourcesErr) throw new Error(`fetchRankedQueue: sources — ${sourcesErr.message}`);
   if (clustersErr) throw new Error(`fetchRankedQueue: story_clusters — ${clustersErr.message}`);
   if (itemsErr) throw new Error(`fetchRankedQueue: rss_items — ${itemsErr.message}`);
   if (placementsErr) throw new Error(`fetchRankedQueue: edition_story_classifications — ${placementsErr.message}`);
+  if (overridesErr) throw new Error(`fetchRankedQueue: public_active_overrides — ${overridesErr.message}`);
 
-  return mapRowsToRankedQueue({ sources, clusters, items, placements });
+  return mapRowsToRankedQueue({ sources, clusters, items, placements, overrides });
 }
 
 // Pure reshape, split out from fetchRankedQueue so the edition-placement
 // mapping (the exact thing the Production Classification Acceptance Test
 // needs to guard) is testable without a live Supabase call — see
 // db/production-classification-acceptance.test.mjs.
-export function mapRowsToRankedQueue({ sources, clusters, items, placements }) {
+export function mapRowsToRankedQueue({ sources, clusters, items, placements, overrides = [] }) {
   const placementByStory = new Map(placements.map(p => [p.story_id, p]));
+
+  // FASA 3.6.3a: active story_overrides, grouped by story — the SAME
+  // resolveStoryField() precedence (hide beats reclassify beats classifier)
+  // state/editorialStateResolver.test.mjs already proves in isolation, now
+  // reused here rather than re-implemented. `overrides` is the caller's
+  // already-active-filtered query result (per-edition), not re-filtered here.
+  const overridesByStory = new Map();
+  for (const o of overrides) {
+    if (!overridesByStory.has(o.story_id)) overridesByStory.set(o.story_id, []);
+    overridesByStory.get(o.story_id).push(o);
+  }
 
   const trustById = new Map(sources.map(s => [s.id, s.trust_score]));
   const itemsByCluster = new Map();
@@ -87,14 +123,34 @@ export function mapRowsToRankedQueue({ sources, clusters, items, placements }) {
       // re-deriving here keeps the adapter correct even if that column isn't selected).
       const canonical = [...members].sort((a, b) => new Date(a.publishedAt) - new Date(b.publishedAt))[0];
       const placement = placementByStory.get(c.id);
+      // FASA 3.6.3a: fold in any active editorial override BEFORE the topic
+      // is decided. A hidden story reuses the exact same "topic: null"
+      // invisibility an unclassified story already has — no reader-facing
+      // Bidang ever matches null, so it never enters any edition's eligible
+      // pool, and therefore never reaches selectActiveSet()'s ranking at
+      // all. That's the "hide beats ranking" contract satisfied
+      // structurally (the ranking step never even sees it), not as a
+      // separate check layered on top.
+      const resolved = resolveStoryField(
+        { field: placement?.field ?? null, classification_status: placement?.classification_status ?? 'unclassified' },
+        overridesByStory.get(c.id) ?? [],
+      );
+      // FASA 3.6.3c: a `boost` override is NOT resolved by
+      // resolveStoryField() — boost affects ranking selection, not
+      // field/visibility, so it is deliberately outside that function's
+      // scope (see its own header comment). It rides along as a flag that
+      // state/editorialRankingAdapter.js reads on the editorial_v1 path.
+      const boosted = (overridesByStory.get(c.id) ?? []).some(o => o.override_type === 'boost');
       return {
         clusterKey: c.id,
+        boosted,
         // null when this edition has no placement for the story (genuinely
-        // unclassified, or not yet run through classify-production.js).
-        // `null` is correct and expected here — "Unclassified" is a STATUS,
+        // unclassified, not yet run through classify-production.js), OR
+        // when an active `hide` override applies. `null` is correct and
+        // expected in both cases — "Unclassified"/"Hidden" are STATUSES,
         // never a Bidang value (docs/structural-evidence-fallback-policy.md).
         // Such stories simply don't appear under any Wheel field.
-        topic: placement?.classification_status === 'classified' ? placement.field : null,
+        topic: resolved.visible ? resolved.field : null,
         // Kept for audit/debugging: what the OLD classifier said. Not used
         // for placement anymore. Remove once the new path is proven in
         // production, per db/schema-edition-classification.sql's own note.

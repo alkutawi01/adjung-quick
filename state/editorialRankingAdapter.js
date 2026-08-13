@@ -20,6 +20,12 @@ function clusterToCandidate(clusterEntry) {
     publishedAt: clusterEntry.canonical.publishedAt,
     trustScore: clusterEntry.canonical.trustScore ?? 0,
     classificationConfidence: clusterEntry.classificationConfidence ?? 0,
+    // FASA 3.6.3c — set by productionAdapter.js from an active
+    // story_overrides row of type 'boost'. Only consumed here, on the
+    // editorial_v1 path; the legacy path never scores candidates at all,
+    // which is exactly why boost is offered only where editorial_v1 is
+    // active (docs/boost-action-plan-v1.md's blocking finding).
+    boosted: clusterEntry.boosted ?? false,
   };
 }
 

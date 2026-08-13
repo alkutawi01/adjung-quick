@@ -43,7 +43,24 @@ export function freshnessScore(publishedAt, now = new Date()) {
   return bucket.score;
 }
 
-// candidate: { storyId, title, sourceId, publishedAt, trustScore, classificationConfidence }
+// Editorial Boost weight (FASA 3.6.3c). THE single place this number
+// lives — per ChatGPT's explicit instruction not to hardcode it in
+// several files, since real data may show +40 is too strong or too weak
+// and it must be adjustable in one edit.
+//
+// Sized against the other terms (freshness 0–100, sourceTrust 0–~100,
+// confidence 0–10): +40 is roughly two freshness buckets — enough to
+// lift a good-but-older story into contention, not enough to let a stale
+// story from a weak source beat a fresh one from a trusted source. A
+// starting parameter for calibration, exactly like FRESHNESS_BUCKETS
+// above, not a locked truth.
+//
+// This magnitude is what keeps boost honest: boost must raise the CHANCE
+// of selection, never guarantee it (docs/boost-action-plan-v1.md §1). A
+// weight large enough to always win would make boost a pin in disguise.
+export const BOOST_WEIGHT = 40;
+
+// candidate: { storyId, title, sourceId, publishedAt, trustScore, classificationConfidence, boosted }
 // trustScore comes from lab/sources.js (NOT sourceType — the KPM lesson:
 // per docs/ranking-engine-contract-v1.md §3B).
 export function scoreCandidate(candidate, now = new Date()) {
@@ -53,14 +70,24 @@ export function scoreCandidate(candidate, now = new Date()) {
   // §3C: confidence measures evidence certainty, not story importance,
   // so it contributes a capped, secondary amount only.
   const confidenceModifier = (candidate.classificationConfidence ?? 0) * 10;
+  // Editorial Boost — a human signal added at SCORING (never after
+  // selection, which would make it a no-op since diversity-selection
+  // already truncates to capacity). Per
+  // docs/ranking-engine-contract-v1.md's amendment.
+  const editorialBoost = candidate.boosted ? BOOST_WEIGHT : 0;
 
-  const score = freshness + sourceTrust + confidenceModifier;
+  const score = freshness + sourceTrust + confidenceModifier + editorialBoost;
   const reasons = [];
   if (freshness >= 80) reasons.push('fresh');
   if (sourceTrust >= 85) reasons.push('trusted_source');
   if ((candidate.classificationConfidence ?? 0) < 0.5) reasons.push('low_confidence_placement');
+  // Surfaced in reasons so boost stays EXPLAINABLE — an editor must be
+  // able to see that a human decision, not the algorithm alone, is why
+  // this story is here (docs/ranking-engine-contract-v1.md's
+  // explainability requirement).
+  if (candidate.boosted) reasons.push('editorial_boost');
 
-  return { ...candidate, score, scoreBreakdown: { freshness, sourceTrust, confidenceModifier }, reasons };
+  return { ...candidate, score, scoreBreakdown: { freshness, sourceTrust, confidenceModifier, editorialBoost }, reasons };
 }
 
 export function scoreCandidates(candidates, now = new Date()) {
