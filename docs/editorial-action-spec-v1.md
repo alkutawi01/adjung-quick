@@ -27,6 +27,33 @@ consequential action available. Source overrides are similarly
 restricted — they affect every story from a source, every edition, not
 one story.
 
+### Principle of escalation (per ChatGPT, added before implementation)
+
+The `editor` vs. `admin` line isn't arbitrary per-action — it follows
+one general rule, stated explicitly so future actions (not just today's
+five) get the right role without re-litigating each time:
+
+> **An action that changes the outcome for one story can be done by an
+> `editor`. An action that changes the selection system for many
+> stories requires `admin`.**
+
+```
+Impact scope          Risk        Role
+─────────────────────────────────────────
+1 story, this edition  low/medium  editor   (hide, reclassify, boost)
+1 story, bypasses      high        admin    (pin)
+ranking entirely
+1 source, all editions, very high  admin    (source overrides)
+all future stories
+```
+
+Boost stays `editor` — it competes within ranking, can still lose
+(`docs/ranking-engine-contract-v1.md`'s amendment), so its worst case is
+bounded. Pin and source overrides both remove that ceiling — pin
+guarantees placement, source overrides compound over every future story
+from that source — which is what pushes both into `admin` under this
+same rule, not two unrelated exceptions.
+
 ## Admin-facing framing (per the v2 plan's language layer)
 
 Buttons never say the internal action name — they say what happens, in
