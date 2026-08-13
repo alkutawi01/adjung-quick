@@ -52,11 +52,18 @@ async function main() {
   console.log('\nPRODUCTION SNAPSHOT (read-only) — local staging dataset\n');
   mkdirSync(SNAPSHOT_DIR, { recursive: true });
 
-  const [sources, storyClusters, rssItems, placements] = await Promise.all([
+  const [sources, storyClusters, rssItems, placements, savedStories, historyEntries] = await Promise.all([
     selectAllChunked('sources', 'id, name, url, language, trust_score'),
     selectAllChunked('story_clusters', 'id, topic, editorial_score, workspace_state'),
     selectAllChunked('rss_items', 'id, source_id, cluster_id, title, description, link, language, published_at, categories, source_known_category'),
     selectAllChunked('edition_story_classifications', 'story_id, edition_id, field, classification_status, classification_confidence, classification_method, classification_rule, ruleset_version'),
+    // Added 2026-08-13 per docs/restore-rehearsal-v1.md's found gap: the
+    // Identity Layer's own user data tables were never covered by this
+    // snapshot — harmless while both are empty (no real users yet), but
+    // would silently lose real readers' saved stories/history with no
+    // recovery path once they aren't.
+    selectAllChunked('saved_stories', 'id, user_id, story_id, saved_at, expires_at'),
+    selectAllChunked('history_entries', 'id, user_id, story_id, released_at, expires_at'),
   ]);
 
   const snapshot = {
@@ -65,11 +72,13 @@ async function main() {
     snapshotDate: new Date().toISOString(),
     source: 'production (shared Supabase project)',
     rulesetVersions: [...new Set(placements.map(p => p.ruleset_version))],
-    counts: { sources: sources.length, storyClusters: storyClusters.length, rssItems: rssItems.length, placements: placements.length },
+    counts: { sources: sources.length, storyClusters: storyClusters.length, rssItems: rssItems.length, placements: placements.length, savedStories: savedStories.length, historyEntries: historyEntries.length },
     sources,
     storyClusters,
     rssItems,
     placements,
+    savedStories,
+    historyEntries,
   };
 
   const path = `${SNAPSHOT_DIR}/production-snapshot.json`;
@@ -79,6 +88,8 @@ async function main() {
   console.log(`  story_clusters: ${storyClusters.length}`);
   console.log(`  rss_items: ${rssItems.length}`);
   console.log(`  edition_story_classifications: ${placements.length}`);
+  console.log(`  saved_stories: ${savedStories.length}`);
+  console.log(`  history_entries: ${historyEntries.length}`);
   console.log(`  ruleset versions present: ${snapshot.rulesetVersions.join(', ')}`);
   console.log('\nDone. Read-only — no production data was modified.\n');
 }
