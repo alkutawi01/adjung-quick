@@ -5,3 +5,7 @@ node_modules/
 
 .vercel
 .env*
+
+# Local staging snapshots (db/snapshot-production.mjs) — real production
+# data copies, never committed. See docs/staging-environment-setup-plan-v1.md.
+db/snapshots/

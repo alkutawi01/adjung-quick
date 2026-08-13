@@ -1,6 +1,56 @@
 # Staging Environment Setup Plan v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` → **DECIDED 2026-08-13** `[x] Implementation pending` `[ ] Closed`
+
+## Izzat's decision (2026-08-13)
+
+> "Buat staging ringan dahulu menggunakan dataset salinan. Jangan tambah
+> kos Supabase lagi. Bila pengguna sebenar dan trafik meningkat, baru
+> pertimbangkan staging project berasingan."
+
+A dedicated Supabase staging project (§3 Option A) is **deferred**, not
+chosen — no added Supabase cost until real traffic justifies it.
+Instead: **local, file-based snapshot ("staging ringan")**.
+
+**What was actually feasible, checked before building**: no Docker on
+this machine, so a local Supabase instance (the free, zero-cost way to
+run a real local Postgres+Supabase stack) wasn't an option either. The
+lightest genuinely-available substitute: `db/snapshot-production.mjs`
+(read-only export of real production data to a local, gitignored JSON
+file) + `db/local-snapshot-loader.mjs` (lets scripts test against that
+copy entirely offline, no Supabase call at all). Verified working:
+snapshotted 43 sources / 865 story_clusters / 917 rss_items / 867
+placements, then loaded 36 real Politik candidates from the local file
+with zero network calls.
+
+This satisfies "dataset salinan" and "$0 added cost" exactly, though
+it's a weaker isolation than a real staging database (no RLS, no schema
+enforcement, no live-write testing) — recorded honestly in §"What this
+does NOT provide" below, not oversold as equivalent to Option A.
+
+### What this DOES provide
+
+- A real, versioned copy of production data (snapshot date + ruleset
+  version recorded in the file itself) that scripts can test against
+  without ever touching the shared live database
+- Zero cost, zero new infrastructure, works today
+- Satisfies most of what this session's own verification work actually
+  needed — every ranking benchmark/audit this session read data, never
+  needed to WRITE against a live DB to be useful
+
+### What this does NOT provide (honest gap, not solved)
+
+- No schema/migration rehearsal — a snapshot has no schema of its own,
+  it can't catch the UUID/TEXT or RLS-policy incidents this session hit
+  live
+- No RLS/auth testing — `db/identity-test.js` still needs a real
+  database with real Auth
+- No write-path testing — ingestion/classification `--write` behavior
+  still can only be verified against production (behind the write guard)
+- Still a **snapshot**, not live — goes stale the moment production RSS
+  updates again; re-run `db/snapshot-production.mjs` to refresh
+
+### Original open questions below (§1-7) — now answered by this decision where applicable
 
 Per ChatGPT: plan only — **no new Supabase project created, no
 migration, no classifier/ranking/UI changes.** Completes the
@@ -84,9 +134,9 @@ divergence from legacy is expected, reviewed, not silently trusted).
 | Item | Status |
 |---|---|
 | Production write guard | ✅ READY (`docs/production-write-guard-v1.md`) |
-| Staging environment | ❌ NOT READY — doesn't exist yet |
-| Production/staging separation | ❌ NOT READY — depends on staging existing |
-| Restore rehearsal | ❌ NOT READY — no backup has ever been verified restorable (`docs/production-operations-readiness-v1.md` §3) |
+| Staging environment | ⚠️ PARTIAL — local snapshot only (`db/snapshot-production.mjs`), no live staging DB. Deferred by Izzat's decision, not a gap to close now. |
+| Production/staging separation | ⚠️ PARTIAL — write guard + local snapshot cover read-testing isolation; write-path testing still can't be isolated from production |
+| Restore rehearsal | ❌ NOT READY — no backup has ever been verified restorable (`docs/production-operations-readiness-v1.md` §3); unaffected by the snapshot decision, still a real gap |
 
 ## 7. Next real steps (not done in this document)
 
@@ -99,17 +149,22 @@ divergence from legacy is expected, reviewed, not silently trusted).
    session's own verification work — a real test that staging is
    representative, not just present.
 
-## What this document does NOT decide
+## What is still NOT decided (deferred, per Izzat)
 
-- Exact Supabase plan/tier for the staging project (cost implication —
-  Izzat's decision, not made here)
-- Timing — when to actually create the staging project
-- Whether staging needs its own separate Vercel deployment/preview URL,
-  or can be exercised purely via local scripts pointed at
-  `.env.development`
+- Exact Supabase plan/tier for a dedicated staging project — deferred
+  until real traffic/users justify the cost, per Izzat's explicit
+  decision above
+- Timing for when that becomes worth revisiting
+- Whether staging needs its own separate Vercel deployment/preview URL —
+  moot for now, since there's no live staging service, only a local
+  snapshot file
 
 ## Next
 
-Per ChatGPT: this plan is complete as a document. Actual staging project
-creation is real infrastructure work — the next step, but genuinely
-outside what a documentation/planning pass should decide alone.
+Local snapshot approach (`db/snapshot-production.mjs` +
+`db/local-snapshot-loader.mjs`) is implemented and verified working —
+this is now the standing "staging ringan" until real traffic changes the
+calculus. Re-run the snapshot script periodically to keep it from going
+stale. Revisit Option A (dedicated Supabase staging project) only when
+real user traffic makes the added cost worthwhile, per Izzat's own
+stated trigger.
