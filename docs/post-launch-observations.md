@@ -82,6 +82,40 @@ removed). No other test suite regressions.
 
 ---
 
+**Date:** 2026-08-13
+**Area:** Source health
+**Observation:** 2 of 43 registered sources have contributed **zero**
+items: `rss-jakim-berita` and `rss-jakim-kenyataan`. Both are already
+marked `status: 'failed_tls'` in `lab/sources.js` with the reason
+recorded (`missing intermediate certificate —
+UNABLE_TO_VERIFY_LEAF_SIGNATURE`), i.e. islam.gov.my's own TLS chain is
+incomplete, not something broken on our side.
+**Impact:** Agama coverage in `ms-MY` loses its two authority sources
+(JAKIM). Agama still has 24 stories from other sources, so the Bidang
+isn't empty — but its most authoritative voice is missing.
+**Classification:** Source/data issue → audit (Fasa 2.2, not now).
+**Action:** Observe. Surfaced automatically by
+`db/daily-observation.mjs` as a *known-broken* source, deliberately NOT
+as a daily alert — an alert that fires every day for an already-recorded
+problem is how real alerts get ignored. Whether the TLS chain can be
+worked around from our side is a Fasa 2 question, not a Fasa 1 one.
+
+---
+
+**Date:** 2026-08-13
+**Area:** Tooling (Fasa 1)
+**Observation:** Observation had no memory — each snapshot overwrote the
+last, so day-over-day comparison depended on a human recalling
+yesterday's numbers. Given Fasa 1's whole output is a 7–14 day evidence
+baseline, that was the one gap that would have undermined the phase.
+**Impact:** N/A (tooling, not production behaviour).
+**Classification:** Fasa 1 enablement.
+**Action:** Built `db/daily-observation.mjs` — dated metrics history,
+day-over-day diff, monitoring-plan alerts, 11 unit tests on the alert
+thresholds. Read-only; no production code touched.
+
+---
+
 ## Day 1 after launch — baseline (2026-08-13, immediately post-calibration)
 
 ```

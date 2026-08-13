@@ -33,6 +33,31 @@ data behind it silently rots):
 4. **Frontend failure** — the deployed site itself errors or fails to
    load
 
+## UPDATE 2026-08-13 — the daily check is now one command
+
+`db/daily-observation.mjs` implements §2–§3 below in a single read-only
+run: it gathers the metrics, **records a dated history file**
+(`db/observations/observation-YYYY-MM-DD.json`, committed to git so the
+history survives across Izzat's two machines), prints a day-over-day
+diff, and evaluates the alert conditions automatically.
+
+```bash
+node db/daily-observation.mjs
+```
+
+This closes the specific gap named in
+`docs/observability-readiness-audit-v1.md`: everything was already
+queryable, but nothing kept history, so "is today different from
+yesterday" relied on a human remembering yesterday's numbers.
+
+Alert thresholds are unit-tested (`db/daily-observation.test.mjs`,
+11 cases) — specifically so a future edit can't quietly loosen them,
+and so the distinction between a real alert and expected noise
+(sources already marked broken in `lab/sources.js`) stays intentional.
+
+Sections §2–§4 below remain the definition of WHAT is checked and why;
+the script is the implementation of it.
+
 ## 2. Daily check — Pipeline health
 
 Run: `node db/snapshot-production.mjs` (already exists, read-only,
@@ -92,8 +117,13 @@ weekly (or after any classifier/ranking change):
 
 - No paid error-tracking service (Sentry, etc.) — zero budget, zero
   traffic yet to justify it
-- No automated alerting/paging — nothing here fires on its own; a human
-  (Izzat or Claude, when asked to check) runs these scripts
+- No *scheduled* alerting/paging — the alert LOGIC now exists and runs
+  automatically (`db/daily-observation.mjs`, see the update above), but
+  nothing triggers it on a schedule and nothing pushes a notification
+  anywhere; a human still has to run the command. Scheduling it is
+  Fasa 4.2 in `docs/roadmap-to-production-v1.md`, deliberately after
+  monitoring exists — per ChatGPT: *automasi tanpa observability boleh
+  mempercepatkan kesilapan*.
 - No uptime monitoring service — the free tier of most of these only
   matters once real traffic exists
 - No database performance monitoring — out of scope until real load
