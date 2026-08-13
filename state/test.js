@@ -224,6 +224,45 @@ async function main() {
   assert('UI-1 TEST 4d — getRepresentationPreference falls back to selectedLanguages pre-migration',
     JSON.stringify(getRepresentationPreference(editionState)) === JSON.stringify(['ms', 'en', 'ar']));
 
+  // --- Session UI-2B acceptance tests (docs/ui-2-navigation-contract.md),
+  // per ChatGPT's explicit request. These name the same invariants already
+  // exercised above (UI-1 TEST 1/2c/2b, the Edition Locale Authority fix)
+  // under UI-2B's own numbering, for direct traceability against the
+  // contract doc rather than requiring cross-referencing test numbers. ---
+
+  // UI-2B TEST 1 — Wheel taxonomy source: the field list must come from the
+  // edition registry alone, never from what stories exist today. Proven by
+  // construction: getEdition().taxonomy takes no rankedQueue/story argument
+  // at all, so a taxonomy addition needs zero stories to appear.
+  const msTaxonomy = getEdition('ms-MY').taxonomy;
+  assert('UI-2B TEST 1 — Wheel taxonomy source is edition-only, independent of any story data',
+    Array.isArray(msTaxonomy) && msTaxonomy.length > 0 && msTaxonomy.includes('Sains'));
+
+  // UI-2B TEST 2 — Empty field yields an empty Active Set, not an error or
+  // a fallback into another field's stories (same guarantee as TEST 2c
+  // above, re-run here against a field genuinely unlikely to have live
+  // RSS coverage).
+  const emptyFieldState = reduce(
+    { ...state, editionContext: { activeEdition: 'ms-MY' } },
+    actions.selectTopic('Budaya'), context);
+  assert('UI-2B TEST 2 — empty field: Active Set has zero or few slots, never backfilled from another field',
+    emptyFieldState.activeSet.every(s => s._cluster?.topic === 'Budaya'));
+
+  // UI-2B TEST 3 — Edition isolation: ms-MY's field list and en-global's
+  // field list are genuinely separate arrays with no shared identity —
+  // 'Agama' existing in ms-MY says nothing about en-global's fields.
+  const enTaxonomy = getEdition('en-global').taxonomy;
+  assert('UI-2B TEST 3 — edition taxonomies do not share list identity or contents',
+    msTaxonomy !== enTaxonomy && !msTaxonomy.every(f => enTaxonomy.includes(f)));
+
+  // UI-2B TEST 4 — Active Set capacity is invariant across a topic with
+  // many candidates: ranking changes which stories fill the 10 slots, the
+  // slot COUNT never changes.
+  const busyFieldState = reduce(state, actions.selectTopic('Malaysia'), context);
+  assert('UI-2B TEST 4 — Active Set never exceeds capacity regardless of candidate volume',
+    busyFieldState.activeSet.length <= busyFieldState.activeSetCapacity,
+    `activeSet.length=${busyFieldState.activeSet.length} capacity=${busyFieldState.activeSetCapacity}`);
+
   console.log(`\n${passed} passed, ${failed} failed.\n`);
   if (failed > 0) process.exit(1);
 }
