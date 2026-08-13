@@ -20,10 +20,21 @@ export const EDITIONS = {
     // "Malay" would wrongly imply this is a translation switch. Malaysia
     // context is real for this edition only (docs/edition-source-profile-model.md).
     label: 'Malaysia · Malay Edition',
+    // 'Nasional' and 'Dunia' added 2026-08-13, per Izzat's direct decision
+    // (docs/geography-residual-navigation-policy-v1.md found these two
+    // geography-residual classification outputs — 63+46 real stories,
+    // ~15% of placed ms-MY content — had no Wheel entry, unreachable by
+    // any reader). Izzat corrected the session's over-engineered "separate
+    // navigation mode" design with a simpler, industry-standard one: real
+    // Malay portals just list Nasional/Dunia as ORDINARY categories
+    // alongside Politik/Sukan/etc — no special mode needed. taxonomy[0]
+    // is the cold-start default (App.jsx) — 'Nasional' leading matches
+    // standard portal convention (Astro Awani/Utusan/BH all lead with
+    // Nasional/Utama), a deliberate choice, not incidental ordering.
     taxonomy: [
-      'Politik', 'Jenayah', 'Bisnes', 'Sukan', 'Alam Sekitar', 'Bencana',
-      'Kesihatan', 'Pendidikan', 'Teknologi', 'Sains', 'Budaya', 'Hiburan',
-      'Agama', 'Gaya Hidup',
+      'Nasional', 'Dunia', 'Politik', 'Jenayah', 'Bisnes', 'Sukan',
+      'Alam Sekitar', 'Bencana', 'Kesihatan', 'Pendidikan', 'Teknologi',
+      'Sains', 'Budaya', 'Hiburan', 'Agama', 'Gaya Hidup',
     ],
   },
   // en-global / ar-global: INTERNATIONAL editions, not "Malaysian news in

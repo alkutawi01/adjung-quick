@@ -78,7 +78,22 @@ export const EDITION_GEOGRAPHY_RESIDUAL_LABEL = {
   // Used only when NO subject candidate exists at all — the pure residual
   // path, per the subject-beats-geography lock. 'Malaysia' geography ->
   // this edition's local label; anything else -> this edition's world label.
-  'ms-MY': { local: 'Malaysia', world: 'Dunia' },
+  //
+  // local label changed 2026-08-13, per Izzat's direct decision after
+  // docs/geography-residual-navigation-policy-v1.md found these 2 residual
+  // values (63+46 real stories, ~15% of placed ms-MY content) had no Wheel
+  // entry at all — genuinely unreachable by any reader. Izzat's own
+  // question ("macam mana portal berita biasa buat?") corrected the
+  // over-engineered "separate navigation mode" design this session had
+  // converged on: real Malay portals (Astro Awani, Utusan, BH) simply list
+  // Nasional/Dunia as ordinary menu items alongside Politik/Sukan/etc. —
+  // no special mode. Final decision: rename the local label 'Malaysia' ->
+  // 'Nasional', and treat both as ORDINARY Bidang (see state/editions.js's
+  // taxonomy array) — not a second navigation mode. This is the universal
+  // GEOGRAPHY value 'Malaysia' (desk-vocabulary.mjs's GEOGRAPHY_VOCABULARY)
+  // being renamed only in its ms-MY DISPLAY label; the underlying subject/
+  // geography distinction in the classifier is untouched.
+  'ms-MY': { local: 'Nasional', world: 'Dunia' },
   // local: null — en-global/ar-global have NO local-country concept at all.
   // Deliberately not substituted with 'Asia' or 'العالم العربي' either;
   // that would move the problem, not solve it. A story with no resolvable
