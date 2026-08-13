@@ -16,9 +16,14 @@
 // manual editorial weighting, editorial classes A-D (headline/update/
 // context/niche) — those wait for their own policy documents.
 
-// Starting parameters — not locked, same status as every other threshold
-// in this engine (freshness buckets, dominance discount). Expected to be
-// tuned once the 5 benchmark cases have been run and reviewed.
+// EXPERIMENTAL PARAMETERS — status: calibration required. Per ChatGPT
+// (2026-08-13): these are NOT a final editorial decision, just a
+// starting point for evaluation. A field with many sources (Politik)
+// and a field with almost none (Sains: 7 candidates, Agama: 1-2 real
+// sources) will very plausibly need different thresholds — one number
+// is not expected to fit every field. Do not treat 0.5/0.75 as locked
+// until real cross-field benchmark results (see
+// docs/ranking-engine-small-field-production-benchmark.md) say otherwise.
 const DOMINANCE_SHARE_THRESHOLD = 0.5; // a source holding >50% of slots triggers a look for a swap
 const QUALITY_FLOOR_RATIO = 0.75; // a replacement must score at least 75% of the candidate it would replace
 

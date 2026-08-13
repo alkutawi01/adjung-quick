@@ -17,6 +17,7 @@ import { createClient } from '@supabase/supabase-js';
 import { scoreCandidates } from './candidate-scoring.mjs';
 import { selectDiverseCandidates } from './diversity-selection.mjs';
 import { applyEditorialComposition } from './editorial-composition.mjs';
+import { buildExplainabilityReport, printExplainabilityReport } from './explainability-report.mjs';
 import { RSS_SOURCES } from '../lab/sources.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -69,8 +70,8 @@ function runPipeline(candidates, now) {
   // per docs/editorial-composition-policy-v1.md (it never re-ranks, only
   // considers what Diversity Selection left on the table).
   const alternativePool = scored.filter(c => !diversitySelected.some(s => s.storyId === c.storyId));
-  const { selected } = applyEditorialComposition(diversitySelected, { alternativePool });
-  return selected;
+  const { selected, compositionReasons } = applyEditorialComposition(diversitySelected, { alternativePool });
+  return { selected, compositionReasons };
 }
 
 async function main() {
@@ -84,13 +85,16 @@ async function main() {
   candidates.forEach(c => { bySource[c.sourceId] = (bySource[c.sourceId] ?? 0) + 1; });
   console.log('Input source distribution:', JSON.stringify(bySource), '\n');
 
-  const activeSet = runPipeline(candidates, now);
+  const { selected: activeSet, compositionReasons } = runPipeline(candidates, now);
 
   console.log(`=== SELECTED ACTIVE SET (${activeSet.length}/10) ===\n`);
   activeSet.forEach((s, i) => {
     console.log(`${i + 1}. [${s.finalScore.toFixed(1)}] (${s.sourceId}) ${s.title.slice(0, 60)}`);
     console.log(`   reasons: ${s.reasons.join(', ')}`);
   });
+
+  const report = buildExplainabilityReport({ edition: 'ms-MY', field: 'Politik', selected: activeSet, compositionReasons });
+  printExplainabilityReport(report);
 
   // --- Benchmark v1 checks (score sanity) ---
   console.log('\n=== BENCHMARK v1 — score-level checks ===\n');

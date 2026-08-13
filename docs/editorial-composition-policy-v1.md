@@ -99,6 +99,19 @@ If yes: look for a candidate from an under-represented source whose
         source's LOWEST-scoring selected candidate, and swap it in
 ```
 
+## Experimental Parameters (added after v0.1 implementation, 2026-08-13)
+
+**Status: calibration required.** `ranking/editorial-composition.mjs` v0.1
+introduced two numeric thresholds — dominance share (0.5) and quality
+floor ratio (0.75). These are explicitly **not a final editorial
+decision**, just a starting point for evaluation. A field with many
+active sources (Politik) and a field with almost none (Sains: 7 real
+candidates total; Agama: 1-2 real sources) will very plausibly need
+different thresholds — one number is not expected to fit every field.
+Locked only after the small-field production benchmark
+(`docs/ranking-engine-small-field-production-benchmark.md`) produces
+real evidence either way.
+
 ## 5. What this does NOT change
 
 - `ranking/candidate-scoring.mjs` — untouched.
