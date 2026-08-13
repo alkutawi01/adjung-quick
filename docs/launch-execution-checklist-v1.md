@@ -38,21 +38,27 @@ work per Option A).
       only — **not pushed to origin**, per standing practice of
       confirming again before any shared/remote action)
 
-## 2. Snapshot production
+## 2. Snapshot production — ✅ DONE 2026-08-13
 
-- [ ] Run `node db/snapshot-production.mjs` one final time immediately
-      before deploy, so the local snapshot used for any last-minute
-      verification reflects the actual data going live
-- [ ] Record snapshot date + ruleset version in this document once run
+- [x] Ran `node db/snapshot-production.mjs` (first attempt hit the
+      known transient "JWT issued at future" clock-skew error, same as
+      earlier this session — retry succeeded)
+- [x] Recorded: snapshot date 2026-08-13, ruleset v1.3.0 — 43 sources /
+      865 story_clusters / 917 rss_items / 867 placements
 
-## 3. Build verification
+## 3. Build verification — ✅ DONE 2026-08-13
 
-- [ ] `npm run build` (or equivalent) completes with zero errors
-- [ ] Run full test suite: ranking tests, write-guard tests, snapshot
-      regression tests — all passing before proceeding
-- [ ] Confirm `.env.example` reflects required production env vars
-      (`DATABASE_ENV=production`, `CONFIRM_PRODUCTION_WRITE` documented,
-      not set by default)
+- [x] `vite build` (the actual Vercel `buildCommand` per `vercel.json`)
+      completes with zero errors — 96 modules, `ui/dist` produced
+      (note: root `package.json` has no `"build"` script of its own;
+      Vercel calls `vite build` directly per `vercel.json`, which is why
+      this still works — not a gap, just worth knowing)
+- [x] Full test suite passing: engine+state (54/54), production write
+      guard (8/8), snapshot regression (5/5), editorial composition
+      (10/10), shadow-runner chunking (7/7) — 84/84 total
+- [x] `.env.example` confirmed correct: `DATABASE_ENV` documented,
+      `CONFIRM_PRODUCTION_WRITE` documented but commented out (not set
+      by default)
 
 ## 4. Vercel deployment
 
