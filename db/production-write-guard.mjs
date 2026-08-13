@@ -37,3 +37,34 @@ export function assertWriteAllowed(env = process.env) {
     "Set DATABASE_ENV to 'production', 'staging', or 'development' explicitly before running a write script."
   );
 }
+
+// Destructive-rebuild guard (2026-08-13, docs/ingestion-destructive-rebuild-finding.md):
+// ingest-production.js deletes ALL story_clusters every run, but
+// saved_stories/history_entries reference story_clusters with no ON
+// DELETE action — so once any reader has saved anything, the rebuild
+// both fails (FK violation) and, if forced, orphans real user data.
+//
+// Decision logic only — the caller supplies the live counts, so this is
+// unit-testable without ever writing fake rows to production
+// (db/production-write-guard.test.mjs). Returns:
+//   { allowed: true }                      — DB has no user data, safe
+//   { allowed: true, forced: true }        — user data exists, but
+//                                            ALLOW_DESTRUCTIVE_REBUILD=true
+//                                            was set deliberately
+//   { allowed: false, reason }             — user data exists, refuse
+export function evaluateDestructiveRebuildGuard(savedCount, historyCount, env = process.env) {
+  const userRows = (savedCount ?? 0) + (historyCount ?? 0);
+  if (userRows === 0) return { allowed: true, userRows: 0 };
+  if (env.ALLOW_DESTRUCTIVE_REBUILD === 'true') {
+    return { allowed: true, forced: true, userRows };
+  }
+  return {
+    allowed: false,
+    userRows,
+    reason:
+      `user-owned data detected (saved_stories: ${savedCount ?? 0}, ` +
+      `history_entries: ${historyCount ?? 0}) — a destructive rebuild would `
+      + 'fail on the FK and orphan real readers’ data if forced. See ' +
+      'docs/ingestion-destructive-rebuild-finding.md.',
+  };
+}

@@ -13,7 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { RSS_SOURCES } from '../lab/sources.js';
 import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
-import { assertWriteAllowed } from './production-write-guard.mjs';
+import { assertWriteAllowed, evaluateDestructiveRebuildGuard } from './production-write-guard.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,9 +40,43 @@ async function main() {
   const labRankedQueue = buildRankedQueue(allItems);
   console.log(`Lab (in-memory ground truth): ${allItems.length} raw items -> ${labRankedQueue.length} clusters, top score ${labRankedQueue[0].editorialScore}.\n`);
 
-  // --- Clean slate: this is a fresh schema-only database, safe to truncate
-  // between runs while iterating. Order matters (FK dependencies). ---
-  console.log('Clearing existing rows (fresh verification run)...');
+  // --- Destructive-rebuild guard (2026-08-13, per ChatGPT +
+  // docs/ingestion-destructive-rebuild-finding.md): the truncate below
+  // was written when this was a fresh schema-only database. It no longer
+  // is — the same DB serves the live site, and saved_stories/
+  // history_entries reference story_clusters with NO ON DELETE action,
+  // so the moment one reader saves one story, the delete below fails
+  // with an FK violation and the whole content pipeline stops for a
+  // reason that looks unrelated. This guard turns that confusing future
+  // failure into a clear, early refusal — and never trusts "it was
+  // empty yesterday": it checks NOW, every run.
+  //
+  // ALLOW_DESTRUCTIVE_REBUILD=true exists for one scenario only: a
+  // deliberate, eyes-open decision to rebuild content while accepting
+  // that user-referenced clusters will break. It is NOT a convenience
+  // flag. The real fix is incremental ingestion —
+  // docs/ingestion-lifecycle-v2-design.md.
+  const [{ count: savedCount }, { count: historyCount }] = await Promise.all([
+    supabase.from('saved_stories').select('*', { count: 'exact', head: true }),
+    supabase.from('history_entries').select('*', { count: 'exact', head: true }),
+  ]);
+  const guard = evaluateDestructiveRebuildGuard(savedCount, historyCount);
+  if (!guard.allowed) {
+    console.error('');
+    console.error('ERROR: Destructive ingestion blocked.');
+    console.error('');
+    console.error(`Reason: ${guard.reason}`);
+    console.error('');
+    console.error('The correct path is incremental ingestion');
+    console.error('(docs/ingestion-lifecycle-v2-design.md), not this rebuild.');
+    process.exit(1);
+  }
+  if (guard.forced) {
+    console.log(`WARNING: proceeding with ALLOW_DESTRUCTIVE_REBUILD=true over ${guard.userRows} user row(s).`);
+  }
+
+  // --- Clean slate rebuild. Order matters (FK dependencies). ---
+  console.log('Clearing existing rows (destructive rebuild — guard passed)...');
   await supabase.from('rss_items').delete().not('id', 'is', null);
   await supabase.from('story_clusters').delete().not('id', 'is', null);
   await supabase.from('sources').delete().not('id', 'is', null);
@@ -143,11 +177,19 @@ async function main() {
 
   console.log('=== STREAM A — PRODUCTION VERIFICATION ===\n');
   const clusterMatch = labRankedQueue.length === dbClusterCount;
-  const itemMatch = allItems.length === dbItemCount;
+  // Compare against what was actually INSERTED, not the raw fetch count.
+  // The raw count (allItems) legitimately exceeds the stored count twice
+  // over: the engine merges exact cross-feed duplicates during
+  // clustering, then the ID-dedup above drops same-rssGuid copies from a
+  // publisher's general+category feeds. The original "raw == stored"
+  // expectation predates category feeds (2026-08-12) and became
+  // permanently unsatisfiable the day they were added — a stale check,
+  // not a data problem. Raw is still printed for visibility.
+  const itemMatch = dedupedItemRows.length === dbItemCount;
   const scoreMatch = Number(labRankedQueue[0].editorialScore) === Number(topRow.editorial_score);
 
   console.log(`Clusters:  Lab=${labRankedQueue.length}  Supabase=${dbClusterCount}  ${clusterMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}`);
-  console.log(`RSS items: Lab=${allItems.length}  Supabase=${dbItemCount}  ${itemMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}`);
+  console.log(`RSS items: inserted=${dedupedItemRows.length}  Supabase=${dbItemCount}  ${itemMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}  (raw fetch: ${allItems.length}, engine+ID dedup applied)`);
   console.log(`Top score: Lab=${labRankedQueue[0].editorialScore}  Supabase=${topRow.editorial_score}  ${scoreMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}`);
 
   console.log('\nTop 5 (Supabase, real Ranked Queue query):');

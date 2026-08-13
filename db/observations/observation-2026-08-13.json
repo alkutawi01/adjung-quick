@@ -1,87 +1,86 @@
 {
-  "observedAt": "2026-08-13T08:07:47.487Z",
+  "observedAt": "2026-08-13T08:40:44.952Z",
   "counts": {
     "sources": 43,
-    "sourcesContributing": 41,
-    "clusters": 865,
-    "items": 917,
-    "placements": 867,
+    "sourcesContributing": 43,
+    "clusters": 896,
+    "items": 945,
+    "placements": 897,
     "savedStories": 0,
     "historyEntries": 0
   },
   "silentSources": [],
-  "knownBrokenSources": [
-    "rss-jakim-berita",
-    "rss-jakim-kenyataan"
-  ],
+  "knownBrokenSources": [],
   "editions": {
     "ms-MY": {
-      "total": 725,
-      "classified": 709,
-      "unclassified": 16,
+      "total": 748,
+      "classified": 737,
+      "unclassified": 11,
       "fields": {
         "Pendidikan": 193,
-        "Malaysia": 64,
-        "Politik": 36,
-        "Dunia": 46,
-        "Jenayah": 28,
-        "Sukan": 91,
+        "Bisnes": 92,
+        "Malaysia": 63,
+        "Teknologi": 29,
+        "Jenayah": 32,
         "Hiburan": 61,
-        "Bisnes": 93,
-        "Agama": 24,
+        "Dunia": 46,
+        "Bencana": 13,
+        "Sukan": 94,
+        "Politik": 32,
+        "Agama": 44,
         "Gaya Hidup": 25,
+        "Kesihatan": 3,
         "Sains": 5,
-        "Teknologi": 31,
-        "Bencana": 8,
-        "Alam Sekitar": 4
+        "Alam Sekitar": 5
       }
     },
     "en-global": {
-      "total": 91,
-      "classified": 53,
-      "unclassified": 38,
+      "total": 98,
+      "classified": 58,
+      "unclassified": 40,
       "fields": {
-        "Crime": 3,
-        "Culture": 1,
-        "World": 19,
-        "Environment": 4,
-        "Health": 2,
-        "Disaster": 7,
-        "Politics": 5,
+        "Politics": 6,
         "Business": 5,
-        "Economy": 2,
-        "Sports": 2,
+        "Environment": 6,
+        "World": 22,
         "Science": 2,
-        "Technology": 1
+        "Health": 2,
+        "Sports": 4,
+        "Disaster": 6,
+        "Crime": 4,
+        "Economy": 1
       }
     },
     "ar-global": {
       "total": 51,
-      "classified": 22,
-      "unclassified": 29,
+      "classified": 20,
+      "unclassified": 31,
       "fields": {
-        "رياضة": 6,
-        "سياسة": 13,
+        "صحة وعلوم": 2,
+        "سياسة": 12,
+        "كوارث": 1,
         "اقتصاد": 2,
-        "كوارث": 1
+        "تكنولوجيا": 1,
+        "ثقافة وفنون": 1,
+        "رياضة": 1
       }
     }
   },
   "rankingPilots": {
     "ms-MY.Politik": {
       "version": "editorial_v1",
-      "candidatePoolSize": 36,
+      "candidatePoolSize": 32,
       "selectedStoryIds": [
-        "www.utusan.com.my/nasional/politik/2026/08/bersama-bakal-kemuka-calon-bayangan-pru-ke-16",
+        "www.utusan.com.my/nasional/2026/08/isu-kedudukan-dap-selepas-ahad-baru-kita-cakap-loke",
+        "www.astroawani.com/berita-politik/rci-tabung-haji-semua-pihak-perlu-elak-tuduhan-melulu-penghakiman-politik-bn",
+        "www.astroawani.com/berita-politik/terkini-tiada-keperluan-umum-kekosongan-kerusi-adun-selangor-speaker",
+        "www.utusan.com.my/nasional/2026/08/jangan-halang-buat-kebajikan-atas-dasar-kepentingan-politik",
         "www.astroawani.com/berita-politik/alexander-sah-mahu-bersara-sebagai-ahli-parlimen-sasar-kerusi-dun-baharu",
-        "www.hmetro.com.my/mutakhir/2026/08/1397194/tun-dr-mahathir-tun-dr-siti-hasmah-ukir-sejarah-cipta-3-rekod",
-        "www.utusan.com.my/berita/2026/08/umno-pahang-terbuka-kerjasama-dengan-pas-parti-politik-lain-wan-rosdy",
+        "www.utusan.com.my/nasional/2026/08/ph-pulau-pinang-kekal-pendirian-untuk-terus-bekerjasama-dengan-bn",
+        "www.astroawani.com/berita-politik/kongres-nasional-pkr-2026-bermula-esok-himpun-lebih-5000-perwakilan-dan-pemerhati",
+        "www.utusan.com.my/nasional/2026/08/ph-yakin-dap-utamakan-kestabilan-politik-negara",
         "www.astroawani.com/berita-politik/kayveas-gagal-cabar-pelantikan-maglin-sebagai-presiden-myppp",
-        "www.hmetro.com.my/mutakhir/2026/08/1397238/80-peratus-kandungan-ruu-mara-baharu-tumpu-perkukuh-tadbir-urus-asyraf",
-        "www.utusan.com.my/nasional/2026/08/tindakan-mp-bersatu-bahas-rci-th-bijak-tepat-fahmi",
-        "www.hmetro.com.my/mutakhir/2026/08/1397270/pm-anwar-ucap-takziah-pemergian-bekas-pm-china-zhu-rongji",
-        "www.astroawani.com/berita-politik/pru16-jangan-beri-harapan-palsu-kepada-orang-melayu-bn-pn-perlu-buat-keputusan-jelas-penganalisis",
-        "www.utusan.com.my/terkini/2026/08/keputusan-kekal-larangan-berjudi-mendukacitakan-rakyat-kedah"
+        "www.utusan.com.my/nasional/2026/08/prn-melaka-hala-tuju-kerjasama-pembahagian-kerusi-dibincang-mkt-28-ogos-ini"
       ]
     }
   }
