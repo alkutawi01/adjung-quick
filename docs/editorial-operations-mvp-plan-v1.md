@@ -1,6 +1,16 @@
 # Editorial Operations MVP Plan v1 (2026-08-13)
 
-Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[ ] Closed`
+Status: `[x] Observation` `[x] Decision needed` `[ ] Implementation pending` `[x] Closed`
+
+## SUPERSEDED 2026-08-13 — see `docs/editorial-operations-mvp-plan-v2.md`
+
+Izzat added a constraint after this was written: the admin is
+non-technical and won't monitor implementation step-by-step. v2 adds a
+human-first language layer (internal `reason_code` vs. admin-facing
+`display_reason`) and an Admin Digest component. The data
+model/schema below (`editors`, `story_overrides`, `source_overrides`,
+Review Queue *sourcing*) stays valid — only the UI/presentation layer
+changes.
 
 Category: **[DECISION] plan document. No UI, schema, or code written
 here.** Opens **Fasa 3**. Fasa 2 (Editorial Correctness) is formally
