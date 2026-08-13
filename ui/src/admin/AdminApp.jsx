@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, submitHideOverride, submitReclassifyOverride, submitBoostOverride } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, submitBoostOverride } from './reviewQueueAdapter.js';
+import AdminDigest from './AdminDigest.jsx';
 import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID } from '../../../state/editions.js';
 import { getRankingVersion } from '../../../state/rankingFlags.js';
 import ReviewQueueCard from './ReviewQueueCard.jsx';
@@ -120,6 +121,8 @@ function ReviewQueue({ userId }) {
   const [entries, setEntries] = useState(null); // null = loading
   const [loadError, setLoadError] = useState(null);
   const [busyStoryId, setBusyStoryId] = useState(null);
+  const [digest, setDigest] = useState(null);
+  const [digestError, setDigestError] = useState(null);
 
   const load = useCallback(() => {
     setEntries(null);
@@ -127,6 +130,14 @@ function ReviewQueue({ userId }) {
     fetchReviewQueue(adminSupabase, editionId)
       .then(setEntries)
       .catch(err => setLoadError(err.message));
+    // Loaded independently of the queue: a digest failure must never
+    // block the queue itself (the queue is the surface that actually
+    // lets an editor DO something), and vice versa.
+    setDigest(null);
+    setDigestError(null);
+    fetchDigest(adminSupabase, editionId)
+      .then(setDigest)
+      .catch(err => setDigestError(err.message));
   }, [editionId]);
 
   useEffect(() => { load(); }, [load]);
@@ -166,6 +177,12 @@ function ReviewQueue({ userId }) {
           </button>
         ))}
       </div>
+
+      <AdminDigest
+        digest={digest}
+        error={digestError}
+        onOpenQueue={() => document.querySelector('.review-queue__list')?.scrollIntoView({ behavior: 'smooth' })}
+      />
 
       {loadError && <p className="review-queue__error">{loadError}</p>}
       {entries === null && !loadError && <p className="admin-app__status">Memuatkan...</p>}

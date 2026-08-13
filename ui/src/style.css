@@ -472,6 +472,70 @@ body {
 }
 .admin-signin button:disabled { opacity: 0.6; cursor: default; }
 
+/* --- Admin Digest (FASA 3.6.4): a status panel, read top-down, so it is
+   set apart from the action cards below it rather than looking like one
+   more thing to act on. --- */
+.digest {
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin: 14px 0 4px;
+  background: rgba(122, 59, 46, 0.03);
+}
+.digest__title {
+  font-size: 0.95rem;
+  color: var(--accent);
+  margin: 0 0 10px;
+  font-weight: normal;
+}
+.digest__clear {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  margin: 0 0 10px;
+}
+.digest__error { font-size: 0.82rem; color: #a00; margin: 0; }
+.digest__loading { font-size: 0.82rem; color: var(--ink-muted); margin: 0; }
+.digest__rows { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.digest__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.82rem;
+}
+.digest__row dt { color: var(--ink-muted); }
+.digest__row dd {
+  margin: 0;
+  text-align: right;
+  /* Digits line up across rows even at different magnitudes. */
+  font-variant-numeric: tabular-nums;
+}
+.digest__row--attention dd { color: var(--accent); }
+.digest__row--quiet dt, .digest__row--quiet dd { color: var(--ink-faint); }
+.digest__list { margin: 0; padding: 0; list-style: none; }
+.digest__list li { margin-bottom: 2px; }
+.digest__action {
+  display: block;
+  margin-top: 4px;
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+.digest__action:hover { background: var(--accent); color: var(--paper); }
+
+/* Wide content must never make the page scroll sideways. */
+@media (max-width: 420px) {
+  .digest__row { flex-direction: column; gap: 2px; }
+  .digest__row dd { text-align: left; }
+  .digest__action { margin-left: 0; }
+}
+
 .review-queue__error {
   color: #a00;
   font-size: 0.85rem;

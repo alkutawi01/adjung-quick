@@ -96,6 +96,76 @@ export async function fetchReviewQueue(supabase, editionId) {
     .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 }
 
+// FASA 3.6.4 Admin Digest. Per docs/admin-digest-implementation-plan-v1.md
+// §1: NOT a new detection system. `needsAttention` comes from calling
+// fetchReviewQueue() itself — the same code path, same thresholds, so the
+// digest and the Review Queue can never disagree about what counts as a
+// problem. The other numbers are plain counts, no new rules.
+export async function fetchDigest(supabase, editionId) {
+  const [{ count: processed, error: processedErr }, queue, { data: overrides, error: overridesErr }] = await Promise.all([
+    supabase.from('edition_story_classifications')
+      .select('story_id', { count: 'exact', head: true })
+      .eq('edition_id', editionId),
+    fetchReviewQueue(supabase, editionId),
+    // "Today" in the admin's own local day, not UTC — an editor reading
+    // "hari ini" means their day. Computed here rather than in SQL so it
+    // follows the browser's timezone without a server-side assumption.
+    supabase.from('story_overrides')
+      .select('override_type, new_field, created_at')
+      .eq('edition_id', editionId)
+      // active only: an override made and then undone the same day is no
+      // longer a change in effect, and listing it under "Perubahan
+      // editorial hari ini" would tell the admin something is true of the
+      // system when it isn't. The row still exists as audit trail; a
+      // history view (deferred) is where undone actions belong.
+      .eq('active', true)
+      .gte('created_at', startOfLocalDayIso()),
+  ]);
+  if (processedErr) throw new Error(`fetchDigest: edition_story_classifications — ${processedErr.message}`);
+  if (overridesErr) throw new Error(`fetchDigest: story_overrides — ${overridesErr.message}`);
+
+  return {
+    processed: processed ?? 0,
+    needsAttention: queue.length,
+    // processed minus what needs attention. Floored at 0 defensively: the
+    // two numbers come from separate queries a moment apart, and a story
+    // could in principle be resolved in between.
+    noActionNeeded: Math.max(0, (processed ?? 0) - queue.length),
+    actionsToday: summariseActions(overrides),
+  };
+}
+
+function startOfLocalDayIso() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+// Plain-Malay sentences, per the human-first language layer — the admin
+// never sees an override_type like 'reclassify'.
+function summariseActions(overrides) {
+  const lines = [];
+  const hidden = overrides.filter(o => o.override_type === 'hide').length;
+  const boosted = overrides.filter(o => o.override_type === 'boost').length;
+  const reclassified = overrides.filter(o => o.override_type === 'reclassify');
+
+  for (const [field, count] of countByField(reclassified)) {
+    lines.push(`${count} berita dipindahkan ke ${field}`);
+  }
+  if (hidden > 0) lines.push(`${hidden} berita disembunyikan`);
+  if (boosted > 0) lines.push(`${boosted} berita dinaikkan`);
+  return lines;
+}
+
+function countByField(rows) {
+  const counts = new Map();
+  for (const r of rows) {
+    const field = r.new_field ?? 'bidang lain';
+    counts.set(field, (counts.get(field) ?? 0) + 1);
+  }
+  return [...counts.entries()];
+}
+
 export async function submitHideOverride(supabase, { storyId, editionId, reason, createdBy }) {
   return writeOverride(supabase, { storyId, editionId, overrideType: 'hide', reason, createdBy });
 }
