@@ -11,6 +11,7 @@ import { createInitialState, getRepresentationPreference } from './model.js';
 import { getEdition } from './editions.js';
 import { reduce } from './reducer.js';
 import * as actions from './actions.js';
+import { getRankingVersion } from './rankingFlags.js';
 
 let passed = 0, failed = 0;
 function assert(name, condition, detail = '') {
@@ -149,6 +150,50 @@ async function main() {
   assertSlotPreserved('TEST 9a — release slot 0: only slot 0 changes, all others keep position+story', 0);
   assertSlotPreserved('TEST 9b — release middle slot 4: slots 0-3/5-9 retain same story AND position', 4);
   assertSlotPreserved('TEST 9c — release slot 9 (last): only slot 9 changes', 9);
+
+  // --- TEST 10: RELEASE_STORY under editorial_v1 (2026-08-13, audit
+  // finding docs/exhaustive-audit-findings-v1.md HIGH — the only
+  // production-active advanced-ranking code path, ms-MY/Politik, was
+  // never actually exercised here: TEST 9a-c above scope to `richestTopic`
+  // (whichever Bidang has the most real candidates), which per reducer.js's
+  // own comments is essentially never Politik (Politik/53 vs
+  // Pendidikan/193 in observed real data) — so every run of `npm test`
+  // was silently skipping reducer.js's editorial_v1 branch (lines
+  // 194-199) and only ever exercising the legacy branch below it. Pinned
+  // explicitly to ms-MY/Politik here so a regression in the ranking
+  // engine's single-slot-fill or Stable Spatial Slots guarantee under
+  // editorial_v1 can't ship undetected again. Does not change any
+  // reducer/ranking behavior — test-only. ---
+  {
+    const politikState = reduce(state, actions.selectTopic('Politik'), context);
+    const politikVersion = getRankingVersion(politikState.editionContext.activeEdition, politikState.userContext.selectedTopic);
+    assert('TEST 10 — sanity check: ms-MY/Politik is actually on editorial_v1 (if this fails, the pin below is testing nothing)',
+      politikVersion === 'editorial_v1', `got version=${politikVersion}`);
+
+    if (politikState.activeSet.length > 0) {
+      const before = politikState.activeSet;
+      const targetSlot = before[0].slot;
+      const targetEntry = before.find(s => s.slot === targetSlot);
+      const after = reduce(politikState, actions.releaseStory(targetEntry.storyId), context);
+
+      const untouchedSlots = before.filter(s => s.slot !== targetSlot);
+      const untouchedPreserved = untouchedSlots.every(s => {
+        const match = after.activeSet.find(a => a.slot === s.slot);
+        return match && match.storyId === s.storyId;
+      });
+      const maxOriginalSlot = Math.max(...before.map(s => s.slot));
+      const noAppendedSlot = after.activeSet.every(a => a.slot <= maxOriginalSlot);
+      const replacement = after.activeSet.find(a => a.slot === targetSlot);
+      const sameTopicIfReplaced = !replacement || replacement._cluster?.topic === 'Politik';
+
+      assert('TEST 10a — editorial_v1 RELEASE_STORY: other slots untouched (position + story)', untouchedPreserved);
+      assert('TEST 10b — editorial_v1 RELEASE_STORY: no slot appended beyond the original range', noAppendedSlot);
+      assert('TEST 10c — editorial_v1 RELEASE_STORY: any replacement is the SAME Bidang (Politik), never leaked from another topic',
+        sameTopicIfReplaced, `got=${replacement?._cluster?.topic}`);
+    } else {
+      assert('TEST 10 — editorial_v1 RELEASE_STORY (skipped: no live Politik candidates this run)', true);
+    }
+  }
 
   // --- TEST 7: PIN/PRIORITIZE/REMOVE never mutate state.activeSet directly ---
   const beforeControl = state.activeSet;

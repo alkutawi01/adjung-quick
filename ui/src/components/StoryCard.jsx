@@ -45,17 +45,30 @@ export default function StoryCard({ story, sourceName, highlighted, onSelect, on
   // silently fail on real touch): track the swipe via window listeners so
   // a fast/long swipe that carries the finger outside this card's own
   // bounds still commits correctly on release.
+  //
+  // Fixed 2026-08-13 (audit finding, docs/exhaustive-audit-findings-v1.md
+  // CRITICAL): a second concurrent pointer (stray touch/palm edge) used to
+  // register a second overlapping set of these window listeners, both
+  // writing the same dragX state — whichever finger lifted first tore
+  // down only its own closure, leaving the other's listeners attached to
+  // corrupt the next gesture. Every event is now filtered by pointerId so
+  // only the pointer that started this drag can drive or end it.
   const handlePointerDown = e => {
+    if (drag.current) return; // a drag is already active on this card — ignore a second pointer entirely
     const startX = e.clientX;
-    drag.current = { startX, moved: false };
+    const pointerId = e.pointerId;
+    const pointerType = e.pointerType;
+    drag.current = { startX, moved: false, pointerId };
     let localDx = 0;
 
     const onMove = ev => {
+      if (ev.pointerId !== pointerId) return;
       localDx = ev.clientX - startX;
       if (Math.abs(localDx) > 4) drag.current.moved = true; // distinguish drag from click
       setDragX(localDx);
     };
-    const onUp = () => {
+    const onUp = ev => {
+      if (ev.pointerId !== pointerId) return;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
@@ -69,8 +82,15 @@ export default function StoryCard({ story, sourceName, highlighted, onSelect, on
       setDragX(0);
       // A short drag that didn't cross the threshold and barely moved still
       // counts as a tap/click — but real drags (moved=true, under threshold)
-      // should NOT also trigger selection on release.
-      if (!wasDrag) onSelect(story.storyId);
+      // should NOT also trigger selection/open on release.
+      if (wasDrag) return;
+      onSelect(story.storyId);
+      // Per docs/core-reading-ui-contract.md §9: on touch, a tap opens
+      // directly (no separate highlight-then-double-tap step — double-tap
+      // is unreliable on real touchscreens and has no visual affordance).
+      // Mouse users keep the existing single-click-selects /
+      // double-click-opens behavior below, unchanged.
+      if (pointerType === 'touch' || pointerType === 'pen') onOpen(story.storyId);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);

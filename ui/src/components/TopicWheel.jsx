@@ -171,17 +171,30 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   // relying on the small element retaining the pointer — this is correct
   // regardless of whether capture succeeds, and regardless of how far the
   // finger drifts outside the track's bounds.
+  // Fixed 2026-08-13 (audit finding, docs/exhaustive-audit-findings-v1.md
+  // HIGH): a second concurrent pointer (stray touch/palm edge during a
+  // drag) used to register a second overlapping set of these window
+  // listeners, both writing the same dragOffsetPx state — whichever
+  // finger lifted first tore down only its own closure, leaving the
+  // other attached to corrupt the commit on release. Now scoped by
+  // pointerId: a second pointerdown while a drag is active is ignored
+  // outright, and move/up events from any pointer other than the one
+  // that started the drag are ignored too.
   const handlePointerDown = e => {
+    if (drag.current) return; // a drag is already active — ignore a second pointer entirely
     const startY = e.clientY;
     const startIndex = currentIndexRef.current;
-    drag.current = { startY, startIndex };
+    const pointerId = e.pointerId;
+    drag.current = { startY, startIndex, pointerId };
     let localOffset = 0;
 
     const onMove = ev => {
+      if (ev.pointerId !== pointerId) return;
       localOffset = ev.clientY - startY;
       setDragOffsetPx(localOffset);
     };
-    const onUp = () => {
+    const onUp = ev => {
+      if (ev.pointerId !== pointerId) return;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
