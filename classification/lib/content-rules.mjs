@@ -14,14 +14,30 @@
 const PHRASE_RULES = [
   // Crime — court/enforcement phrases, real evidence from the 190-item corpus
   { subject: 'Crime', phrases: ['mahkamah', 'didakwa', 'waran tangkap', 'ditahan', 'SPRM', 'dipenjara', 'court', 'charged', 'arrested', 'jailed', 'sentenced', 'مذكرة توقيف', 'محكمة'] },
-  // Disaster — acute events, per the locked Bencana definition (distinct from Environment's ongoing conditions)
-  { subject: 'Disaster', phrases: ['gempa bumi', 'earthquake', 'banjir besar', 'flood', 'kapal karam', 'ferry capsiz', 'tanah runtuh', 'landslide', 'زلزال', 'فيضان'] },
+  // Disaster — acute events, per the locked Bencana definition (distinct from Environment's ongoing conditions).
+  // Extended 2026-08-13, per docs/niche-field-coverage-audit.md's "Bencana/
+  // Kesihatan/Alam Sekitar all-zero" finding: real evidence pulled from
+  // production rss_items (haze school closures, storms, wildfires,
+  // droughts) that understandStory() returned ZERO candidates for under
+  // the original narrow phrase set. 'gempa'/'banjir' added standalone
+  // alongside the existing 'gempa bumi'/'banjir besar' because real
+  // titles ("Mangsa gempa Colombia...", "...Terjejas Banjir Di Sarawak")
+  // don't always carry the longer phrase.
+  { subject: 'Disaster', phrases: ['gempa bumi', 'gempa', 'earthquake', 'banjir besar', 'banjir', 'flood', 'kapal karam', 'ferry capsiz', 'tanah runtuh', 'landslide', 'jerebu', 'haze', 'kebakaran hutan', 'wildfire', 'ribut', 'storm', 'kemarau', 'drought', 'cuaca panas ekstrem', 'extreme heat', 'زلزال', 'فيضان'] },
   // Politics — party/parliament phrases
   { subject: 'Politics', phrases: ['parlimen', 'ahli parlimen', 'menteri', 'parti politik', 'PRU', 'parliament', 'minister', 'election', 'حكومة', 'وزير', 'برلمان'] },
   // Sports — real evidence
   { subject: 'Sports', phrases: ['bola sepak', 'football', 'olympics', 'piala', 'football', 'كرة القدم'] },
-  // Health — real evidence
-  { subject: 'Health', phrases: ['hospital', 'penyakit', 'vaksin', 'disease', 'vaccine', 'مستشفى', 'مرض'] },
+  // Health — real evidence. 'wabak'/'outbreak' added 2026-08-13 (real gap:
+  // Ebola outbreak stories returned zero candidates).
+  { subject: 'Health', phrases: ['hospital', 'penyakit', 'vaksin', 'disease', 'vaccine', 'wabak', 'outbreak', 'مستشفى', 'مرض'] },
+  // Environment — NEW 2026-08-13, per the same audit: this subject had
+  // ZERO content-rule phrases at all before this, only a desk-vocabulary
+  // entry ('alam sekitar'/'climate' desk tokens) which never fires for
+  // ordinary article titles that just mention climate content in passing.
+  // Real evidence: "Wanita perlu dilibatkan dalam agenda perubahan iklim"
+  // returned zero candidates pre-fix.
+  { subject: 'Environment', phrases: ['perubahan iklim', 'climate change', 'pencemaran', 'pollution', 'kualiti udara', 'air quality'] },
 ];
 
 export function extractContentEvidence(title, description) {

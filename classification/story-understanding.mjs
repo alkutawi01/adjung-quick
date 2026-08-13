@@ -90,7 +90,15 @@ export function understandStory(item) {
   // --- Tier 4: entity detection — not implemented, per spec ---
 
   // --- Tier 5: content rules (minimal) ---
-  const titleForContent = bernama.strippedTitle ?? item.title;
+  // Bug found 2026-08-13 during niche-field calibration: extractBernamaPrefix
+  // strips ANY "X: rest" colon-prefix pattern, not just recognized Bernama
+  // prefixes (business/sports/sukan/world/dunia) — so a non-Bernama
+  // headline like "Jerebu: Malaysia perlu..." silently lost "Jerebu" from
+  // Tier 5 content matching entirely. Only use the stripped title when the
+  // prefix was actually recognized as a real Bernama subject/geography
+  // signal; otherwise the colon-prefix is real title content, not noise.
+  const bernamaPrefixRecognized = Boolean(bernama.subject || bernama.geography);
+  const titleForContent = bernamaPrefixRecognized ? bernama.strippedTitle : item.title;
   for (const hit of extractContentEvidence(titleForContent, item.description)) {
     subjectHits.push({ subject: hit.subject, tier: 'title_keyword', evidence_type: hit.evidence_type, value: hit.value });
   }

@@ -115,8 +115,47 @@ subject vocabulary has no entries for "jerebu", "gempa", "ribut",
 "kebakaran hutan" mapping to Bencana (or health-adjacent terms to
 Kesihatan).
 
-**Status**: calibration backlog. No classifier change made — same
-discipline as every other finding in this document.
+**Status**: ✅ CALIBRATED 2026-08-13, per Izzat's direct instruction
+("calibration dulu"). Two real changes made, both evidence-driven from
+real production `rss_items`:
+
+1. **`classification/lib/content-rules.mjs`** — added `Disaster` phrases
+   (jerebu, haze, kebakaran hutan, wildfire, ribut, storm, kemarau,
+   drought, cuaca panas ekstrem, extreme heat, standalone gempa/banjir),
+   `Health` phrases (wabak, outbreak), and a brand-new `Environment`
+   phrase set (perubahan iklim, climate change, pencemaran, pollution,
+   kualiti udara, air quality) — Environment previously had ZERO content
+   phrases at all, only an unused desk-vocabulary token.
+2. **`classification/story-understanding.mjs`** — fixed a real bug found
+   *during* this calibration: Tier 5 content matching ran against
+   `extractBernamaPrefix()`'s stripped title unconditionally, which
+   silently deleted the leading word of any non-Bernama "X: rest of
+   title" headline (e.g. "Jerebu: Malaysia perlu..." → content matching
+   only ever saw "Malaysia perlu...", losing "Jerebu" entirely) before
+   this fix. Now only strips when the prefix was an actually-recognized
+   Bernama prefix.
+
+**Verified against real data** (`classification/calibration-niche-fields-check.mjs`,
+kept as a diagnostic script): 26 real production titles matching
+disaster/health/environment keywords, sampled from `rss_items` —
+**19/26 got zero subject candidate before this fix, 0/26 after.**
+
+**Known tradeoff, disclosed not hidden**: "Piala Raja Thai: ... kemarau
+emas 38 tahun berterusan" (a sports idiom, "golden medal drought") now
+also produces a `Disaster@0.4` candidate alongside the correct
+`Sports@0.4` — a real false-positive risk from `kemarau` as a bare
+keyword. Left as-is: this is the same "multiple candidates, resolved
+downstream" shape the engine already handles for ~19% of all items
+(`classification/test-story-understanding.mjs`'s ambiguity rate), not a
+new class of failure, and this specific idiom is rare.
+
+**Not yet applied to production data.** This calibration changes the
+classification code, but `edition_story_classifications` still reflects
+the OLD vocabulary until `db/classify-production.js --write` is run
+against real data — a production write, gated by
+`db/production-write-guard.mjs`, requiring separate explicit
+confirmation before running (same discipline as the launch checklist's
+write-guarded steps).
 
 ### RTM Category Feed Mismatch — now confirmed on a SECOND feed
 
