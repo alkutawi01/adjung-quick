@@ -69,5 +69,25 @@ assert('a reader (null role) cannot perform any action', canPerformAction(null, 
     (app.match(/createdBy:\s*userId,\s*role\s*\}/g) || []).length >= 3);
 }
 
+// --- FASA 3.6.5 Pin wiring (2026-08-13) ---
+// Same discipline as the block above, applied to Pin specifically: assert
+// the guards ChatGPT's instruction required actually exist in the code
+// that runs, not just that a function named submitPinOverride exists.
+{
+  const src = readFileSync(new URL('../ui/src/admin/reviewQueueAdapter.js', import.meta.url), 'utf8');
+  assert('submitPinOverride is exported',
+    /export\s+async\s+function\s+submitPinOverride/.test(src));
+  assert('submitPinOverride reuses writeOverride (admin-only + expiry) rather than a parallel write path',
+    /export async function submitPinOverride[\s\S]{0,3000}?writeOverride\(supabase/.test(src));
+  assert('submitPinOverride reuses new_field, no separate pin-only field parameter/column referenced',
+    !/story_overrides\.select\([^)]*\bfield\b[^)]*\)/.test(src)); // no query ever selects a `field` column that doesn't exist
+  assert('submitPinOverride checks for an active hide before writing (ChatGPT: never offer hide+pin together)',
+    /export async function submitPinOverride[\s\S]{0,2000}?override_type',\s*'hide'/.test(src));
+  assert('submitPinOverride enforces the 2-pin-per-field limit',
+    /activePins\.length >= 2/.test(src));
+  assert('the pin limit is refused with a readable error, not silently capped',
+    /Sudah ada.*pin aktif/.test(src));
+}
+
 console.log(`\n${passed} passed, ${failed} failed.\n`);
 if (failed > 0) process.exit(1);

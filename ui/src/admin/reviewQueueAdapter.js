@@ -205,6 +205,65 @@ export async function submitBoostOverride(supabase, { storyId, editionId, reason
   return writeOverride(supabase, { storyId, editionId, overrideType: 'boost', reason, createdBy, role });
 }
 
+// FASA 3.6.5 Pin. Per docs/pin-implementation-design-review-v1.md: reuses
+// `new_field` (the column reclassify already has) rather than a new
+// schema column — pin's new_field is "which Bidang this story should be
+// pinned within", the same semantic reclassify's new_field already
+// carries. Admin-only enforcement, expiry (24h), and audit fields are all
+// handled by writeOverride()/the DB trigger already — nothing pin-specific
+// needed there. The two guards below are pin-specific and checked BEFORE
+// writeOverride() runs, so a rejected pin never reaches the database at
+// all — refused with a readable reason, never silently dropped.
+export async function submitPinOverride(supabase, { storyId, editionId, newField, reason, createdBy, role }) {
+  if (!newField) {
+    throw new Error('Pin memerlukan bidang — tiada bidang dipilih.');
+  }
+
+  // Per ChatGPT's explicit UX instruction: hide and pin must never both
+  // apply to one story — if hide already exists, pin is moot (restrictive
+  // beats permissive). Checked here, at write time, since no UI currently
+  // offers a "pin" action to gate this at (per ChatGPT: Pin's surface is
+  // deferred to a future Editorial Desk, not the Review Queue) — the
+  // adapter is the only enforcement point that exists today.
+  const { data: activeHides, error: hideErr } = await supabase
+    .from('story_overrides')
+    .select('id')
+    .eq('story_id', storyId)
+    .eq('edition_id', editionId)
+    .eq('override_type', 'hide')
+    .eq('active', true)
+    .gt('expires_at', new Date().toISOString());
+  if (hideErr) throw new Error(`submitPinOverride: checking hide — ${hideErr.message}`);
+  if (activeHides.length > 0) {
+    throw new Error('Berita ini sedang disembunyikan — nyahsembunyi dahulu sebelum pin.');
+  }
+
+  // Governance limit: maximum 2 active pins per (edition, field). Refused
+  // with a readable reason naming the count, never silently accepted —
+  // docs/pin-governance-design-v1.md is explicit that silent acceptance
+  // of a pin that does nothing is the exact class of bug this project has
+  // already hit three times. A genuine check-then-write race exists here
+  // (two concurrent pins could both pass this check); with one real admin
+  // today that cannot realistically occur, and state/reducer.js's own
+  // defensive cap (oldest-2-win) bounds the damage if it ever does — see
+  // that file's comment. A database constraint would close this properly;
+  // not worth it before Pin has a single real caller.
+  const { data: activePins, error: pinErr } = await supabase
+    .from('story_overrides')
+    .select('id')
+    .eq('edition_id', editionId)
+    .eq('override_type', 'pin')
+    .eq('new_field', newField)
+    .eq('active', true)
+    .gt('expires_at', new Date().toISOString());
+  if (pinErr) throw new Error(`submitPinOverride: checking pin limit — ${pinErr.message}`);
+  if (activePins.length >= 2) {
+    throw new Error(`Sudah ada ${activePins.length} pin aktif dalam bidang ini (had maksimum 2). Nyahpin satu dahulu.`);
+  }
+
+  return writeOverride(supabase, { storyId, editionId, overrideType: 'pin', newField, reason, createdBy, role });
+}
+
 // FASA 3.6.3a Test 4 (undo/remove override): deactivating is a soft update
 // (active -> false), never a delete — the row stays as the permanent audit
 // trail of what was decided and by whom, per

@@ -56,13 +56,66 @@ const unclassified = { field: null, classification_status: 'unclassified' };
     r.visible === true && r.field === 'Kesihatan');
 }
 
-// --- boost/pin are not resolved here (out of this function's scope) ---
+// --- boost is not resolved here (out of this function's scope) ---
 {
   const overrides = [{ id: 'o5', override_type: 'boost', created_at: '2026-08-13T01:00:00Z' }];
   const r = resolveStoryField(classified, overrides);
   assert('boost override present but irrelevant to field/visibility -> classifier output used',
     r.visible === true && r.field === 'Politik' && r.source === 'classifier',
     'boost affects ranking, not field resolution — deliberately not handled here');
+}
+
+// --- FASA 3.6.5: pin ---
+
+// Pin on a classified story overrides the classifier's field, same shape
+// as reclassify.
+{
+  const overrides = [{ id: 'p1', override_type: 'pin', new_field: 'Nasional', created_at: '2026-08-13T01:00:00Z' }];
+  const r = resolveStoryField(classified, overrides);
+  assert('pin -> visible, field replaced with new_field, pinned flag set',
+    r.visible === true && r.field === 'Nasional' && r.source === 'override' && r.overrideId === 'p1' && r.pinned === true);
+}
+
+// The actual fix for Finding F: pin rescues an UNCLASSIFIED story —
+// classification_status is never checked once the pin branch matches.
+{
+  const overrides = [{ id: 'p2', override_type: 'pin', new_field: 'Bencana', created_at: '2026-08-13T01:00:00Z' }];
+  const r = resolveStoryField(unclassified, overrides);
+  assert('pin on an unclassified story -> visible under new_field anyway (Finding F fix)',
+    r.visible === true && r.field === 'Bencana' && r.pinned === true);
+}
+
+// Locked precedence: hide beats pin, same as hide beats reclassify.
+{
+  const overrides = [
+    { id: 'p3', override_type: 'pin', new_field: 'Sukan', created_at: '2026-08-13T01:00:00Z' },
+    { id: 'h1', override_type: 'hide', created_at: '2026-08-13T02:00:00Z' },
+  ];
+  const r = resolveStoryField(classified, overrides);
+  assert('hide beats pin, even if pin is present too',
+    r.visible === false && r.field === null && r.overrideId === 'h1' && !r.pinned);
+}
+
+// Locked precedence: pin beats reclassify (pin sits between hide and
+// reclassify in docs/editorial-override-data-model-v1.md §3).
+{
+  const overrides = [
+    { id: 'r1', override_type: 'reclassify', new_field: 'Jenayah', created_at: '2026-08-13T01:00:00Z' },
+    { id: 'p4', override_type: 'pin', new_field: 'Politik', created_at: '2026-08-13T02:00:00Z' },
+  ];
+  const r = resolveStoryField(classified, overrides);
+  assert('pin beats reclassify, even if reclassify is present too',
+    r.visible === true && r.field === 'Politik' && r.overrideId === 'p4' && r.pinned === true);
+}
+
+// Every non-pin branch must leave `pinned` falsy, never explicitly false
+// on unrelated paths — reducer.js's `c.pinned` check must only ever be
+// true for an actual live pin.
+{
+  const r1 = resolveStoryField(classified, []);
+  const r2 = resolveStoryField(classified, [{ id: 'r2', override_type: 'reclassify', new_field: 'Sains', created_at: '2026-08-13T01:00:00Z' }]);
+  assert('pinned is falsy on the classifier-default path', !r1.pinned);
+  assert('pinned is falsy on the reclassify path', !r2.pinned);
 }
 
 // --- conflict: two reclassify overrides for the same story, most recent wins ---

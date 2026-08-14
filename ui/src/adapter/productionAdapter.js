@@ -145,9 +145,15 @@ export function mapRowsToRankedQueue({ sources, clusters, items, placements, ove
       // scope (see its own header comment). It rides along as a flag that
       // state/editorialRankingAdapter.js reads on the editorial_v1 path.
       const boosted = (overridesByStory.get(c.id) ?? []).some(o => o.override_type === 'boost');
+      // FASA 3.6.5: unlike boost, `pinned` (and `pinnedAt`, for placement
+      // ordering among multiple pins) come straight from resolveStoryField()
+      // — pin DOES determine field/visibility, so it's already resolved
+      // above. Just carried through onto the cluster here, same as boosted.
       return {
         clusterKey: c.id,
         boosted,
+        pinned: Boolean(resolved.pinned),
+        pinnedAt: resolved.pinned ? overridesByStory.get(c.id).find(o => o.id === resolved.overrideId)?.created_at ?? null : null,
         // null when this edition has no placement for the story (genuinely
         // unclassified, not yet run through classify-production.js), OR
         // when an active `hide` override applies. `null` is correct and

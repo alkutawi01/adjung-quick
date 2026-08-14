@@ -74,12 +74,36 @@ function editionEligibleLanguages(state) {
 // so Diversity Selection/Composition have real alternatives to choose
 // from, and caps internally.
 function selectFieldActiveSet(eligible, editionId, field, capacity, control) {
-  if (getRankingVersion(editionId, field) === 'editorial_v1') {
-    return selectEditorialActiveSet(eligible, capacity);
-  }
-  return control
-    ? selectActiveSetWithControl(eligible, control, capacity, [])
-    : eligible.slice(0, capacity);
+  // FASA 3.6.5 Pin — position + membership guarantee
+  // (docs/pin-implementation-design-review-v1.md §1). Extracted BEFORE
+  // the ranking-version branch below, so it applies identically on both
+  // paths — unlike boost (a scoring modifier that only exists inside the
+  // editorial_v1 branch), pin bypasses the ranking CONTEST entirely, so
+  // it doesn't belong inside either branch. This is also why pin needed
+  // no `editorial_v1` activation, unlike boost.
+  //
+  // Ordered oldest-pin-first so a second pin never displaces the first
+  // from its position. Defensively capped at 2 even if more somehow
+  // reach here — docs/pin-governance-design-v1.md's limit is enforced at
+  // WRITE time (reviewQueueAdapter.js), this is a cheap second backstop:
+  // bad/stale data reaching this function must never blank the Active
+  // Set, the same defensive posture `eligible.slice(0, capacity)` below
+  // already has for a plain over-supply of candidates.
+  const pinned = eligible
+    .filter(c => c.pinned)
+    .sort((a, b) => new Date(a.pinnedAt ?? 0) - new Date(b.pinnedAt ?? 0))
+    .slice(0, 2);
+  const pinnedIds = new Set(pinned.map(c => c.clusterKey));
+  const rest = eligible.filter(c => !pinnedIds.has(c.clusterKey));
+  const remainingCapacity = Math.max(0, capacity - pinned.length);
+
+  const ranked = getRankingVersion(editionId, field) === 'editorial_v1'
+    ? selectEditorialActiveSet(rest, remainingCapacity)
+    : control
+      ? selectActiveSetWithControl(rest, control, remainingCapacity, [])
+      : rest.slice(0, remainingCapacity);
+
+  return [...pinned, ...ranked];
 }
 
 function buildActiveSetSlots(clusterEntries) {

@@ -33,6 +33,9 @@ const clusters = [
   { id: 'story-hidden', topic: 'Politics', editorial_score: 99, workspace_state: 'active' },
   { id: 'story-reclassified', topic: 'Politics', editorial_score: 50, workspace_state: 'active' },
   { id: 'story-untouched', topic: 'Politics', editorial_score: 40, workspace_state: 'active' },
+  // FASA 3.6.5: unclassified on purpose — proves pin's Finding F fix at
+  // the adapter level, not just inside the pure resolver test.
+  { id: 'story-pinned-unclassified', topic: 'Politics', editorial_score: 10, workspace_state: 'active' },
 ];
 const items = clusters.map((c, i) => ({
   id: `item-${i}`, source_id: 's1', cluster_id: c.id, rss_guid: `g${i}`,
@@ -47,8 +50,10 @@ const placements = [
 ];
 
 const activeOverrides = [
-  { story_id: 'story-hidden', override_type: 'hide', new_field: null, created_at: '2026-08-13T10:00:00Z' },
-  { story_id: 'story-reclassified', override_type: 'reclassify', new_field: 'Bencana', created_at: '2026-08-13T10:00:00Z' },
+  { id: 'ov-hide', story_id: 'story-hidden', override_type: 'hide', new_field: null, created_at: '2026-08-13T10:00:00Z' },
+  { id: 'ov-reclassify', story_id: 'story-reclassified', override_type: 'reclassify', new_field: 'Bencana', created_at: '2026-08-13T10:00:00Z' },
+  // FASA 3.6.5: reuses new_field, same as reclassify — no new column.
+  { id: 'ov-pin', story_id: 'story-pinned-unclassified', override_type: 'pin', new_field: 'Nasional', created_at: '2026-08-13T09:00:00Z' },
 ];
 
 // --- Test 1: Hide story aktif -> override exists -> reader excludes ---
@@ -63,6 +68,20 @@ const activeOverrides = [
   const untouched = queue.find(c => c.clusterKey === 'story-untouched');
   assert('Test 1c — story with no override: classifier output passes through unchanged',
     untouched.topic === 'Politik');
+
+  // FASA 3.6.5: adapter-level proof of Finding F's fix, not just the
+  // pure resolver test — an UNCLASSIFIED story (no row in `placements`
+  // at all) still gets a real topic when pinned, and carries `pinned`/
+  // `pinnedAt` through to the object state/reducer.js reads.
+  const pinned = queue.find(c => c.clusterKey === 'story-pinned-unclassified');
+  assert('Test 1d — pin rescues an unclassified story: topic comes from the pin, not the (absent) classifier',
+    pinned.topic === 'Nasional');
+  assert('Test 1e — pinned flag threaded onto the cluster for the reducer to read',
+    pinned.pinned === true);
+  assert('Test 1f — pinnedAt threaded through for oldest-pin-first ordering',
+    pinned.pinnedAt === '2026-08-13T09:00:00Z');
+  assert('Test 1g — non-pinned stories carry pinned:false, never undefined (reducer does `c.pinned` truthiness checks)',
+    hidden.pinned === false && reclassified.pinned === false && untouched.pinned === false);
 }
 
 // --- Test 2: Hide + refresh -> rebuild Active Set -> masih hilang ---
