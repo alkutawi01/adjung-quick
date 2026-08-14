@@ -44,6 +44,23 @@ This is the fourth instance of the phase's recurring shape, and the first
 one found in a *plan* rather than in code: something documented as
 already-true that isn't.
 
+### Fixed 2026-08-13 — the claim is now actually true
+
+`ui/src/App.jsx`'s cold-start effect no longer builds the Active Set
+directly. It now calls `reduce()` with the `SELECT_TOPIC` action —
+the exact same reducer case `SELECT_TOPIC`/`SWITCH_EDITION` already use
+— passing the just-fetched `rankedQueue` as context explicitly (calling
+through `dispatch()`'s own closure here would still see the pre-fetch
+empty state, since this runs before React re-renders from
+`setRankedQueue()`). `selectActiveSet`/`selectRepresentation` are no
+longer imported by `App.jsx` at all — the duplicate logic is gone, not
+routed around.
+
+**§1's claim is therefore now genuinely true**: `selectFieldActiveSet`
+is the one place eligibility, released-story exclusion, and the ranking-
+flag branch are allowed to live. Pin can be implemented per §2 below
+without the caveat above.
+
 ---
 
 ## 1. Where Pin applies — and why it has no Boost-style limitation
@@ -129,27 +146,33 @@ damage to "the 2 oldest win" rather than a broken Active Set. A database
 constraint would be the real fix; not worth it today, recorded so the
 next person doesn't assume it's airtight.
 
-## 4. Expiry must be enforced at READ time
+## 4. Expiry — enforced at read time AND set at write time (DONE)
 
-Pin uses 24–72h, far shorter than hide/reclassify's 7 days, so expiry
-actually matters here in a way it has not yet.
+Pin uses 24h default, far shorter than hide/reclassify's 7 days, so this
+section originally flagged two things as still-needed. **Both are now
+fixed**, ahead of Pin, per ChatGPT's explicit instruction to close
+lifecycle bugs before opening Pin implementation:
 
-`expires_at` is `NOT NULL` and set at write time, but **nothing currently
-enforces it on read** — `public_active_overrides` filters only on
-`active = true`. An expired pin would therefore keep occupying slot 1
-indefinitely.
+**Read-time enforcement** — `db/schema-public-active-overrides-view.sql`
+now filters `active = true AND (expires_at IS NULL OR expires_at >
+now())`, and `fetchReviewQueue()` carries the matching `.gt('expires_at',
+…)` predicate. Documented in full at
+`docs/override-expiry-enforcement-bugfix-v1.md`.
 
-Fix, as part of this phase:
+**Write-time duration** — originally the write path used one hardcoded
+7-day expiry for every override type, which would have let a pin
+silently outlive its own 24h/72h rule by five days
+(`docs/editorial-adversarial-audit-v1.md` finding B). Fixed by
+`db/schema-fix-server-side-expiry.sql`: a `BEFORE INSERT` trigger
+computes `expires_at` server-side from `override_type` (`pin` → 24h,
+everything else → 7 days), unconditionally — the client no longer
+supplies `expires_at` at all. This also closed finding C in the same
+migration: since only Postgres's own clock ever sets or checks expiry
+now, the browser-vs-server clock skew this project has already hit for
+real ("JWT issued at future") cannot affect it.
 
-```sql
-CREATE OR REPLACE VIEW public_active_overrides AS
-  SELECT story_id, edition_id, override_type, new_field
-  FROM story_overrides
-  WHERE active = true AND expires_at > now();
-```
-
-This corrects a latent flaw affecting hide/reclassify too — they simply
-have not been alive long enough for anyone to notice.
+Verified live in production: a pin row inserted with a forged 30-day
+`expires_at` came back at exactly 24 hours.
 
 ## 5. Reader release vs. pin — a real conflict
 
@@ -211,9 +234,36 @@ plus pin-specific:
 Layer 12 matters most: it is the claim in §1 that Pin has no Boost-style
 limitation, and it must be proven rather than reasoned.
 
-## Open questions for ChatGPT
+## Open questions — answered by ChatGPT (2026-08-13)
 
-1. Reader release vs. pin (§5) — confirm the recommendation
-2. Where Pin's admin surface lives (§6)
-3. Whether the read-time expiry fix (§4) ships with Pin or separately, as
-   it also changes hide/reclassify behaviour
+1. **Reader release vs. pin (§5) — confirmed.** A reader's own release
+   wins; pin is never forced back after a reader has dismissed it. Pin
+   guarantees the story is *offered*, not that it survives a reader's own
+   decision to dismiss it.
+2. **Where Pin's admin surface lives (§6) — NOT the Review Queue.** The
+   queue means "something may be wrong"; pin means "something is already
+   correct, and an editor wants it emphasised". Deferred to a future
+   Editorial Desk / Active Set management surface — not decided or built
+   this phase.
+3. **Expiry fix — ship alongside Pin's effort, but recorded as its own
+   lifecycle bug, never as a "Pin feature".** ChatGPT's own framing:
+   *"Menyimpan tarikh tamat tidak bermaksud sistem benar-benar tamatkan
+   sesuatu. Hanya read path yang menguatkuasakannya."* Both halves (§4)
+   are now done and committed under their own name
+   (`docs/override-expiry-enforcement-bugfix-v1.md`,
+   `db/schema-fix-server-side-expiry.sql`), landing before Pin's own
+   implementation commits — consistent with that framing, not a
+   contradiction of it.
+
+## Status
+
+Findings A (Active Set convergence), B (hardcoded duration), and C (clock
+mismatch) — all confirmed by the audit and blocking Pin — are now fixed
+and verified against production. Finding D (Review Queue conflating
+"resolved" with "any override") is also fixed, in
+`ui/src/admin/reviewQueueAdapter.js`. Findings E (no `field` column) and F
+(pin on unclassified stories) remain open, deferred to Pin's own
+implementation per `docs/editorial-adversarial-audit-v1.md`.
+
+Governance and the architectural foundation are now sound. Pin
+**implementation** itself has not started.

@@ -1,6 +1,6 @@
 # Editorial System — Adversarial Audit v1 (2026-08-13)
 
-Status: `[x] Partial — INCOMPLETE, quota exhausted mid-run` `[ ] Fixes applied`
+Status: `[x] Complete (both audits)` `[x] All blocking findings fixed and verified`
 
 Run before Pin, per ChatGPT: Pin is where humans start overriding automated
 decisions, so the standard of proof is higher than for a normal feature.
@@ -183,38 +183,55 @@ meaningless.
 Confirmed and blocking Pin:
 
 **A. Cold-start Active Set bypasses `selectFieldActiveSet`** (HIGH) —
-`ui/src/App.jsx:74`. **This refutes `pin-implementation-plan-v1.md`'s
+`ui/src/App.jsx:74`. **This refuted `pin-implementation-plan-v1.md`'s
 central claim** that Active Set construction has a single choke point.
-There is a third site, and it is the one that runs on first page load and
-after every edition switch. Pin built per that plan would be inert on the
-very first screen a reader sees. Plan corrected.
+There was a third site, and it is the one that runs on first page load
+and after every edition switch. Pin built per that plan would have been
+inert on the very first screen a reader sees.
+**FIXED 2026-08-13** — `App.jsx`'s cold-start effect no longer builds the
+Active Set by hand; it calls `reduce()` with the `SELECT_TOPIC` action
+directly (the queue passed explicitly, since `dispatch()`'s own closure
+would still see the pre-fetch empty state). One canonical selection path
+now exists — not merely asserted.
 
-**B. `writeOverride()` hardcodes a 7-day expiry** (HIGH) — governance
-requires 24h default / 72h max for pin. `OVERRIDE_LIFESPAN_DAYS = 7` is a
-module constant with no per-type branch, so a pin would silently outlive
-its own rule by 5 days.
+**B. `writeOverride()` hardcoded a 7-day expiry** (HIGH) — governance
+requires 24h default / 72h max for pin. `OVERRIDE_LIFESPAN_DAYS = 7` was
+a module constant with no per-type branch.
+**FIXED** — `db/schema-fix-server-side-expiry.sql`'s trigger computes
+`expires_at` server-side from `override_type` (pin → 24h, else → 7
+days), unconditionally overwriting whatever the client sends. Verified
+live: a pin row inserted with a forged 30-day `expires_at` came back at
+exactly 24h.
 
-**C. `expires_at` is written from the browser clock, enforced against the
-Postgres clock** (MEDIUM) — a skewed admin device shifts real expiry.
-This project has already hit genuine client/server clock skew ("JWT
-issued at future"), so it is not hypothetical.
+**C. `expires_at` was written from the browser clock, enforced against
+the Postgres clock** (MEDIUM) — a skewed admin device shifted real
+expiry. Not hypothetical: this project has already hit genuine
+client/server clock skew ("JWT issued at future").
+**FIXED by the same migration as B** — the client no longer computes
+`expires_at` at all, so only Postgres's own clock is ever involved, on
+both the write and the read side.
 
-**D. Review Queue treats *any* active override as "resolved"** (MEDIUM) —
-including `boost`, which resolves no classification problem. A boosted
-story with a genuine issue silently leaves the queue.
+**D. Review Queue treated *any* active override as "resolved"** (MEDIUM)
+— including `boost`, which resolves no classification problem. A boosted
+story with a genuine issue silently left the queue.
+**FIXED** — `fetchReviewQueue()`'s resolved-set query now filters
+`override_type IN ('hide', 'reclassify')`. Verified live: a boosted test
+story stayed correctly excluded from that set, a hidden one did not.
 
 **E. `story_overrides` has no `field` column** (MEDIUM) — pin cannot
 record which Bidang it pins *within*, though governance defines the limit
-per `(edition, field)`.
+per `(edition, field)`. **Open** — deferred to Pin's own implementation,
+since it requires a schema addition Pin will need anyway.
 
 **F. Pin on an unclassified story would be inert** (CONFIRMED) —
 `resolveStoryField` returns `visible: false` for unclassified, so a pin
-could not rescue it.
+could not rescue it. **Open** — a real design question for Pin's own
+spec, not a plumbing bug; deferred there rather than patched here.
 
-Also confirmed, non-blocking: `pin-governance-design-v1.md` overstated
-hide-beats-pin as "already true in `resolveStoryField()`" (it handles no
-pin at all yet), and **this project's own expiry bugfix doc claimed a
-regression test that was never written** — both corrected.
+Also confirmed, non-blocking, both corrected in place: `pin-governance-
+design-v1.md` overstated hide-beats-pin as "already true in
+`resolveStoryField()`" (it handled no pin at all yet), and this project's
+own expiry bugfix doc claimed a regression test that was never written.
 
 ## Note on the method
 

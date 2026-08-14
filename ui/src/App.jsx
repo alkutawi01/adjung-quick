@@ -2,9 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createInitialState } from '../../state/model.js';
 import { reduce } from '../../state/reducer.js';
 import { selectTopic, selectStory, openBrief, closeBrief, releaseStory, switchEdition } from '../../state/actions.js';
-import { selectRepresentation } from '../../state/representation.js';
 import { getEdition } from '../../state/editions.js';
-import { selectActiveSet } from '../../lab/engine.js';
 import { createEditorialControl } from '../../lab/control.js';
 import { fetchRankedQueue, fetchSourceNames } from './adapter/productionAdapter.js';
 import TopicWheel from './components/TopicWheel.jsx';
@@ -57,24 +55,36 @@ export default function App() {
         setSourceNames(names);
         // Bidang-scoped cold start (2026-08-12, Izzat's decision): seed the
         // Active Set from the FIRST Bidang's stories, not the global top-10.
-        // Matching state/reducer.js's SELECT_TOPIC — otherwise cold start and
-        // every subsequent Bidang change would use two different rules.
+        //
+        // UNIFIED (2026-08-13, docs/editorial-adversarial-audit-v1.md Audit 2
+        // finding A — confirmed by 23/23 agents): this used to build the
+        // Active Set here directly via selectActiveSet(), bypassing
+        // state/reducer.js's selectFieldActiveSet() entirely — the exact
+        // function every later SELECT_TOPIC/SWITCH_EDITION goes through. That
+        // meant the reader's very FIRST screen, and every screen right after
+        // an edition switch, used a DIFFERENT selection path than every
+        // subsequent Bidang change: no ranking-flag branch, no
+        // excludeEverReleased, no shared eligibility logic — duplicated by
+        // hand and silently able to drift from the real one.
+        //
+        // Costed nothing so far only because taxonomy[0] happens to be a
+        // legacy-ranking field everywhere. It would have made Pin — and any
+        // future ranking-aware feature — silently inert on first load: an
+        // admin pins a story, sees it work while navigating between Bidang,
+        // and never learns a reader arriving fresh never saw it.
+        //
+        // Fix: reuse reduce()'s own SELECT_TOPIC case — the ONE place
+        // eligibility, released-story exclusion, and ranking-flag dispatch
+        // are allowed to live — passing the just-fetched `queue` as context
+        // directly. dispatch()'s own closure can't be used here: it still
+        // holds the PRE-fetch `rankedQueue` state (empty) since this runs
+        // before React re-renders from the setRankedQueue() call above.
         const activeEdition = getEdition(state.editionContext.activeEdition);
         const firstTopic = activeEdition.taxonomy[0];
-        // BUG FIX (2026-08-13, matching state/reducer.js's editionEligibleLanguages):
-        // eligibility must be the ACTIVE EDITION's own locale, not
-        // representationPreference/selectedLanguages (defaults to ['ms']) —
-        // otherwise a Malay representation gets pulled into a non-Malay
-        // edition's Active Set on cold start / edition switch, since almost
-        // every cluster has a Malay member.
-        const eligible = queue
-          .filter(c => c.topic === firstTopic)
-          .map(c => ({ ...c, representation: selectRepresentation(c, [activeEdition.locale]) }))
-          .filter(c => c.representation !== null);
-        const initial = selectActiveSet(eligible, state.activeSetCapacity);
-        setState(s => ({
-          ...s,
-          activeSet: initial.map((c, i) => ({ slot: i, storyId: c.clusterKey, representationId: c.representation?.rssGuid, _cluster: c })),
+        setState(s => reduce(s, selectTopic(firstTopic), {
+          rankedQueue: queue,
+          control: controlRef.current,
+          now: new Date().toISOString(),
         }));
       } catch (err) {
         if (!cancelled) setLoadError(err.message);

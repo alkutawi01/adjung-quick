@@ -48,10 +48,23 @@ export async function fetchReviewQueue(supabase, editionId) {
   ] = await Promise.all([
     supabase.from('story_clusters').select('id, workspace_state').in('id', storyIds),
     supabase.from('rss_items').select('cluster_id, source_id, title, published_at').in('cluster_id', storyIds),
-    // Active overrides for THIS edition — a story already resolved (hide or
+    // Active overrides for THIS edition — a story already RESOLVED (hide or
     // reclassify written) drops out of the active queue per the plan doc's
     // Detected -> Pending Review -> Resolved lifecycle. The override row
     // itself remains the permanent audit trail; it just isn't re-shown here.
+    //
+    // `.in('override_type', ['hide', 'reclassify'])` added 2026-08-13
+    // (docs/editorial-adversarial-audit-v1.md Audit 2 finding D). This
+    // query previously matched ANY active override, including boost —
+    // which resolves no classification problem at all. A boosted story
+    // with a genuine low-confidence/unclassified issue silently vanished
+    // from the queue the moment it was boosted, even though nothing about
+    // its classification problem had changed. "Resolved" now means what
+    // the lifecycle actually claims: a CORRECTIVE action was taken, not
+    // that ANY editorial action happened to touch the story. Pin, once
+    // built, is also a promotional/editorial action, not corrective — it
+    // must be excluded here too, for the same reason boost is.
+    //
     // `.gt('expires_at')` added 2026-08-13
     // (docs/override-expiry-enforcement-bugfix-v1.md). Without it, an
     // EXPIRED override still excluded its story from the queue — so once
@@ -62,6 +75,7 @@ export async function fetchReviewQueue(supabase, editionId) {
     supabase.from('story_overrides').select('story_id')
       .eq('edition_id', editionId)
       .eq('active', true)
+      .in('override_type', ['hide', 'reclassify'])
       .gt('expires_at', new Date().toISOString())
       .in('story_id', storyIds),
     supabase.from('sources').select('id, name'),
@@ -223,7 +237,16 @@ async function writeOverride(supabase, { storyId, editionId, overrideType, newFi
     );
   }
 
-  const expiresAt = new Date(Date.now() + OVERRIDE_LIFESPAN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // AUDIT FIX (2026-08-13, Audit 2 findings B+C): expires_at is no longer
+  // computed here at all. It used to be set from the ADMIN'S DEVICE clock
+  // and checked later against the POSTGRES clock — a skew in either
+  // direction shifted real expiry, and every override used the same
+  // hardcoded 7 days regardless of type, which would have made a 24h Pin
+  // silently outlive its own governance rule by 5 days.
+  // db/schema-fix-server-side-expiry.sql's BEFORE INSERT trigger now
+  // computes expires_at server-side from override_type, unconditionally —
+  // the same clock sets it and later checks it, and duration policy lives
+  // in exactly one place (SQL), not duplicated as a JS constant here.
   const { error } = await supabase.from('story_overrides').insert({
     story_id: storyId,
     edition_id: editionId,
@@ -231,7 +254,6 @@ async function writeOverride(supabase, { storyId, editionId, overrideType, newFi
     new_field: newField ?? null,
     reason,
     created_by: createdBy,
-    expires_at: expiresAt,
   });
   if (error) throw new Error(`writeOverride(${overrideType}): ${error.message}`);
 }
