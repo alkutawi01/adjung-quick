@@ -7,7 +7,49 @@ FASA 3.6.5. Governance is locked in `docs/pin-governance-design-v1.md`
 edition/field, 24–72h expiry, mandatory reason). This plan answers *how*,
 grounded in the actual code rather than assumption.
 
+## ⚠️ Section 1 was WRONG — corrected 2026-08-13
+
+The convergence audit refuted this plan's central architectural claim.
+Left visible rather than silently rewritten.
+
+**What §1 claimed**: Active Set construction "funnels through a single
+function", `selectFieldActiveSet`, called from exactly two sites.
+
+**What is actually true**: there is a **third** construction site the
+plan missed. `ui/src/App.jsx:74` builds the Active Set directly via
+`selectActiveSet(eligible, capacity)` from `lab/engine.js`, bypassing
+`selectFieldActiveSet` entirely — verified: `App.jsx:7` imports it,
+`App.jsx:74` calls it.
+
+**Why it matters, and why it is nearly invisible**: that bypassing path
+is what produces the Active Set on **first page load**, and again after
+every `SWITCH_EDITION` (the effect's dependency array is
+`[state.editionContext.activeEdition]`). So a pin implemented per §2 —
+inside `selectFieldActiveSet` — would be **inert on the cold-start
+view**, which is the first thing every reader sees. An admin would pin a
+public-safety notice, see it work when navigating between Bidang, and
+never learn that readers arriving fresh don't get it.
+
+This costs nothing *today* only because `taxonomy[0]` (`Nasional`) is a
+legacy-ranking field, so the bypass currently changes no behaviour. Pin
+would be the first feature to expose it.
+
+**Consequence for implementation**: pin must be applied at **all three**
+construction sites, or — better — the third site must be collapsed into
+`selectFieldActiveSet` first, so the "single choke point" this plan
+assumed becomes true rather than merely asserted. That refactor should
+land **before** Pin, not alongside it.
+
+This is the fourth instance of the phase's recurring shape, and the first
+one found in a *plan* rather than in code: something documented as
+already-true that isn't.
+
+---
+
 ## 1. Where Pin applies — and why it has no Boost-style limitation
+
+*(Original text retained below for the record — read it with the
+correction above in mind.)*
 
 Traced in `state/reducer.js`. Active Set construction funnels through a
 single function:
@@ -129,8 +171,18 @@ other, not editorial actions against *reader* actions.
 
 ## 6. UI
 
-Admin-only, per `canPerformAction` (already enforced and tested). Same
-compose pattern as the other actions, with governance-mandated copy:
+Admin-only.
+
+**Corrected 2026-08-13** (audit finding 1): this line previously said
+"already enforced and tested", which was false — `canPerformAction()`
+had no production callers at all. The gate is now real, in
+`writeOverride()` **and** in RLS. Pin therefore needs no new
+authorization machinery, but that is true *because the gap was fixed*,
+not because it was never there. Anyone reading this plan should treat
+"already enforced" claims as requiring a caller-level check, not a unit
+test.
+
+Same compose pattern as the other actions, with governance-mandated copy:
 
 > "Berita ini akan diberi keutamaan dan dipaparkan di bahagian teratas."
 

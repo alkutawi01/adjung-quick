@@ -125,10 +125,96 @@ else this phase — a tested rule wired to nothing.
 
 ## What must happen next
 
-1. **Do not implement Pin yet.** Findings 1–3 are Pin's own foundations.
-2. Fix 1, 2, 3 — then re-verify.
-3. **Re-run Audit 2 after the quota resets.** Its "0 problems" is not a result.
-4. Correct the two Pin docs that claim admin-only is already enforced.
+1. ~~Do not implement Pin yet.~~ **Findings 1–3 fixed 2026-08-13** (below).
+2. ~~Fix 1, 2, 3 — then re-verify.~~ **Done and verified against production.**
+3. **Re-run Audit 2.** In progress — its "0 problems" is not a result.
+4. ~~Correct the two Pin docs.~~ **Done** — both now say the guard was
+   absent and is newly real.
+5. Remaining MEDIUM/LOW findings (4–10) still open.
+
+## Resolution — findings 1–3 (2026-08-13)
+
+**1. Missing authorization gate — FIXED.** `canPerformAction()` is now
+called inside `writeOverride()`, the single write choke point, so no
+future caller (Pin included) can bypass it by omission. `role` is also
+threaded `AdminApp → ReviewQueue → handlers`; it previously stopped at
+the top level. Fails closed on a missing role.
+
+New tests assert the **connection**, not the logic — the old suite passed
+happily while the guard had no callers. Confirmed the 7 new tests
+genuinely fail against the pre-fix code, rather than trusting that they
+pass.
+
+**2. Permissive RLS — FIXED.** The single `FOR ALL` policy is replaced by
+per-operation policies: INSERT requires `created_by = auth.uid()` and
+refuses `override_type='pin'` for non-admins *in SQL*; UPDATE is limited
+to own rows (any row for an admin). A trigger freezes
+`override_type/story_id/edition_id/created_by/created_at`. No DELETE
+policy exists at all — overrides are the audit trail.
+
+Verified by running the audit's own attack scenarios against production
+with a real signed-in session:
+
+| Attack | Result |
+|---|---|
+| Forge `created_by` | **403** — RLS violation |
+| Rewrite `override_type` on an existing row | **400** — trigger fired |
+| Reassign `created_by` | **400** — trigger fired |
+| Legitimate undo (`active → false`) | Still works |
+| `DELETE` from the client | Denied by design |
+
+The last one is quietly the strongest evidence: cleaning up the test row
+required server-side access, which is exactly the property "the audit
+trail cannot be erased by a client" is supposed to have.
+
+**3. Inert conflict rule — FIXED.** The view now exposes `id` and
+`created_at`, so most-recent-wins actually orders. Columns were
+**appended, not prepended** — `CREATE OR REPLACE VIEW` matches by
+position, so leading with `id` fails with 42P16, and a `DROP` would
+briefly leave readers with no override projection at all.
+
+## Audit 2 (convergence) — COMPLETE, 2026-08-13
+
+Re-run after the quota reset, with the reporting bug fixed first.
+**23/23 agents, 0 errors.** 22 findings raised, 20 verified: **11
+confirmed, 9 refuted.** The earlier "0 problems" was, as suspected,
+meaningless.
+
+Confirmed and blocking Pin:
+
+**A. Cold-start Active Set bypasses `selectFieldActiveSet`** (HIGH) —
+`ui/src/App.jsx:74`. **This refutes `pin-implementation-plan-v1.md`'s
+central claim** that Active Set construction has a single choke point.
+There is a third site, and it is the one that runs on first page load and
+after every edition switch. Pin built per that plan would be inert on the
+very first screen a reader sees. Plan corrected.
+
+**B. `writeOverride()` hardcodes a 7-day expiry** (HIGH) — governance
+requires 24h default / 72h max for pin. `OVERRIDE_LIFESPAN_DAYS = 7` is a
+module constant with no per-type branch, so a pin would silently outlive
+its own rule by 5 days.
+
+**C. `expires_at` is written from the browser clock, enforced against the
+Postgres clock** (MEDIUM) — a skewed admin device shifts real expiry.
+This project has already hit genuine client/server clock skew ("JWT
+issued at future"), so it is not hypothetical.
+
+**D. Review Queue treats *any* active override as "resolved"** (MEDIUM) —
+including `boost`, which resolves no classification problem. A boosted
+story with a genuine issue silently leaves the queue.
+
+**E. `story_overrides` has no `field` column** (MEDIUM) — pin cannot
+record which Bidang it pins *within*, though governance defines the limit
+per `(edition, field)`.
+
+**F. Pin on an unclassified story would be inert** (CONFIRMED) —
+`resolveStoryField` returns `visible: false` for unclassified, so a pin
+could not rescue it.
+
+Also confirmed, non-blocking: `pin-governance-design-v1.md` overstated
+hide-beats-pin as "already true in `resolveStoryField()`" (it handles no
+pin at all yet), and **this project's own expiry bugfix doc claimed a
+regression test that was never written** — both corrected.
 
 ## Note on the method
 

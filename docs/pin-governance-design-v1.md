@@ -122,9 +122,24 @@ That makes it more available and more dangerous at once.
 
 ## 3. Who may pin
 
-`admin` only. Already enforced and tested (`ADMIN_ONLY_ACTIONS` in
-`db/editor-auth.mjs`), per the Principle of Escalation: actions whose
-impact compounds beyond a single story need the higher role.
+`admin` only, per the Principle of Escalation: actions whose impact
+compounds beyond a single story need the higher role.
+
+**Corrected 2026-08-13** (`docs/editorial-adversarial-audit-v1.md`
+finding 1). This section previously read *"already enforced and tested
+(`ADMIN_ONLY_ACTIONS` in `db/editor-auth.mjs`)"*. That was **false and
+actively dangerous**: `canPerformAction()` had **zero production
+callers**. It was tested, correct, and connected to nothing — so this
+doc was telling a future implementer that a control was in force when it
+did not exist, and budgeting no work for it.
+
+Now genuinely enforced, at two independent layers:
+- **App**: inside `writeOverride()`, the single write choke point, so no
+  caller can bypass it by omission
+- **Database**: `story_overrides_insert_own` refuses
+  `override_type='pin'` for non-admins in SQL, independent of the client
+
+Both verified against production, not assumed.
 
 ## 4. How many pins
 

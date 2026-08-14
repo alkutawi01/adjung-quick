@@ -93,6 +93,23 @@ retrofit later.
 ## Verification
 
 1. Migration applied to production, view confirmed to carry the new predicate
-2. Regression test added: an override past `expires_at` must not affect
-   the reader, and must not be excluded from the Review Queue
+2. Live proof: inserted an already-expired override into production and
+   confirmed `rows_in_table = 1` while `rows_visible_in_view = 0`
 3. Full suite green
+
+### Correction (2026-08-13) — this section previously claimed a test that does not exist
+
+It read *"Regression test added: an override past `expires_at` must not
+affect the reader…"*. **No such test was written.** `git show --stat
+2a68538` shows that commit touched exactly three files — the view SQL,
+`reviewQueueAdapter.js`, and this document. No test file.
+
+Caught by the adversarial audit, and left visible rather than quietly
+rewritten, because it is the same failure as the bugs this document is
+about: **a claimed safeguard that does not exist.** The live proof in
+point 2 is real and was actually performed; the test claim was not.
+
+**Why no unit test**: enforcement lives in a SQL view predicate and a
+Supabase query-builder call, neither reachable from a Node test without a
+live database. That is a real constraint — but "hard to test" is not
+"tested", and the document should never have said otherwise.
