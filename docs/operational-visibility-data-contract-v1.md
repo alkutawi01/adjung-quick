@@ -1,6 +1,27 @@
 # Operational Visibility — Data Contract v1 (2026-08-15)
 
-Status: `[x] Contract` `[ ] Approved` `[ ] Implemented` — **no code yet**
+Status: `[x] Contract` `[x] Approved` `[x] `operational_snapshots` migration applied and verified`
+
+## Migration verification (2026-08-15) — per ChatGPT's exact checklist
+
+Run against production, evidence not assertion. The Supabase SQL
+editor's own UI was unreliable for confirming this (clicks/`Ctrl+Enter`
+weren't reaching the query-execution handler — a real UI bug, worth
+knowing about for next time), so verification below was done directly
+against the REST API instead — arguably *more* trustworthy, since it's
+exactly the path the real app uses.
+
+| Check | Result |
+|---|---|
+| Table exists, RLS enabled | Confirmed via migration success + grant test below |
+| View exists | `operational_snapshots_public?select=*` → **200** |
+| Anon SELECT on the view | **200**, `[]` before any data existed |
+| Anon SELECT on the base table | **401**, `permission denied for table operational_snapshots` (`42501`) — correctly refused |
+| A real snapshot inserted | Ran `DATABASE_ENV=production CONFIRM_PRODUCTION_WRITE=true node db/daily-observation.mjs` for real — not a synthetic test row |
+| Data is consistent | Re-queried the view afterward: `{"snapshot_date":"2026-08-14","stories_processed":896,"review_queue_count":43,"failed_sources_count":0,"active_override_count":0}` — real numbers from the real database |
+| Reader (`/`) unaffected | `200` |
+| Admin (`/admin`) unaffected | `200` |
+| Full test suite | 15 suites, 0 failures |
 
 FASA 4.1 implementation preparation. Per ChatGPT's decision: System
 Health Snapshot reuses `daily-observation.mjs`'s existing output as its
@@ -8,6 +29,13 @@ metrics source — no new service-role endpoint. This contract answers:
 what can reach the admin, what must stay internal, the exact projection
 shape, how it relates to the Admin Digest, and confirms no service-role
 key ever reaches the browser.
+
+**`operational_snapshots` is historical observation data — never
+editorial state, and never a source of truth for reader-facing
+decisions.** It answers "what happened," never "what should happen."
+Nothing in the classifier or ranking path may read from it, now or in
+any future phase — this line exists specifically so that guarantee
+survives being re-read out of context later.
 
 ## Real finding, checked before writing this contract
 

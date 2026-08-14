@@ -1,0 +1,89 @@
+{
+  "observedAt": "2026-08-14T23:44:19.500Z",
+  "counts": {
+    "sources": 43,
+    "sourcesContributing": 43,
+    "clusters": 896,
+    "items": 945,
+    "placements": 897,
+    "savedStories": 0,
+    "historyEntries": 0
+  },
+  "silentSources": [],
+  "knownBrokenSources": [],
+  "editions": {
+    "ms-MY": {
+      "total": 748,
+      "classified": 737,
+      "unclassified": 11,
+      "fields": {
+        "Pendidikan": 193,
+        "Bisnes": 92,
+        "Nasional": 63,
+        "Teknologi": 29,
+        "Jenayah": 32,
+        "Hiburan": 61,
+        "Dunia": 46,
+        "Bencana": 13,
+        "Politik": 32,
+        "Agama": 44,
+        "Gaya Hidup": 25,
+        "Sukan": 94,
+        "Kesihatan": 3,
+        "Sains": 5,
+        "Alam Sekitar": 5
+      }
+    },
+    "en-global": {
+      "total": 98,
+      "classified": 58,
+      "unclassified": 40,
+      "fields": {
+        "Politics": 6,
+        "Business": 5,
+        "Environment": 6,
+        "World": 22,
+        "Science": 2,
+        "Health": 2,
+        "Sports": 4,
+        "Disaster": 6,
+        "Crime": 4,
+        "Economy": 1
+      }
+    },
+    "ar-global": {
+      "total": 51,
+      "classified": 20,
+      "unclassified": 31,
+      "fields": {
+        "صحة وعلوم": 2,
+        "سياسة": 12,
+        "كوارث": 1,
+        "اقتصاد": 2,
+        "تكنولوجيا": 1,
+        "ثقافة وفنون": 1,
+        "رياضة": 1
+      }
+    }
+  },
+  "rankingPilots": {
+    "ms-MY.Politik": {
+      "version": "editorial_v1",
+      "candidatePoolSize": 32,
+      "selectedStoryIds": [
+        "www.utusan.com.my/nasional/politik/2026/08/bersama-bakal-kemuka-calon-bayangan-pru-ke-16",
+        "www.astroawani.com/berita-politik/alexander-sah-mahu-bersara-sebagai-ahli-parlimen-sasar-kerusi-dun-baharu",
+        "www.astroawani.com/berita-politik/terkini-tiada-keperluan-umum-kekosongan-kerusi-adun-selangor-speaker",
+        "www.utusan.com.my/berita/2026/08/umno-pahang-terbuka-kerjasama-dengan-pas-parti-politik-lain-wan-rosdy",
+        "www.astroawani.com/berita-politik/kongres-nasional-pkr-2026-bermula-esok-himpun-lebih-5000-perwakilan-dan-pemerhati",
+        "www.utusan.com.my/nasional/2026/08/isu-kedudukan-dap-selepas-ahad-baru-kita-cakap-loke",
+        "www.astroawani.com/berita-politik/dap-perak-sebulat-suara-kekal-bersama-kerajaan-perpaduan",
+        "www.utusan.com.my/nasional/2026/08/tindakan-mp-bersatu-bahas-rci-th-bijak-tepat-fahmi",
+        "www.astroawani.com/berita-politik/kayveas-gagal-cabar-pelantikan-maglin-sebagai-presiden-myppp",
+        "www.utusan.com.my/nasional/2026/08/jangan-halang-buat-kebajikan-atas-dasar-kepentingan-politik"
+      ]
+    }
+  },
+  "reviewQueueCount": 43,
+  "activeOverrideCount": 0
+}

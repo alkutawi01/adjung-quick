@@ -10,8 +10,13 @@
 // a day-over-day diff plus any alert conditions from
 // docs/post-launch-monitoring-plan-v1.md.
 //
-// READ-ONLY against production. No write guard needed (only SELECTs),
-// same as db/snapshot-production.mjs.
+// UPDATED 2026-08-15 (FASA 4.1, docs/operational-visibility-data-contract-v1.md):
+// no longer read-only. Also writes ONE summary row to
+// operational_snapshots — the mechanism that gets this script's numbers
+// in front of the admin (via an anon-safe view), since the local JSON
+// files below were never reachable outside this machine. That write is
+// gated by db/production-write-guard.mjs, same as every other write
+// script in this project; everything else here remains a plain SELECT.
 //
 // Usage: node db/daily-observation.mjs
 
@@ -22,6 +27,7 @@ import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { RSS_SOURCES } from '../lab/sources.js';
 import { RANKING_FLAGS } from '../state/rankingFlags.js';
+import { assertWriteAllowed } from './production-write-guard.mjs';
 import { loadFieldCandidates, editorialSelect } from '../ranking/shadow-runner.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -83,13 +89,25 @@ function countBy(rows, key) {
 }
 
 async function gatherMetrics() {
-  const [sources, clusters, items, placements, saved, history] = await Promise.all([
+  const [sources, clusters, items, placements, saved, history, activeOverrides] = await Promise.all([
     selectAllChunked('sources', 'id, name'),
     selectAllChunked('story_clusters', 'id'),
     selectAllChunked('rss_items', 'id, source_id, published_at'),
-    selectAllChunked('edition_story_classifications', 'story_id, edition_id, field, classification_status'),
+    // `classification_confidence` added for FASA 4.1's operational_snapshots
+    // review_queue_count — needs the same low-confidence predicate
+    // ui/src/admin/reviewQueueAdapter.js's fetchReviewQueue() uses, not
+    // just classification_status.
+    selectAllChunked('edition_story_classifications', 'story_id, edition_id, field, classification_status, classification_confidence'),
     selectAllChunked('saved_stories', 'id'),
     selectAllChunked('history_entries', 'id'),
+    // FASA 4.1: active, unexpired overrides — mirrors the same
+    // active=true AND expires_at>now() definition used everywhere else
+    // this phase (the view, fetchReviewQueue, fetchDigest).
+    withRetry('active_overrides', () =>
+      supabase.from('story_overrides').select('id').eq('active', true).gt('expires_at', new Date().toISOString()).then(r => {
+        if (r.error) throw new Error(r.error.message);
+        return r.data;
+      })),
   ]);
 
   // Per-edition field distribution + unclassified count.
@@ -148,6 +166,18 @@ async function gatherMetrics() {
     }
   }
 
+  // FASA 4.1 operational_snapshots: ms-MY only, matching
+  // fetchReviewQueue()'s own scope and predicate (unclassified OR
+  // confidence < 0.5) — this is a rough daily health number, not a
+  // live-precision count (it doesn't exclude already-resolved stories
+  // the way the real Review Queue does), which is fine for a historical
+  // snapshot per docs/operational-visibility-data-contract-v1.md's own
+  // "what happened, not what needs deciding right now" scope.
+  const reviewQueueCount = placements.filter(p =>
+    p.edition_id === 'ms-MY' &&
+    (p.classification_status === 'unclassified' || Number(p.classification_confidence) < 0.5),
+  ).length;
+
   return {
     observedAt: new Date().toISOString(),
     counts: {
@@ -163,6 +193,11 @@ async function gatherMetrics() {
     knownBrokenSources,
     editions,
     rankingPilots,
+    // Carried separately from `counts` — these two exist ONLY to feed
+    // operational_snapshots' summary row, not part of the original
+    // Fasa 1 observation shape.
+    reviewQueueCount,
+    activeOverrideCount: activeOverrides.length,
   };
 }
 
@@ -328,7 +363,32 @@ async function main() {
 
   writeFileSync(`${OBSERVATION_DIR}/${fileName}`, JSON.stringify(current, null, 2));
   console.log(`\nRecorded: db/observations/${fileName}`);
-  console.log('Read-only — no production data was modified.\n');
+
+  // FASA 4.1 (docs/operational-visibility-data-contract-v1.md): the ONE
+  // write this script now makes — a single summary row upserted into
+  // operational_snapshots, gated by the same production-write-guard
+  // every other write script in this project uses. Non-fatal if the
+  // guard isn't satisfied: the local JSON file + console report above
+  // are still a complete, useful read-only run on their own — this
+  // script's own "daily habit" design shouldn't require production-write
+  // env vars just to look at the numbers locally.
+  try {
+    assertWriteAllowed();
+    const { error } = await supabase.from('operational_snapshots').upsert({
+      snapshot_date: current.observedAt.slice(0, 10),
+      stories_processed: current.counts.clusters,
+      review_queue_count: current.reviewQueueCount,
+      failed_sources_count: current.silentSources.length,
+      active_override_count: current.activeOverrideCount,
+    }, { onConflict: 'snapshot_date' });
+    if (error) throw new Error(error.message);
+    console.log(`Snapshot recorded to operational_snapshots for ${current.observedAt.slice(0, 10)}.`);
+  } catch (err) {
+    console.log(`\noperational_snapshots NOT written: ${err.message}`);
+    console.log('(Set DATABASE_ENV=production CONFIRM_PRODUCTION_WRITE=true to record it.)');
+  }
+
+  console.log('Everything else in this script remains read-only.\n');
 }
 
 // Only run when executed directly — importing this module (e.g. from
