@@ -79,7 +79,9 @@ export default function AdminApp() {
 
   return (
     <main className="admin-app">
-      <ReviewQueue userId={session.user.id} />
+      {/* `role` threaded through (2026-08-13, audit finding 1): it previously
+          stopped here, so no descendant could gate on it even if it tried. */}
+      <ReviewQueue userId={session.user.id} role={role} />
     </main>
   );
 }
@@ -116,7 +118,7 @@ function SignInForm() {
   );
 }
 
-function ReviewQueue({ userId }) {
+function ReviewQueue({ userId, role }) {
   const [editionId, setEditionId] = useState(DEFAULT_EDITION_ID);
   const [entries, setEntries] = useState(null); // null = loading
   const [loadError, setLoadError] = useState(null);
@@ -211,11 +213,11 @@ function ReviewQueue({ userId }) {
             // later phase; this gate stays correct in the meantime.
             boostAvailable={Boolean(entry.field) && getRankingVersion(editionId, entry.field) === 'editorial_v1'}
             onHide={reason => resolve(entry.storyId, () =>
-              submitHideOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId }))}
+              submitHideOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
             onReclassify={(newField, reason) => resolve(entry.storyId, () =>
-              submitReclassifyOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId }))}
+              submitReclassifyOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
             onBoost={reason => resolve(entry.storyId, () =>
-              submitBoostOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId }))}
+              submitBoostOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
           />
         ))}
       </div>

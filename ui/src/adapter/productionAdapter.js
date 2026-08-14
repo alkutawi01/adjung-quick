@@ -63,8 +63,12 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
       // auth.users reference, neither of which a reader needs or should be
       // able to pull via direct REST access. The view exposes only
       // story_id/edition_id/override_type/new_field, for active rows only.
+      // `id, created_at` added 2026-08-13 (audit finding 3): without
+      // created_at, resolveStoryField()'s most-recent-wins conflict rule was
+      // inert here — it sorted undefined against undefined. Selecting them is
+      // half the fix; the view had to expose them too.
       supabase.from('public_active_overrides')
-        .select('story_id, override_type, new_field')
+        .select('id, story_id, override_type, new_field, created_at')
         .eq('edition_id', editionId),
     ]);
 

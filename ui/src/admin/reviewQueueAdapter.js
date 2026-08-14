@@ -11,6 +11,8 @@
 // (via the "is this story already resolved" exclusion) must go through an
 // authenticated session, not the anonymous reader client.
 
+import { canPerformAction } from '../../../db/editor-auth.mjs';
+
 // reason_code -> display_reason, per docs/review-queue-spec-v1.md's
 // translation table. Only the two v1-supported codes are here — see the
 // plan doc §1 for why content_mismatch/manual_flag aren't wired yet.
@@ -177,16 +179,16 @@ function countByField(rows) {
   return [...counts.entries()];
 }
 
-export async function submitHideOverride(supabase, { storyId, editionId, reason, createdBy }) {
-  return writeOverride(supabase, { storyId, editionId, overrideType: 'hide', reason, createdBy });
+export async function submitHideOverride(supabase, { storyId, editionId, reason, createdBy, role }) {
+  return writeOverride(supabase, { storyId, editionId, overrideType: 'hide', reason, createdBy, role });
 }
 
-export async function submitReclassifyOverride(supabase, { storyId, editionId, newField, reason, createdBy }) {
-  return writeOverride(supabase, { storyId, editionId, overrideType: 'reclassify', newField, reason, createdBy });
+export async function submitReclassifyOverride(supabase, { storyId, editionId, newField, reason, createdBy, role }) {
+  return writeOverride(supabase, { storyId, editionId, overrideType: 'reclassify', newField, reason, createdBy, role });
 }
 
-export async function submitBoostOverride(supabase, { storyId, editionId, reason, createdBy }) {
-  return writeOverride(supabase, { storyId, editionId, overrideType: 'boost', reason, createdBy });
+export async function submitBoostOverride(supabase, { storyId, editionId, reason, createdBy, role }) {
+  return writeOverride(supabase, { storyId, editionId, overrideType: 'boost', reason, createdBy, role });
 }
 
 // FASA 3.6.3a Test 4 (undo/remove override): deactivating is a soft update
@@ -200,7 +202,27 @@ export async function deactivateOverride(supabase, overrideId) {
   if (error) throw new Error(`deactivateOverride: ${error.message}`);
 }
 
-async function writeOverride(supabase, { storyId, editionId, overrideType, newField, reason, createdBy }) {
+async function writeOverride(supabase, { storyId, editionId, overrideType, newField, reason, createdBy, role }) {
+  // AUDIT FIX (2026-08-13, docs/editorial-adversarial-audit-v1.md finding 1):
+  // canPerformAction() had ZERO production callers. db/schema-editorial-state.sql
+  // states the Principle of Escalation is "enforced at the APPLICATION layer",
+  // and no such handler existed — the admin-only boundary was documented, unit
+  // tested, and connected to nothing.
+  //
+  // Enforced HERE, at the single write choke point, deliberately rather than
+  // only in the UI: a UI-only gate would repeat the same one-layer mistake the
+  // audit just found. Every override write in the app goes through this
+  // function, so no future caller (including Pin) can bypass it by forgetting
+  // to add a check.
+  //
+  // Fails CLOSED on a missing/unknown role — consistent with getEditorRole()'s
+  // own fail-closed contract in db/editor-auth.mjs.
+  if (!canPerformAction(role, overrideType)) {
+    throw new Error(
+      `Tindakan "${overrideType}" memerlukan peranan admin. Peranan anda: ${role ?? 'tiada'}.`,
+    );
+  }
+
   const expiresAt = new Date(Date.now() + OVERRIDE_LIFESPAN_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const { error } = await supabase.from('story_overrides').insert({
     story_id: storyId,
