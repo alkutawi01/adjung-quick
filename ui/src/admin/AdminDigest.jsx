@@ -21,7 +21,10 @@ export default function AdminDigest({ digest, error, onOpenQueue }) {
     );
   }
 
-  const { processed, needsAttention, noActionNeeded, actionsToday } = digest;
+  const {
+    processed, needsAttention, noActionNeeded, actionsToday,
+    hasYesterdayComparison, failedSourcesToday, activeOverridesToday, trend,
+  } = digest;
   const allClear = needsAttention === 0 && actionsToday.length === 0;
 
   return (
@@ -37,20 +40,38 @@ export default function AdminDigest({ digest, error, onOpenQueue }) {
       <dl className="digest__rows">
         <div className="digest__row">
           <dt>Berita diproses</dt>
-          <dd>{processed}</dd>
+          <dd>{processed}{trend.storiesProcessed}</dd>
         </div>
 
         {needsAttention > 0 && (
           <div className="digest__row digest__row--attention">
             <dt>Perlu perhatian</dt>
             <dd>
-              {needsAttention} berita belum pasti bidang
+              {needsAttention} berita belum pasti bidang{trend.reviewQueue}
               {/* A digest that reports a problem without a route to fix it
                   just relocates the hunting — plan §2. */}
               <button type="button" className="digest__action" onClick={onOpenQueue}>
                 Buka Senarai Semakan
               </button>
             </dd>
+          </div>
+        )}
+
+        {/* FASA 4.1.3 — only shown once today's snapshot exists
+            (daily-observation.mjs has run today); before that there is no
+            "today" number to show at all, per ChatGPT's explicit guard
+            against Digest computing these itself. */}
+        {failedSourcesToday !== null && (
+          <div className="digest__row">
+            <dt>Sumber gagal</dt>
+            <dd>{failedSourcesToday} sumber{trend.failedSources}</dd>
+          </div>
+        )}
+
+        {activeOverridesToday !== null && (
+          <div className="digest__row">
+            <dt>Keputusan editorial aktif</dt>
+            <dd>{activeOverridesToday} keputusan editorial sedang aktif{trend.activeOverrides}</dd>
           </div>
         )}
 
@@ -69,6 +90,10 @@ export default function AdminDigest({ digest, error, onOpenQueue }) {
           <dt>Tiada tindakan diperlukan</dt>
           <dd>{noActionNeeded} berita</dd>
         </div>
+
+        {!hasYesterdayComparison && (
+          <p className="digest__note">Belum ada perbandingan semalam.</p>
+        )}
       </dl>
     </section>
   );

@@ -128,8 +128,19 @@ export async function fetchReviewQueue(supabase, editionId) {
 // fetchReviewQueue() itself — the same code path, same thresholds, so the
 // digest and the Review Queue can never disagree about what counts as a
 // problem. The other numbers are plain counts, no new rules.
+//
+// FASA 4.1.3 (docs/admin-digest-trend-plan-v1.md, approved with ChatGPT's
+// two conditions): trend reads ONLY operational_snapshots_public, no
+// parallel computation. Per ChatGPT's explicit correction mid-approval —
+// "Bukan: Digest kira failed source sendiri / kira override sendiri.
+// Tetapi: operational_snapshot -> Digest presentation" — failedSources
+// and activeOverrides get NEITHER a live "today" number NOR a trend
+// unless TODAY's snapshot row already exists (daily-observation.mjs has
+// run today); reviewQueue/storiesProcessed already have a live "today"
+// value from the queries above, so those only need YESTERDAY's row to
+// show a trend line.
 export async function fetchDigest(supabase, editionId) {
-  const [{ count: processed, error: processedErr }, queue, { data: overrides, error: overridesErr }] = await Promise.all([
+  const [{ count: processed, error: processedErr }, queue, { data: overrides, error: overridesErr }, { data: snapshots, error: snapshotsErr }] = await Promise.all([
     supabase.from('edition_story_classifications')
       .select('story_id', { count: 'exact', head: true })
       .eq('edition_id', editionId),
@@ -147,9 +158,20 @@ export async function fetchDigest(supabase, editionId) {
       // history view (deferred) is where undone actions belong.
       .eq('active', true)
       .gte('created_at', startOfLocalDayIso()),
+    // `.in()` on exact today/yesterday dates, never a range + "latest
+    // row" pick — a gap of more than one day must NOT silently compare
+    // against an older row and call it "semalam" (the edge case ChatGPT
+    // named explicitly as "tipu senyap").
+    supabase.from('operational_snapshots_public')
+      .select('snapshot_date, stories_processed, review_queue_count, failed_sources_count, active_override_count')
+      .in('snapshot_date', [localDateString(0), localDateString(-1)]),
   ]);
   if (processedErr) throw new Error(`fetchDigest: edition_story_classifications — ${processedErr.message}`);
   if (overridesErr) throw new Error(`fetchDigest: story_overrides — ${overridesErr.message}`);
+  if (snapshotsErr) throw new Error(`fetchDigest: operational_snapshots_public — ${snapshotsErr.message}`);
+
+  const todaySnapshot = snapshots.find(s => s.snapshot_date === localDateString(0)) ?? null;
+  const yesterdaySnapshot = snapshots.find(s => s.snapshot_date === localDateString(-1)) ?? null;
 
   return {
     processed: processed ?? 0,
@@ -159,6 +181,18 @@ export async function fetchDigest(supabase, editionId) {
     // could in principle be resolved in between.
     noActionNeeded: Math.max(0, (processed ?? 0) - queue.length),
     actionsToday: summariseActions(overrides),
+    // FASA 4.1.3 — see the block comment above for why failedSources /
+    // activeOverrides are null unless todaySnapshot exists, while
+    // reviewQueue / storiesProcessed only need yesterdaySnapshot.
+    hasYesterdayComparison: yesterdaySnapshot !== null,
+    failedSourcesToday: todaySnapshot?.failed_sources_count ?? null,
+    activeOverridesToday: todaySnapshot?.active_override_count ?? null,
+    trend: {
+      reviewQueue: trendSuffix(queue.length, yesterdaySnapshot?.review_queue_count),
+      storiesProcessed: trendSuffix(processed ?? 0, yesterdaySnapshot?.stories_processed),
+      failedSources: todaySnapshot ? trendSuffix(todaySnapshot.failed_sources_count, yesterdaySnapshot?.failed_sources_count) : null,
+      activeOverrides: todaySnapshot ? trendSuffix(todaySnapshot.active_override_count, yesterdaySnapshot?.active_override_count) : null,
+    },
   };
 }
 
@@ -166,6 +200,29 @@ function startOfLocalDayIso() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
+}
+
+// Local calendar date (not UTC) as YYYY-MM-DD, matching
+// operational_snapshots.snapshot_date's own local-day semantics
+// (db/daily-observation.mjs writes `observedAt.slice(0, 10)`, and the
+// script is intended to be run once per real day by whoever runs it).
+function localDateString(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Human-language comparison clause, per ChatGPT's own approved format —
+// never a bare "delta: +5". Returns null (no line at all) when either
+// side is missing, or when there's genuinely no change to report.
+function trendSuffix(today, yesterday) {
+  if (today == null || yesterday == null) return null;
+  const delta = today - yesterday;
+  if (delta === 0) return null;
+  return ` (${delta > 0 ? '+' : ''}${delta} berbanding semalam)`;
 }
 
 // Plain-Malay sentences, per the human-first language layer — the admin

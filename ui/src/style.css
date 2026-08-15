@@ -493,6 +493,7 @@ body {
   color: var(--ink-muted);
   margin: 0 0 10px;
 }
+.digest__note { font-size: 0.78rem; color: var(--ink-faint); margin: 4px 0 0; }
 .digest__error { font-size: 0.82rem; color: #a00; margin: 0; }
 .digest__loading { font-size: 0.82rem; color: var(--ink-muted); margin: 0; }
 .digest__rows { margin: 0; display: flex; flex-direction: column; gap: 8px; }
