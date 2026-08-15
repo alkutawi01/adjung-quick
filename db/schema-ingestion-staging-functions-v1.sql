@@ -144,11 +144,31 @@ AS $$
 DECLARE
   rec RECORD;
 BEGIN
+  -- CRITICAL FIX, found live (2026-08-15) on the first real swap after
+  -- the FK-repoint fix itself: the original filter here
+  -- (`con.confrelid <> 'story_clusters'::regclass`) matches ANY foreign
+  -- key on the table that isn't currently pointing at story_clusters —
+  -- which also matched story_overrides' UNRELATED
+  -- `created_by -> editors` FK, silently dropping it and never
+  -- recreating it. This broke FASA 4.1.1's Editorial Activity Timeline
+  -- live in production ("Could not find a relationship between
+  -- 'story_overrides' and 'created_by'") before being caught by this
+  -- same post-swap verification pass and fixed by hand. Every loop below
+  -- now also requires the constraint's column to literally be
+  -- `story_id` — the ONLY column this function has any business
+  -- touching — so a table with other unrelated FKs (like
+  -- story_overrides.created_by) is never touched by mistake again.
+
   -- story_overrides.story_id: NO ON DELETE action (schema-editorial-state.sql).
   FOR rec IN
     SELECT con.conname FROM pg_constraint con
     WHERE con.conrelid = 'story_overrides'::regclass AND con.contype = 'f'
       AND con.confrelid <> 'story_clusters'::regclass
+      AND EXISTS (
+        SELECT 1 FROM unnest(con.conkey) k
+        JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k
+        WHERE a.attname = 'story_id'
+      )
   LOOP
     EXECUTE format('ALTER TABLE story_overrides DROP CONSTRAINT %I', rec.conname);
   END LOOP;
@@ -161,6 +181,11 @@ BEGIN
     SELECT con.conname FROM pg_constraint con
     WHERE con.conrelid = 'saved_stories'::regclass AND con.contype = 'f'
       AND con.confrelid <> 'story_clusters'::regclass
+      AND EXISTS (
+        SELECT 1 FROM unnest(con.conkey) k
+        JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k
+        WHERE a.attname = 'story_id'
+      )
   LOOP
     EXECUTE format('ALTER TABLE saved_stories DROP CONSTRAINT %I', rec.conname);
   END LOOP;
@@ -172,6 +197,11 @@ BEGIN
     SELECT con.conname FROM pg_constraint con
     WHERE con.conrelid = 'history_entries'::regclass AND con.contype = 'f'
       AND con.confrelid <> 'story_clusters'::regclass
+      AND EXISTS (
+        SELECT 1 FROM unnest(con.conkey) k
+        JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k
+        WHERE a.attname = 'story_id'
+      )
   LOOP
     EXECUTE format('ALTER TABLE history_entries DROP CONSTRAINT %I', rec.conname);
   END LOOP;
@@ -207,6 +237,11 @@ BEGIN
     SELECT con.conname FROM pg_constraint con
     WHERE con.conrelid = 'edition_story_classifications'::regclass AND con.contype = 'f'
       AND con.confrelid <> 'story_clusters'::regclass
+      AND EXISTS (
+        SELECT 1 FROM unnest(con.conkey) k
+        JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k
+        WHERE a.attname = 'story_id'
+      )
   LOOP
     EXECUTE format('ALTER TABLE edition_story_classifications DROP CONSTRAINT %I', rec.conname);
   END LOOP;
