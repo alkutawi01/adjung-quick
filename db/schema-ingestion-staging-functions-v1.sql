@@ -108,6 +108,19 @@ BEGIN
     FOR EACH ROW
     EXECUTE FUNCTION forbid_representative_reassignment();
 
+  -- CRITICAL, found only by the first real (non-dry-run) swap
+  -- (2026-08-15): GRANT privileges, like FKs, are tied to a table's OID
+  -- — a freshly `CREATE TABLE`'d staging table does NOT inherit the
+  -- anon/authenticated SELECT grant the original `sources`/
+  -- `story_clusters`/`rss_items` had, even after the rename gives it
+  -- the same name. Without this, the reader breaks immediately
+  -- post-swap ("permission denied for table sources") until someone
+  -- notices and grants it by hand — exactly what happened live before
+  -- this line was added. Granting here, before the swap even runs,
+  -- means the grant is already present on the table BEFORE it gets
+  -- renamed into place.
+  GRANT SELECT ON sources_staging, story_clusters_staging, rss_items_staging TO anon, authenticated;
+
   -- Found only by actually running this against production (2026-08-15,
   -- first real dry run): PostgREST caches the schema, so a table created
   -- here via RPC is invisible to supabase-js's .from() calls until that
