@@ -1,6 +1,17 @@
 # Editorial Activity Timeline — Design Plan v1 (2026-08-15)
 
-Status: `[x] Plan` `[ ] Approved` `[ ] Implemented` — **no code, no schema yet**
+Status: `[x] Plan` `[x] Approved` `[x] Implemented` — commit `b80eab5`
+
+## Implementation note (2026-08-15)
+
+ChatGPT approved with: role-only identity (no name column), 30-row
+pagination ("30 lagi"), and one added rule not in the original plan —
+event ordering must never be `created_at` alone, since one override can
+produce two events at two different real times; both are pushed into a
+single derived list and sorted by `timestamp`. Verified live against
+production: real created/deactivated events render with correct role
+attribution, deactivated overrides show "sudah tidak aktif" with no
+fabricated timestamp, reader (`/`) unaffected. 14 suites, 0 failures.
 
 FASA 4.1.1, per ChatGPT's explicit instruction: design document only.
 "Editorial Activity Timeline", not "Everything Timeline" — the name is
