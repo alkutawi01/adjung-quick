@@ -1,6 +1,20 @@
 # Admin Digest Trend Plan v1 (2026-08-15)
 
-Status: `[x] Plan` `[ ] Approved` `[ ] Implemented` — **no code yet**
+Status: `[x] Plan` `[x] Approved` `[x] Implemented` — commit `01f8ed1`
+
+## Implementation note (2026-08-15)
+
+ChatGPT approved with two conditions: pilihan (a) (all four metrics get
+trend capability, not just the two the live Digest already showed), but
+restricted to operational signals only — no new editorial computation.
+Concretely, that meant `failedSourcesToday`/`activeOverridesToday` are
+sourced from **today's** `operational_snapshots_public` row when it
+exists (not computed live), while `reviewQueue`/`storiesProcessed` reuse
+the values `fetchDigest()` already computes live. Verified live against
+production: trend line rendered correctly (`748, -148 berbanding
+semalam`), a delta of 0 correctly showed no suffix, and
+failed-sources/active-overrides correctly stayed hidden since today's
+snapshot hasn't been recorded yet. 14 suites, 0 failures.
 
 FASA 4.1.3, chosen before 4.1.1 (Editorial Activity Timeline) per
 ChatGPT: `operational_snapshots` just went live, and a trend diff is its
