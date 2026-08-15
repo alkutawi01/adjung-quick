@@ -495,6 +495,26 @@ body {
 }
 .digest__note { font-size: 0.78rem; color: var(--ink-faint); margin: 4px 0 0; }
 .digest__error { font-size: 0.82rem; color: #a00; margin: 0; }
+
+.activity-timeline { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rule, #ddd); }
+.activity-timeline__title { font-size: 0.95rem; color: var(--accent); margin: 0 0 10px; font-weight: normal; }
+.activity-timeline__error { font-size: 0.82rem; color: #a00; margin: 0; }
+.activity-timeline__empty { font-size: 0.82rem; color: var(--ink-muted); margin: 0; }
+.activity-timeline__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.activity-timeline__item {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  font-size: 0.82rem; padding: 4px 0;
+}
+.activity-timeline__item--expired { color: var(--ink-faint); }
+.activity-timeline__time { color: var(--ink-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.activity-timeline__text { flex: 1 1 auto; }
+.activity-timeline__inactive { color: var(--ink-faint); font-style: italic; }
+.activity-timeline__role { color: var(--ink-faint); font-size: 0.78rem; }
+.activity-timeline__more {
+  margin-top: 10px; font-size: 0.8rem; background: none;
+  border: 1px solid var(--rule, #ddd); border-radius: 4px; padding: 4px 10px; cursor: pointer;
+}
+.activity-timeline__more:hover { background: var(--accent); color: var(--paper); }
 .digest__loading { font-size: 0.82rem; color: var(--ink-muted); margin: 0; }
 .digest__rows { margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .digest__row {

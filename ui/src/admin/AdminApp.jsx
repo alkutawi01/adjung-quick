@@ -3,6 +3,7 @@ import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
 import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, submitBoostOverride } from './reviewQueueAdapter.js';
 import AdminDigest from './AdminDigest.jsx';
+import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
 import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID } from '../../../state/editions.js';
 import { getRankingVersion } from '../../../state/rankingFlags.js';
 import ReviewQueueCard from './ReviewQueueCard.jsx';
@@ -221,6 +222,8 @@ function ReviewQueue({ userId, role }) {
           />
         ))}
       </div>
+
+      <EditorialActivityTimeline editionId={editionId} />
     </div>
   );
 }
