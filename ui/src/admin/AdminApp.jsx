@@ -1,12 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, submitBoostOverride } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride } from './reviewQueueAdapter.js';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
 import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID } from '../../../state/editions.js';
-import { getRankingVersion } from '../../../state/rankingFlags.js';
 import ReviewQueueCard from './ReviewQueueCard.jsx';
+
+// Editorial Desk shell — per docs/editorial-desk-shell-implementation-plan-v1.md.
+// Four sections, container/navigation only — no new writable action here.
+const DESK_SECTIONS = [
+  { id: 'hari-ini', label: 'Hari Ini' },
+  { id: 'semakan', label: 'Semakan' },
+  { id: 'keputusan', label: 'Keputusan Editorial' },
+  { id: 'rekod', label: 'Rekod' },
+];
 
 // AdminApp.jsx — Fasa 3.6.2 Review Queue. Per
 // docs/review-queue-ui-implementation-plan-v1.md §5: reuses Supabase Auth
@@ -126,6 +134,7 @@ function ReviewQueue({ userId, role }) {
   const [busyStoryId, setBusyStoryId] = useState(null);
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState(null);
+  const [activeSection, setActiveSection] = useState('hari-ini');
 
   const load = useCallback(() => {
     setEntries(null);
@@ -181,49 +190,83 @@ function ReviewQueue({ userId, role }) {
         ))}
       </div>
 
-      <AdminDigest
-        digest={digest}
-        error={digestError}
-        onOpenQueue={() => document.querySelector('.review-queue__list')?.scrollIntoView({ behavior: 'smooth' })}
-      />
+      <nav className="editorial-desk__nav">
+        {DESK_SECTIONS.map(section => (
+          <button
+            key={section.id}
+            type="button"
+            className={`editorial-desk__nav-item${section.id === activeSection ? ' editorial-desk__nav-item--active' : ''}`}
+            onClick={() => setActiveSection(section.id)}
+          >
+            {section.label}
+          </button>
+        ))}
+      </nav>
 
-      {loadError && <p className="review-queue__error">{loadError}</p>}
-      {entries === null && !loadError && <p className="admin-app__status">Memuatkan...</p>}
-      {entries !== null && entries.length === 0 && (
-        <p className="review-queue__empty">Tiada berita perlu semakan buat masa ini.</p>
+      {activeSection === 'hari-ini' && (
+        <section className="editorial-desk__section">
+          <AdminDigest
+            digest={digest}
+            error={digestError}
+            onOpenQueue={() => setActiveSection('semakan')}
+          />
+        </section>
       )}
 
-      <div className="review-queue__list">
-        {entries?.map(entry => (
-          <ReviewQueueCard
-            key={entry.storyId}
-            entry={entry}
-            taxonomy={taxonomy}
-            busy={busyStoryId === entry.storyId}
-            // FASA 3.6.3c / Option A: Boost is offered ONLY where the
-            // Editorial Ranking Engine is actually active, because that is
-            // the only pipeline that reads a boost signal. Offering it
-            // elsewhere would store a real decision that silently does
-            // nothing — per ChatGPT: "jangan bina UI yang menjanjikan kuasa
-            // yang backend sebenarnya tidak miliki."
-            //
-            // NOTE (ChatGPT's 3.6.3c closing decision): the Review Queue is
-            // NOT Boost's long-term home — this queue surfaces stories with
-            // classification PROBLEMS, while boost applies to correctly
-            // classified ones. A dedicated boost surface is deferred to a
-            // later phase; this gate stays correct in the meantime.
-            boostAvailable={Boolean(entry.field) && getRankingVersion(editionId, entry.field) === 'editorial_v1'}
-            onHide={reason => resolve(entry.storyId, () =>
-              submitHideOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
-            onReclassify={(newField, reason) => resolve(entry.storyId, () =>
-              submitReclassifyOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
-            onBoost={reason => resolve(entry.storyId, () =>
-              submitBoostOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
-          />
-        ))}
-      </div>
+      {activeSection === 'semakan' && (
+        <section className="editorial-desk__section">
+          {loadError && <p className="review-queue__error">{loadError}</p>}
+          {entries === null && !loadError && <p className="admin-app__status">Memuatkan...</p>}
+          {entries !== null && entries.length === 0 && (
+            <p className="review-queue__empty">Tiada berita perlu semakan buat masa ini.</p>
+          )}
 
-      <EditorialActivityTimeline editionId={editionId} />
+          <div className="review-queue__list">
+            {entries?.map(entry => (
+              <ReviewQueueCard
+                key={entry.storyId}
+                entry={entry}
+                taxonomy={taxonomy}
+                busy={busyStoryId === entry.storyId}
+                onHide={reason => resolve(entry.storyId, () =>
+                  submitHideOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
+                onReclassify={(newField, reason) => resolve(entry.storyId, () =>
+                  submitReclassifyOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {activeSection === 'keputusan' && (
+        <section className="editorial-desk__section editorial-desk__keputusan">
+          {/* Per docs/editorial-desk-shell-implementation-plan-v1.md §4: honest
+              "belum tersedia" cards, never a button that looks clickable but
+              fails. No interactive control here fires a real request. */}
+          <article className="editorial-desk__placeholder-card">
+            <h3 className="editorial-desk__placeholder-title">Pin</h3>
+            <p className="editorial-desk__placeholder-desc">
+              Belum tersedia. Pin akan membenarkan admin meletakkan berita
+              tertentu di kedudukan tetap, walaupun sistem pemilihan berjalan
+              seperti biasa.
+            </p>
+          </article>
+          <article className="editorial-desk__placeholder-card">
+            <h3 className="editorial-desk__placeholder-title">Boost</h3>
+            <p className="editorial-desk__placeholder-desc">
+              Belum tersedia di sini. Naikkan buat masa ini hanya beroperasi
+              untuk bidang yang menggunakan enjin pemarkahan editorial, dan
+              akan dipindahkan ke bahagian ini apabila permukaan sebenar dibina.
+            </p>
+          </article>
+        </section>
+      )}
+
+      {activeSection === 'rekod' && (
+        <section className="editorial-desk__section">
+          <EditorialActivityTimeline editionId={editionId} />
+        </section>
+      )}
     </div>
   );
 }

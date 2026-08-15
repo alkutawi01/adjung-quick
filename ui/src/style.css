@@ -557,6 +557,50 @@ body {
   .digest__action { margin-left: 0; }
 }
 
+.editorial-desk__nav {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--hairline);
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.editorial-desk__nav-item {
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.editorial-desk__nav-item--active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.editorial-desk__section {
+  margin-top: 12px;
+}
+.editorial-desk__keputusan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.editorial-desk__placeholder-card {
+  border: 1px dashed var(--hairline);
+  border-radius: 6px;
+  padding: 14px;
+}
+.editorial-desk__placeholder-title {
+  font-size: 0.9rem;
+  font-weight: normal;
+  margin: 0 0 6px;
+}
+.editorial-desk__placeholder-desc {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
 .review-queue__error {
   color: #a00;
   font-size: 0.85rem;

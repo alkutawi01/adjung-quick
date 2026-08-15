@@ -10,8 +10,8 @@ import { useState } from 'react';
 // Every action requires a reason (docs/review-queue-spec-v1.md — a hard
 // requirement carried down from story_overrides.reason NOT NULL, not a UI
 // nicety) — the Confirm button stays disabled until reason text is present.
-export default function ReviewQueueCard({ entry, taxonomy, busy, boostAvailable, onHide, onReclassify, onBoost }) {
-  const [composing, setComposing] = useState(null); // null | 'hide' | 'reclassify' | 'boost'
+export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onReclassify }) {
+  const [composing, setComposing] = useState(null); // null | 'hide' | 'reclassify'
   const [reason, setReason] = useState('');
   const [newField, setNewField] = useState(taxonomy[0] ?? '');
 
@@ -20,7 +20,6 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, boostAvailable,
   const confirm = () => {
     if (!reason.trim()) return;
     if (composing === 'hide') onHide(reason.trim());
-    else if (composing === 'boost') onBoost(reason.trim());
     else onReclassify(newField, reason.trim());
   };
 
@@ -41,24 +40,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, boostAvailable,
           <button type="button" onClick={() => setComposing('hide')} disabled={busy}>
             Sembunyikan
           </button>
-          {boostAvailable && (
-            <button type="button" onClick={() => setComposing('boost')} disabled={busy}>
-              Naikkan
-            </button>
-          )}
         </div>
-      )}
-
-      {/* Per ChatGPT's explicit amendment to Option A: an absent button is
-          not enough — an admin must be told WHY, or they'll assume the
-          system is broken. Only shown for a story that actually has a
-          Bidang; a story with none has no ranking contest to enter at all,
-          so raising it would be meaningless rather than unavailable. */}
-      {composing === null && !boostAvailable && entry.field && (
-        <p className="review-card__unavailable">
-          Naikkan belum tersedia untuk bidang ini. Bidang ini masih menggunakan
-          pemilihan berita automatik biasa.
-        </p>
       )}
 
       {composing !== null && (
@@ -84,15 +66,6 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, boostAvailable,
             // consequence stated plainly before the admin commits.
             <p className="review-card__confirm">Berita ini tidak akan muncul kepada pembaca.</p>
           )}
-          {composing === 'boost' && (
-            // States the real contract honestly (docs/boost-action-plan-v1.md
-            // §1): boost raises the CHANCE of selection, it never guarantees
-            // placement. Promising otherwise would make it a pin in disguise.
-            <p className="review-card__confirm">
-              Berita ini akan mendapat peluang lebih tinggi untuk dipaparkan.
-              Ia masih bersaing dengan berita lain, bukan dijamin tempat.
-            </p>
-          )}
           <label className="review-card__field">
             Sebab (wajib)
             <textarea
@@ -100,7 +73,6 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, boostAvailable,
               onChange={e => setReason(e.target.value)}
               placeholder={
                 composing === 'hide' ? 'Kenapa berita ini disembunyikan?'
-                : composing === 'boost' ? 'Kenapa berita ini patut dinaikkan?'
                 : 'Kenapa bidang ini lebih sesuai?'
               }
               rows={2}

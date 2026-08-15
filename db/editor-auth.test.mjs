@@ -65,8 +65,8 @@ assert('a reader (null role) cannot perform any action', canPerformAction(null, 
     /<ReviewQueue[^>]*\brole=\{role\}/.test(app));
   assert('ReviewQueue accepts `role` as a prop',
     /function ReviewQueue\(\s*\{[^}]*\brole\b/.test(app));
-  assert('all three action handlers forward `role` to the adapter',
-    (app.match(/createdBy:\s*userId,\s*role\s*\}/g) || []).length >= 3);
+  assert('both action handlers forward `role` to the adapter',
+    (app.match(/createdBy:\s*userId,\s*role\s*\}/g) || []).length >= 2);
 }
 
 // --- FASA 3.6.5 Pin wiring (2026-08-13) ---

@@ -1,6 +1,17 @@
 # Editorial Desk — Shell Implementation Plan v1 (2026-08-15)
 
-Status: `[x] Plan` `[ ] Approved` — **no Pin, no Boost, no migration** (plan document — see note on scope below)
+Status: `[x] Plan` `[x] Approved` `[x] Built` — **no Pin, no Boost, no migration**
+
+Built 2026-08-15: `AdminApp.jsx`'s `ReviewQueue` reorganized into four
+tab-navigated sections (Hari Ini / Semakan / Keputusan Editorial /
+Rekod); `ReviewQueueCard.jsx`'s Boost action UI removed per ChatGPT's
+resolution of the open question below (Boost moves out of Review
+Queue); Keputusan Editorial ships as two honest "belum tersedia" cards,
+zero interactive controls. `npm test`: 14 suites, 0 failures (one
+pre-existing test updated to expect 2 role-forwarding call sites
+instead of 3, since Boost's handler no longer lives in `AdminApp.jsx`).
+Verified live in browser: auth gate unchanged, Hari Ini/Semakan/Rekod
+render identical data, reader-facing `/` unaffected.
 
 FASA 4.3.1, per ChatGPT's decision: Option A confirmed (nest under
 `/admin` — real infra already supports it, no new Vercel rewrite, no
