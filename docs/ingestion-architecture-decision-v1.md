@@ -76,10 +76,14 @@ holds today and nothing here changes it:
 
 **Recommendation for the Generated layer: staging + atomic swap for
 `sources`/`story_clusters`/`rss_items`**, keeping
-`edition_story_classifications`'s existing delete-then-upsert as-is —
-it's a downstream recompute over already-swapped data with its own no
-independent reader-empty risk (it doesn't sit directly under the live
-reader query the same way `story_clusters` does).
+`edition_story_classifications`'s existing delete-then-upsert as an
+**accepted temporary exception** — not because it's already safe. Per
+ChatGPT's explicit correction: the audit already showed delete+upsert
+can leave stale rows behind, and classification is generated state
+that can mismatch if the taxonomy changes. It's accepted for this pass
+only because it doesn't sit directly under the live reader query the
+same way `story_clusters` does, so it's a lower-priority gap, not a
+closed one — a future pass should revisit it, not assume it's solved.
 
 Mechanism, at the level this decision doc should specify (not final
 SQL — that's implementation):
