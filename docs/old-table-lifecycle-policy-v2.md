@@ -1,6 +1,6 @@
 # Old Table Lifecycle Policy v2 (2026-08-15)
 
-Status: `[x] Design` `[ ] Approved` — **governance only, no multi-generation implementation**
+Status: `[x] Design` `[x] Approved` — **governance only, no multi-generation implementation**
 
 FASA 4.2 follow-up #2, per ChatGPT's instruction: v1 of this policy
 (`docs/ingestion-staging-swap-implementation-plan-v1.md` §4b) already
