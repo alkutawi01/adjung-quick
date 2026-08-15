@@ -277,6 +277,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  rec RECORD;
 BEGIN
   IF to_regclass('public.sources_old') IS NOT NULL
      OR to_regclass('public.story_clusters_old') IS NOT NULL
@@ -297,6 +299,35 @@ BEGIN
   ALTER TABLE sources_staging RENAME TO sources;
   ALTER TABLE story_clusters_staging RENAME TO story_clusters;
   ALTER TABLE rss_items_staging RENAME TO rss_items;
+
+  -- CRITICAL, found live on the second real ingestion cycle
+  -- (2026-08-15) — the exact "lifecycle 2" failure mode ChatGPT
+  -- specifically flagged as the real test: table RENAME doesn't rename
+  -- that table's INDEXES either (same underlying fact as the FK issue,
+  -- a different object type). After this function's first-ever run,
+  -- indexes literally named `idx_rss_items_staging_source_guid` etc.
+  -- stayed attached to the newly-live `rss_items` table — so the NEXT
+  -- reset_ingestion_staging() call's `CREATE INDEX
+  -- idx_rss_items_staging_source_guid` failed with "already exists",
+  -- since index names must be unique per SCHEMA, not per table. Fixed
+  -- generically via pg_indexes rather than hardcoding each name, so it
+  -- self-adapts if more indexes are ever added: first free up the
+  -- canonical names still held by the demoted `_old` generation's
+  -- indexes, then strip `_staging` from the newly-promoted generation's
+  -- index names to claim those now-free canonical names.
+  FOR rec IN
+    SELECT indexname FROM pg_indexes
+    WHERE tablename IN ('sources_old', 'story_clusters_old', 'rss_items_old')
+  LOOP
+    EXECUTE format('ALTER INDEX %I RENAME TO %I', rec.indexname, rec.indexname || '_prevgen');
+  END LOOP;
+  FOR rec IN
+    SELECT indexname FROM pg_indexes
+    WHERE tablename IN ('sources', 'story_clusters', 'rss_items')
+      AND indexname LIKE '%\_staging%'
+  LOOP
+    EXECUTE format('ALTER INDEX %I RENAME TO %I', rec.indexname, replace(rec.indexname, '_staging', ''));
+  END LOOP;
 
   -- MUST run inside the same transaction as the renames above — a swap
   -- that promotes new tables without also repointing these FKs is worse
@@ -319,6 +350,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  rec RECORD;
 BEGIN
   IF to_regclass('public.sources_old') IS NULL
      OR to_regclass('public.story_clusters_old') IS NULL
@@ -333,6 +366,25 @@ BEGIN
   ALTER TABLE sources_old RENAME TO sources;
   ALTER TABLE story_clusters_old RENAME TO story_clusters;
   ALTER TABLE rss_items_old RENAME TO rss_items;
+
+  -- Same index-rename fix as swap_ingestion_staging() — a rollback is
+  -- itself a rename, so the same "RENAME TABLE doesn't move index
+  -- names" fact applies in reverse: free the canonical names still held
+  -- by the now-`_bad` generation, then strip the `_prevgen` suffix
+  -- swap_ingestion_staging() left on the restored generation's indexes.
+  FOR rec IN
+    SELECT indexname FROM pg_indexes
+    WHERE tablename IN ('sources_bad', 'story_clusters_bad', 'rss_items_bad')
+  LOOP
+    EXECUTE format('ALTER INDEX %I RENAME TO %I', rec.indexname, rec.indexname || '_badgen');
+  END LOOP;
+  FOR rec IN
+    SELECT indexname FROM pg_indexes
+    WHERE tablename IN ('sources', 'story_clusters', 'rss_items')
+      AND indexname LIKE '%\_prevgen%'
+  LOOP
+    EXECUTE format('ALTER INDEX %I RENAME TO %I', rec.indexname, replace(rec.indexname, '_prevgen', ''));
+  END LOOP;
 
   PERFORM repoint_story_clusters_fks();
   NOTIFY pgrst, 'reload schema';

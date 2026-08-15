@@ -89,6 +89,17 @@ async function main() {
   const { error: resetErr } = await supabase.rpc('reset_ingestion_staging');
   if (resetErr) { console.error('reset_ingestion_staging failed:', resetErr); process.exit(1); }
 
+  // Found live (2026-08-15, second real dry-run cycle): reset_ingestion_staging()
+  // already ends with NOTIFY pgrst, 'reload schema', but that reload is
+  // asynchronous — PostgREST's own cache can still be mid-refresh when the very
+  // next request (the sources_staging insert below) lands, producing a real but
+  // misleading PGRST205 "table not found" even though the table genuinely
+  // exists (confirmed directly via information_schema.tables at the time this
+  // was hit). A short wait here is cheap insurance against that race — it does
+  // NOT paper over a real missing-table bug, since the table's existence was
+  // independently confirmed.
+  await new Promise(r => setTimeout(r, 1500));
+
   // --- 1. Sources -> staging ---
   const sourceRows = RSS_SOURCES.map(s => ({
     id: s.id, name: s.name, url: s.url, language: s.language, trust_score: s.trustScore,
