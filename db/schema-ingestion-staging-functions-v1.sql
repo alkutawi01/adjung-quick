@@ -181,6 +181,28 @@ BEGIN
   -- edition_story_classifications.story_id: ON DELETE CASCADE
   -- (schema-edition-classification.sql) — MUST be preserved, this table
   -- is not part of the swap set but still references story_clusters.
+  --
+  -- CRITICAL, found only by the first REAL swap attempt failing
+  -- (2026-08-15): classify-production.js runs independently of
+  -- ingest-production.js, so edition_story_classifications routinely
+  -- holds rows for stories from a PREVIOUS ingest that the current
+  -- staged generation doesn't reproduce. Under the OLD destructive
+  -- DELETE+INSERT flow, this was never a problem — deleting
+  -- story_clusters triggered this table's own ON DELETE CASCADE,
+  -- silently wiping stale classifications as a side effect. Staging+swap
+  -- never deletes anything (only renames), so that implicit cleanup
+  -- stopped happening — and re-adding this FK then correctly fails
+  -- validation against orphaned rows, exactly what happened live:
+  -- "Key (story_id)=(...) is not present in table story_clusters".
+  -- The swap rolled back safely (proof the atomicity design works) but
+  -- can never succeed without replicating that cleanup explicitly here,
+  -- once, right before the FK is re-added — a classification row for a
+  -- story that no longer exists is meaningless anyway; classify-
+  -- production.js regenerates it for the new generation on its own
+  -- next run.
+  DELETE FROM edition_story_classifications
+  WHERE story_id NOT IN (SELECT id FROM story_clusters);
+
   FOR rec IN
     SELECT con.conname FROM pg_constraint con
     WHERE con.conrelid = 'edition_story_classifications'::regclass AND con.contype = 'f'
