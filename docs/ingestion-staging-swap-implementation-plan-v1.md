@@ -1,6 +1,34 @@
 # Ingestion Staging + Swap — Implementation Plan v1 (2026-08-15)
 
-Status: `[x] Plan` `[ ] Approved` `[ ] Implemented` — **no code, no schema, `ingest-production.js` untouched**
+Status: `[x] Plan` `[x] Approved` `[x] Staging schema + functions applied` `[x] Dry run verified` `[ ] Live swap not yet executed`
+
+## Implementation note (2026-08-15)
+
+Migration applied (`db/schema-ingestion-staging-functions-v1.sql`) and
+`ingest-production.js` rewritten for staging+swap. Two real bugs found
+ONLY by actually running this against production, not by review:
+
+1. **PostgREST schema cache**: a table created via RPC is invisible to
+   `supabase-js`'s `.from()` calls until the cache reloads — the first
+   dry-run attempt failed on `PGRST205 Could not find the table`. Fixed
+   with `NOTIFY pgrst, 'reload schema'` at the end of every DDL-mutating
+   function (reset/swap/rollback/drop).
+2. **Circular FK drop order**: `story_clusters_staging` and
+   `rss_items_staging` reference each other (the same circular
+   representative-item pattern the live schema has) — separate
+   `DROP TABLE` statements fail regardless of order. Fixed with a single
+   multi-table `DROP TABLE ... CASCADE`.
+
+Dry run (`node db/ingest-production.js --dry-run`) succeeded with real
+evidence: 886 clusters / 941 RSS items staged, exact match against the
+lab ground truth, staging validation passed, stopped cleanly before any
+swap — production completely untouched throughout both failed attempts
+and the successful one.
+
+**Live swap has NOT been executed yet** — held for one more explicit
+confirmation cycle given this is the highest-stakes change this project
+has made (real schema mutation + FK repointing, first time tested
+against production, no database backup exists per the FASA 4.2 audit).
 
 FASA 4.2, per ChatGPT's approval of the staging+swap architecture
 (`docs/ingestion-architecture-decision-v1.md`): this plan answers the
@@ -99,6 +127,56 @@ guard exists for. `evaluateDestructiveRebuildGuard`'s current
 leftover, but because it protects against exactly this gap. Whether
 `_old` tables can ever be safely dropped once real user data exists is
 an open question this plan surfaces rather than answers.
+
+## 4b. Old Table Lifecycle Policy
+
+Per ChatGPT's explicit instruction, added before any coding: this is
+the first time FASA 4 touches production data more sensitive than FASA
+3 touched. FASA 3 protected human editorial decisions; FASA 4.2
+protects the system's own memory of what it was serving a moment ago.
+`_old` tables exist so a mistake found *after* the swap already
+committed still has a way back — that only holds if their lifecycle is
+deliberate, not incidental.
+
+**Who can drop `_old` tables?** A human, running a script manually.
+Never automated, never time-based.
+
+**Why not automated/time-based**: per ChatGPT — *"production reality
+tidak ikut jam"* (production reality doesn't follow a clock). A
+`swap → sleep 24h → auto-drop` timer would drop `_old` exactly when a
+slow-to-surface anomaly (a classification mismatch only visible after
+the next classify run, a reader-reported issue that took a day to
+reach an admin) is most likely to still need it. Time elapsed is not
+evidence anything is fine.
+
+**Verification criteria — ALL must hold before a manual drop is even
+considered** (this is a checklist a human runs through, not something
+this plan claims can be fully automated):
+
+1. The swap committed successfully (not silently rolled back)
+2. Reader surfaces are normal: `/`, edition switching, the Active Set
+3. Admin surfaces are normal: Review Queue, Digest, Timeline
+4. Editorial state is intact: `story_overrides`, `saved_stories`,
+   `history_entries` rows created before the swap still resolve to
+   real `story_clusters` rows after it (the §4 FK-dangling risk,
+   checked directly, not assumed)
+5. **At least one full ingestion cycle after this one has also
+   succeeded** — a single successful swap isn't proof the new mechanism
+   is stable; a second one that also swaps cleanly is much stronger
+   evidence
+6. No FK/reference anomaly reported by any of the above
+
+**Rollback window**: `_old` tables remain until a human explicitly
+drops them per the above — there is no fixed time bound. If criterion
+4 or 6 fails at any point, the swap-back path from §3 ("Post-swap
+rollback") uses these same `_old` tables — which is the entire reason
+they aren't dropped automatically.
+
+**Drop mechanism**: manual only for V1 — a human runs a dedicated,
+explicit script (not folded into `ingest-production.js` itself) after
+confirming the checklist above, gated by the same
+`production-write-guard.mjs` discipline every other write script in
+this project already uses. No auto-drop path exists or is proposed.
 
 ## 5. Deployment strategy
 

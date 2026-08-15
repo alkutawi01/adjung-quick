@@ -1,0 +1,16 @@
+-- schema-ingestion-staging-v1.sql — SUPERSEDED, 2026-08-15.
+--
+-- The staging table definitions originally here were folded into
+-- reset_ingestion_staging() (db/schema-ingestion-staging-functions-v1.sql)
+-- instead: a successful swap RENAMES `*_staging` away to become the
+-- live tables, so `*_staging` doesn't exist between runs — the reset
+-- function has to be able to (re)create them from scratch anyway, on
+-- every run, not just the first. Keeping the same DDL duplicated in
+-- both a one-time migration AND that function would have let the two
+-- drift out of sync over time. reset_ingestion_staging() is the single
+-- source of truth for the staging schema now; this file applies nothing.
+--
+-- Apply db/schema-ingestion-staging-functions-v1.sql instead — it
+-- creates the tables (via reset_ingestion_staging(), called
+-- automatically on the first `node db/ingest-production.js` run) and
+-- the swap/rollback/repoint functions together.
