@@ -1,6 +1,21 @@
 # Post-Migration Observation Plan v1 (2026-08-15)
 
-Status: `[x] Plan` `[ ] Approved` — **observation only, no new features, no retention, no classification pipeline change**
+Status: `[x] Plan` `[x] Approved` — **observation only, no new features, no retention, no classification pipeline change**
+
+## Update (2026-08-15) — second lifecycle validated via dry-run, not a second swap
+
+ChatGPT approved running a real second-cycle swap to test lifecycle
+stability, but this surfaced a real conflict: `swap_ingestion_staging()`
+refuses to run while a previous `_old` generation still exists (by
+design), and this exact observation window requires `_old` to stay
+untouched. Flagged rather than resolved unilaterally; ChatGPT chose
+**Option B**: validate the second lifecycle through a clean staging
+rebuild + dry-run only (real bugs found and fixed: index-name collision
+across a table rename, a PostgREST schema-cache race — see
+`docs/content-pipeline-reliability-final-verification-v1.md`'s "Second
+lifecycle" section), and defer any second real production swap until
+the Old Table Lifecycle Policy permits `_old` removal or rotation.
+Observation window (16–20 Ogos) continues unchanged.
 
 FASA 4.2, per ChatGPT's instruction immediately after the staging+swap
 migration's real execution: before building anything new, define what

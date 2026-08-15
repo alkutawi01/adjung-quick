@@ -1,10 +1,45 @@
 # Content Pipeline Reliability — Final Verification (2026-08-15)
 
-Status: `[x] Swap executed` `[x] Post-swap verification complete` — **`_old` retained, per ChatGPT's instruction**
+Status: `[x] Swap executed` `[x] Post-swap verification complete` `[x] Second lifecycle validated (dry-run)` — **`_old` retained, per ChatGPT's instruction**
 
 FASA 4.2 staging+swap ingestion: real production execution record.
 Every claim below is real evidence gathered against the live
 production database and app, not inference from code.
+
+## Second lifecycle — validated, production swap deferred (2026-08-15)
+
+Per ChatGPT's explicit decision (Option B, chosen when this document's
+own first-swap `_old` retention collided with the "run a second real
+swap" instruction): **the second lifecycle was validated through a
+clean staging rebuild and dry-run, not a second production swap.**
+
+What was actually proven: `reset_ingestion_staging()` correctly
+self-heals on a second real invocation against the live production
+database — two real bugs were found and fixed in the process (index
+names colliding across a table rename, and a PostgREST schema-cache
+race), staging populated cleanly (877 clusters / 935 rss_items, exact
+match against the lab ground truth), and validation passed. See commit
+`4ac7050`.
+
+**A second real production SWAP was deliberately NOT executed** — and
+this is not an incomplete test, it's the `_old`-retention guard
+(`swap_ingestion_staging()`'s explicit refusal to run while a previous
+`_old` generation still exists) working exactly as designed. Running it
+anyway would have required either dropping the first swap's `_old`
+generation (losing that rollback path before the observation window
+that specifically exists to justify dropping it) or weakening the guard
+itself — both rejected. **Production's second swap is deferred until
+the Old Table Lifecycle Policy (`docs/ingestion-staging-swap-implementation-plan-v1.md`
+§4b) permits `_old` removal or rotation** — not scheduled for a
+specific date, gated on that checklist passing.
+
+Future note, recorded not built: once observation is stable, the
+single-generation `_old` model (`production` → `production_old`) may
+need to become a multi-generation retention scheme
+(`production_backup_20260815`, `production_backup_20260820`, …) to
+support real long-running operation without this exact tension
+recurring every cycle. This is Old Table Lifecycle Policy / retention
+scope, not decided or built now.
 
 ## Migration timestamp
 
