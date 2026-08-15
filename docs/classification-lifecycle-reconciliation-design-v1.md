@@ -1,6 +1,6 @@
 # Classification Lifecycle Reconciliation — Design v1 (2026-08-15)
 
-Status: `[x] Design` `[ ] Approved` — **no code, no migration, no production change**
+Status: `[x] Design` `[x] Approved` — **no code, no migration, no production change**
 
 FASA 4.2 follow-up, per ChatGPT's instruction during the observation
 window: staging+swap solved ingestion's *atomicity* problem (a failed
@@ -94,6 +94,55 @@ above it.
    manually reviewed anyway), or does it need a dedicated pass? Not
    decided here — named so it isn't discovered as a surprise later.
 
+## Proposed V1 Direction (decided by ChatGPT, 2026-08-15)
+
+Resolves the three open questions above. Still design only — nothing
+below is implemented by this document.
+
+**1. No continuous reconciliation service.** Rejected explicitly: a
+background daemon/cron that keeps checking consistency would itself be
+"one more system that needs to be trusted" — exactly the kind of
+always-on surface this project has been deliberately narrowing, not
+widening. Instead: **projection consistency is enforced at pipeline
+execution boundaries.** Two boundaries exist today, and each owns its
+own consistency:
+- **Ingestion boundary** — staging+swap's job is to keep `story_clusters`/
+  `rss_items` identity stable and atomic. Already built.
+- **Classification boundary** — `classify-production.js`'s job is to
+  leave `edition_story_classifications` clean *relative to whatever
+  `story_clusters` currently contains* every time it runs. Not yet built
+  (see #2).
+
+**2. Classification pipeline owns classification cleanup — yes.**
+Confirmed as the right owner, not ingestion. The bug this whole
+document traces (`ingestion succeeds → story_clusters changes →
+old classification rows survive`) exists because `classify-production.js`
+implicitly assumes "the classification world is already clean" rather
+than actively making it so. Its contract should be stated explicitly:
+
+> After `classify-production.js` completes, `edition_story_classifications`
+> represents the current state of `story_clusters` — nothing more, nothing
+> less.
+
+Concretely (design only, not built here): before or as part of writing
+new classifications, remove rows whose `story_id` has no corresponding
+active `story_clusters` row — or, more robustly, rebuild the projection
+atomically each run (mirroring the same staging+swap discipline
+ingestion already uses, applied to this table instead). Which of those
+two shapes is the actual right one is *implementation* detail for the
+next document, not decided here.
+
+**3. Taxonomy-change reconciliation — not ignored. Named as an
+official FASA 4.2.2 gap.** This is larger than it first looks:
+`edition_story_classifications.field` is plain `TEXT`, not tied to any
+canonical taxonomy list — the database has no way to know `"Malaysia"`
+is a deprecated field name once an edition's taxonomy renames it to
+`"Nasional"`. Nothing breaks technically (FK/CHECK constraints are
+still satisfied), but a reader could be served a category that no
+longer semantically exists. **Decision: taxonomy changes require an
+explicit migration plan — never a bare relabeling.** Recorded as a
+named future gap (FASA 4.2.2), not solved now.
+
 ## What this document does NOT do
 
 - No code written, no migration, no schema change
@@ -105,7 +154,8 @@ above it.
 
 ## Next
 
-Per ChatGPT's explicit instruction: stop here and present the open
-decisions above — do not proceed to implementation. Old Table
-Lifecycle Policy v2 is the next document in the stated order, only
-after this one is reviewed.
+Approved. Old Table Lifecycle Policy v2 is next, per ChatGPT's own
+reasoning: Old Table Lifecycle answers "how long do we keep the old
+generation," but Classification Lifecycle answers the more basic
+question "is the new generation itself trustworthy" — the second has
+to be settled first.
