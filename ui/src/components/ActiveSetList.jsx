@@ -47,7 +47,12 @@ export default function ActiveSetList({ activeSet, sourceNames, highlightedStory
         aria-label={t(locale, 'loading')}
       >
         {Array.from({ length: activeSetCapacity }, (_, i) => (
-          <div className="story-card-skeleton" key={i} />
+          <div className="story-card-skeleton" key={i}>
+            <div className="story-card-skeleton__bar story-card-skeleton__bar--meta" />
+            <div className="story-card-skeleton__bar story-card-skeleton__bar--title" />
+            <div className="story-card-skeleton__bar story-card-skeleton__bar--title-short" />
+            <div className="story-card-skeleton__bar story-card-skeleton__bar--footer" />
+          </div>
         ))}
       </div>
     );

@@ -292,34 +292,57 @@ body {
 .story-card:active { cursor: grabbing; }
 .story-card--highlighted { background: rgba(122, 59, 46, 0.05); }
 
-/* Loading skeleton (2026-08-16, Izzat live report) — fills the same
-   fixed-row grid a real story-card slot would, so nothing reflows once
-   real data arrives. Respects prefers-reduced-motion (no pulse, just a
-   static muted block) since this is a content-loading indicator, not a
-   deliberate animation. */
+/* Loading skeleton (2026-08-16, Izzat live report — "standard mcm
+   Facebook, Instagram"). Fills the same fixed-row grid a real story-card
+   slot would (no reflow once real data arrives), and shapes each slot
+   like the actual card it stands in for: a short meta line, two title
+   lines, a short source line — not one undifferentiated block. The
+   moving diagonal gradient sweep is the standard shimmer pattern (same
+   technique Facebook/Instagram/LinkedIn skeletons use): a lighter band
+   travels left-to-right across each bar on a loop, giving a sense of
+   active loading rather than a static "something is missing" block.
+   Falls back to a gentle opacity pulse under prefers-reduced-motion. */
 .story-card-skeleton {
   min-height: 0;
-  margin: 4px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 0;
   border-bottom: 1px solid var(--hairline);
-  position: relative;
-  overflow: hidden;
 }
-.story-card-skeleton::before {
-  content: '';
-  position: absolute;
-  inset: 8px 0;
-  background: var(--hairline);
-  border-radius: 3px;
-  opacity: 0.5;
+.story-card-skeleton__bar {
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(
+    100deg,
+    var(--hairline) 30%,
+    #f2f0ea 50%,
+    var(--hairline) 70%
+  );
+  background-size: 220% 100%;
 }
+.story-card-skeleton__bar--meta { width: 30%; height: 8px; }
+.story-card-skeleton__bar--title { width: 92%; height: 13px; }
+.story-card-skeleton__bar--title-short { width: 55%; height: 13px; }
+.story-card-skeleton__bar--footer { width: 25%; height: 8px; margin-top: 2px; }
+
 @media (prefers-reduced-motion: no-preference) {
-  .story-card-skeleton::before {
-    animation: skeleton-pulse 1.4s ease-in-out infinite;
+  .story-card-skeleton__bar {
+    animation: skeleton-shimmer 1.6s ease-in-out infinite;
   }
+  /* Staggered per bar so the sweep doesn't move in lockstep across the
+     whole card — closer to how real shimmer skeletons read. */
+  .story-card-skeleton__bar--title { animation-delay: 0.08s; }
+  .story-card-skeleton__bar--title-short { animation-delay: 0.16s; }
+  .story-card-skeleton__bar--footer { animation-delay: 0.24s; }
 }
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 0.6; }
+@media (prefers-reduced-motion: reduce) {
+  .story-card-skeleton__bar { opacity: 0.6; }
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -20% 0; }
 }
 
 .story-card__meta {
