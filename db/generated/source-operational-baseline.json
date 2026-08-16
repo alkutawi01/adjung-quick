@@ -1,0 +1,393 @@
+{
+  "capturedAt": "2026-08-16T16:07:40.527Z",
+  "rowCount": 43,
+  "rows": [
+    {
+      "id": "rss-aljazeera-ar",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-aljazeera-en",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-amanz",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-astro-awani",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-awani-bisnes",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-awani-dunia",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-awani-gayahidup",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-awani-hiburan",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-awani-nasional",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-awani-politik",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-awani-sukan",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-bbc-arabic",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-bbc-world",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-beritaharian",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-bernama-bm",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-bernama-en",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-guardian-world",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-ikim",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-jaipp",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-jakim-berita",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-jakim-kenyataan",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-kosmo",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-kosmo-hiburan",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-kpm",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-metro",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-metro-arena",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-metro-bisnes",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-metro-global",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-metro-rap",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-mosti",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-rtm-dunia",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-rtm-ekonomi",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-rtm-hiburan",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-rtm-jenayah",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-rtm-nasional",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-rtm-sukan",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-utusan",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-utusan-agama",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-utusan-ekonomi",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-utusan-politik",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-utusan-sukan",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-utusanborneo-sabah",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    },
+    {
+      "id": "rss-utusanborneo-sarawak",
+      "coverage": null,
+      "last_success_at": null,
+      "last_failure_at": null,
+      "last_failure_reason": null,
+      "active": true,
+      "created_at": "2026-08-15T10:57:27.304399+00:00"
+    }
+  ]
+}
