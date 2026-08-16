@@ -75,9 +75,17 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
       // approved by ChatGPT 2026-08-16) — global keyword exclude/except
       // list, entirely separate from story_overrides and classification.
       // Not edition-scoped (V1 is global-only, per explicit instruction).
-      supabase.from('editorial_filter_rules')
-        .select('id, rule_type, phrase')
-        .eq('active', true),
+      //
+      // Queries public_active_filter_rules (a narrow VIEW,
+      // db/schema-public-active-filter-rules-view.sql), NOT
+      // editorial_filter_rules directly — found live 2026-08-16: that
+      // table's RLS is signed-in-editors-only (same posture as
+      // story_overrides), so the anon reader client got "permission
+      // denied". Same fix shape as public_active_overrides — a view that
+      // exposes only rule_type/phrase for active rows, never
+      // reason/created_by.
+      supabase.from('public_active_filter_rules')
+        .select('id, rule_type, phrase'),
     ]);
 
   if (sourcesErr) throw new Error(`fetchRankedQueue: sources — ${sourcesErr.message}`);
