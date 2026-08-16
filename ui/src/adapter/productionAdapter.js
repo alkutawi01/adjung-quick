@@ -12,6 +12,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { resolveStoryField } from '../../../state/editorialStateResolver.mjs';
+import { resolveEditorialFilterForStory } from '../../../state/editorialFilterResolver.mjs';
 
 // import.meta.env only exists under Vite — guarded so this module can also
 // be imported by plain-Node scripts (e.g. the acceptance test) that only
@@ -37,7 +38,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // `World` for en-global — that divergence is the Edition Architecture
 // working, not a data inconsistency.
 export async function fetchRankedQueue(editionId = 'ms-MY') {
-  const [{ data: sources, error: sourcesErr }, { data: clusters, error: clustersErr }, { data: items, error: itemsErr }, { data: placements, error: placementsErr }, { data: overrides, error: overridesErr }] =
+  const [{ data: sources, error: sourcesErr }, { data: clusters, error: clustersErr }, { data: items, error: itemsErr }, { data: placements, error: placementsErr }, { data: overrides, error: overridesErr }, { data: filterRules, error: filterRulesErr }] =
     await Promise.all([
       supabase.from('sources').select('id, trust_score'),
       supabase.from('story_clusters').select('id, topic, editorial_score, workspace_state'),
@@ -70,6 +71,13 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
       supabase.from('public_active_overrides')
         .select('id, story_id, override_type, new_field, created_at')
         .eq('edition_id', editionId),
+      // Editorial Filter Rules V1 (docs/editorial-filter-rules-design-v1.md,
+      // approved by ChatGPT 2026-08-16) — global keyword exclude/except
+      // list, entirely separate from story_overrides and classification.
+      // Not edition-scoped (V1 is global-only, per explicit instruction).
+      supabase.from('editorial_filter_rules')
+        .select('id, rule_type, phrase')
+        .eq('active', true),
     ]);
 
   if (sourcesErr) throw new Error(`fetchRankedQueue: sources — ${sourcesErr.message}`);
@@ -77,15 +85,16 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
   if (itemsErr) throw new Error(`fetchRankedQueue: rss_items — ${itemsErr.message}`);
   if (placementsErr) throw new Error(`fetchRankedQueue: edition_story_classifications — ${placementsErr.message}`);
   if (overridesErr) throw new Error(`fetchRankedQueue: public_active_overrides — ${overridesErr.message}`);
+  if (filterRulesErr) throw new Error(`fetchRankedQueue: editorial_filter_rules — ${filterRulesErr.message}`);
 
-  return mapRowsToRankedQueue({ sources, clusters, items, placements, overrides });
+  return mapRowsToRankedQueue({ sources, clusters, items, placements, overrides, filterRules });
 }
 
 // Pure reshape, split out from fetchRankedQueue so the edition-placement
 // mapping (the exact thing the Production Classification Acceptance Test
 // needs to guard) is testable without a live Supabase call — see
 // db/production-classification-acceptance.test.mjs.
-export function mapRowsToRankedQueue({ sources, clusters, items, placements, overrides = [] }) {
+export function mapRowsToRankedQueue({ sources, clusters, items, placements, overrides = [], filterRules = [] }) {
   const placementByStory = new Map(placements.map(p => [p.story_id, p]));
 
   // FASA 3.6.3a: active story_overrides, grouped by story — the SAME
@@ -126,6 +135,13 @@ export function mapRowsToRankedQueue({ sources, clusters, items, placements, ove
       // representative_rss_item_id already enforces this at insert time;
       // re-deriving here keeps the adapter correct even if that column isn't selected).
       const canonical = [...members].sort((a, b) => new Date(a.publishedAt) - new Date(b.publishedAt))[0];
+      // Editorial Filter Rules V1: applied BEFORE field resolution — a
+      // filtered-out story never needs field resolution. Reader-facing
+      // only (docs/editorial-filter-rules-design-v1.md §3); Review Queue
+      // deliberately keeps filtered stories visible with a label instead
+      // (reviewQueueAdapter.js), so this exclusion is NOT reused there.
+      const filterResult = canonical ? resolveEditorialFilterForStory(canonical, filterRules) : { keep: true };
+      if (!filterResult.keep) return null;
       const placement = placementByStory.get(c.id);
       // FASA 3.6.3a: fold in any active editorial override BEFORE the topic
       // is decided. A hidden story reuses the exact same "topic: null"
@@ -172,6 +188,7 @@ export function mapRowsToRankedQueue({ sources, clusters, items, placements, ove
         sourceIds: new Set(members.map(m => m.sourceId)),
       };
     })
+    .filter(Boolean) // drop editorial-filter-excluded clusters (returned null above)
     .filter(c => c.canonical) // drop any cluster with no fetched items (shouldn't happen, defensive)
     .sort((a, b) => b.editorialScore - a.editorialScore);
 

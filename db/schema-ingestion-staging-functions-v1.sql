@@ -404,8 +404,11 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  DROP TABLE IF EXISTS rss_items_old;
+  -- story_clusters_old.fk_representative_rss_item references rss_items_old
+  -- (found live 2026-08-16: dropping rss_items_old first fails with 2BP01
+  -- "other objects depend on it") — drop the referencing table first.
   DROP TABLE IF EXISTS story_clusters_old;
+  DROP TABLE IF EXISTS rss_items_old;
   DROP TABLE IF EXISTS sources_old;
   NOTIFY pgrst, 'reload schema';
 END;

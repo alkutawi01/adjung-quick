@@ -12,6 +12,7 @@
 // authenticated session, not the anonymous reader client.
 
 import { canPerformAction } from '../../../db/editor-auth.mjs';
+import { resolveEditorialFilterForStory } from '../../../state/editorialFilterResolver.mjs';
 
 // reason_code -> display_reason, per docs/review-queue-spec-v1.md's
 // translation table. Only the two v1-supported codes are here — see the
@@ -20,6 +21,13 @@ const REASON_DISPLAY = {
   low_confidence: 'Sistem belum pasti bidang yang sesuai.',
   no_evidence: 'Sistem tidak jumpa petunjuk untuk letak berita ini dalam mana-mana bidang.',
 };
+
+// Editorial Filter Rules V1 (docs/editorial-filter-rules-design-v1.md,
+// approved by ChatGPT 2026-08-16): a story excluded by a keyword rule is
+// audit-visible here, NOT action_required — this reasonCode is deliberately
+// excluded from `needsAttention` counting below. Purpose is transparency
+// (why did a reader-visible story drop to 0), not asking the admin to
+// resolve anything.
 
 // story_overrides.expires_at is NOT NULL (db/schema-editorial-state.sql) —
 // per this project's own established content lifecycle, news has a ~1 week
@@ -121,6 +129,63 @@ export async function fetchReviewQueue(supabase, editionId) {
     .filter(Boolean)
     // Most recent first, per docs/review-queue-spec-v1.md's ordering rule.
     .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+}
+
+// Editorial Filter Rules V1 (docs/editorial-filter-rules-design-v1.md,
+// approved by ChatGPT 2026-08-16). Deliberately SEPARATE from
+// fetchReviewQueue()/fetchDigest()'s `needsAttention` — a keyword-excluded
+// story is audit-visible, never action-required, so it must never be
+// counted alongside genuine classification issues. Callers render this as
+// its own labelled section, not merged into the main queue array.
+export async function fetchEditorialFilterMatches(supabase, editionId) {
+  const [
+    { data: clusters, error: clustersErr },
+    { data: items, error: itemsErr },
+    { data: sources, error: sourcesErr },
+    { data: filterRules, error: filterRulesErr },
+  ] = await Promise.all([
+    supabase.from('story_clusters').select('id, workspace_state'),
+    supabase.from('rss_items').select('cluster_id, source_id, title, description, published_at'),
+    supabase.from('sources').select('id, name'),
+    supabase.from('editorial_filter_rules').select('id, rule_type, phrase').eq('active', true),
+  ]);
+  if (clustersErr) throw new Error(`fetchEditorialFilterMatches: story_clusters — ${clustersErr.message}`);
+  if (itemsErr) throw new Error(`fetchEditorialFilterMatches: rss_items — ${itemsErr.message}`);
+  if (sourcesErr) throw new Error(`fetchEditorialFilterMatches: sources — ${sourcesErr.message}`);
+  if (filterRulesErr) throw new Error(`fetchEditorialFilterMatches: editorial_filter_rules — ${filterRulesErr.message}`);
+  if (filterRules.length === 0) return [];
+
+  const liveClusterIds = new Set(
+    clusters.filter(c => c.workspace_state !== 'expired' && c.workspace_state !== 'released').map(c => c.id),
+  );
+  const sourceNameById = new Map(sources.map(s => [s.id, s.name]));
+  const itemsByCluster = new Map();
+  for (const row of items) {
+    if (!itemsByCluster.has(row.cluster_id)) itemsByCluster.set(row.cluster_id, []);
+    itemsByCluster.get(row.cluster_id).push(row);
+  }
+
+  const matches = [];
+  for (const clusterId of liveClusterIds) {
+    const members = itemsByCluster.get(clusterId) || [];
+    const canonical = [...members].sort((a, b) => new Date(a.published_at) - new Date(b.published_at))[0];
+    if (!canonical) continue;
+    const result = resolveEditorialFilterForStory({ title: canonical.title, description: canonical.description }, filterRules);
+    if (result.keep) continue;
+    matches.push({
+      storyId: clusterId,
+      title: canonical.title,
+      sourceName: sourceNameById.get(canonical.source_id) ?? canonical.source_id,
+      publishedAt: canonical.published_at,
+      // Deliberately distinct shape from fetchReviewQueue()'s rows — no
+      // reasonCode from REASON_DISPLAY, no field, and NOT action-required.
+      filteredByPhrase: result.phrase,
+      displayLabel: 'Ditapis oleh kata kunci',
+      actionRequired: false,
+    });
+  }
+
+  return matches.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 }
 
 // FASA 3.6.4 Admin Digest. Per docs/admin-digest-implementation-plan-v1.md
