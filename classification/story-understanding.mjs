@@ -21,9 +21,22 @@ import { extractBernamaPrefix } from './lib/bernama-prefix.mjs';
 
 // Tier base confidences — RANKING STRENGTH, not real probabilities. A 0.9
 // here means "trust this more than a 0.4", not "90% chance this is true".
+//
+// url_path > publisher_declared (2026-08-16, per Izzat's explicit product
+// rule + ChatGPT's approval, confidence 0.98): found live — RTM's
+// "specialised" feeds (rss.app relay) declare a single category per feed
+// (e.g. rss-rtm-hiburan) but the underlying items are NOT purely that
+// category (81% of rss-rtm-hiburan items were, by their own URL, actually
+// jenayah/nasional/ekonomi/etc — a rasuah/court story appeared under
+// "Hiburan" this way). The item's own URL is ground truth for what RTM
+// itself classified it as; a feed's blanket declared category is a
+// weaker, aggregate-level signal that can be wrong per-item. This only
+// changes the OUTCOME when the two tiers genuinely disagree on subject —
+// when url_path has no hit, publisher_declared still wins by default,
+// unchanged from before.
 const TIER_CONFIDENCE = {
-  publisher_declared: 0.90,
-  url_path: 0.75,
+  url_path: 0.90,
+  publisher_declared: 0.75,
   rss_category: 0.70,
   title_keyword: 0.40,
 };

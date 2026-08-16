@@ -17,7 +17,7 @@
 export const SUBJECT_VOCABULARY = {
   // --- ms-MY ---
   'politik': 'Politics', 'nasional/politik': 'Politics', 'berita-politik': 'Politics',
-  'jenayah': 'Crime',
+  'jenayah': 'Crime', 'kes': 'Crime', // 'kes' added 2026-08-16 — RTM uses both /jenayah/ and /kes/ URL paths for crime/court stories (Izzat found /kes/ live)
   'ekonomi': 'Economy',
   'bisnes': 'Business', 'berita-bisnes': 'Business',
   'sukan': 'Sports', 'berita-sukan': 'Sports', 'arena': 'Sports',
