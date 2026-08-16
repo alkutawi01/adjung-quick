@@ -6,17 +6,29 @@
 //
 // This script automates what CAN be checked mechanically (row counts,
 // FK-dangling references) and clearly prints what it cannot (reader/
-// admin visual normalcy, "at least one more successful ingestion cycle
-// since this swap") — it refuses to drop unless every automatable check
-// passes AND the human explicitly confirms the rest via env var, same
-// two-key discipline production-write-guard.mjs already uses elsewhere.
+// admin visual normalcy) — it refuses to drop unless every automatable
+// check passes AND the human explicitly confirms the rest via env var,
+// same two-key discipline production-write-guard.mjs already uses
+// elsewhere.
+//
+// Governance v3 update (docs/old-table-lifecycle-policy-v3-review-v1.md,
+// approved by ChatGPT 2026-08-16): for the `_old` generation produced by
+// the FIRST migration swap specifically, the original "at least one
+// MORE ingestion cycle has succeeded since this swap" precondition does
+// NOT apply — it is circular under the V1 single-generation guard (the
+// only thing blocking a second swap from succeeding is this `_old`'s own
+// presence). That precondition remains mandatory for every future
+// generation once daily ingestion (Track B) exists. Classification
+// projection consistency (the other original concern) is separately
+// satisfied — see below.
 //
 // Usage: node db/drop-ingestion-old-tables.mjs
 //   Requires: DATABASE_ENV=production CONFIRM_PRODUCTION_WRITE=true
 //             CONFIRM_OLD_TABLES_VERIFIED=true (asserts the human has
-//             already confirmed reader/admin normalcy AND a second
-//             successful ingestion cycle since this swap, per the
-//             checklist in the plan doc — this script cannot see either)
+//             already confirmed reader/admin normalcy AND all of Track
+//             A's applicable preconditions — NOT a subsequent ingestion
+//             cycle for this specific migration-era generation, see
+//             above. This script cannot see reader/admin normalcy.)
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
@@ -40,11 +52,11 @@ async function main() {
     console.error('Refusing to drop: CONFIRM_OLD_TABLES_VERIFIED=true is required.');
     console.error('');
     console.error('This asserts YOU have already confirmed, by hand, per');
-    console.error('docs/ingestion-staging-swap-implementation-plan-v1.md §4b:');
+    console.error('docs/old-table-lifecycle-policy-v3-review-v1.md (Track A):');
     console.error('  - Reader (/) and admin (Review Queue, Digest, Timeline) look normal');
-    console.error('  - At least one MORE ingestion cycle has succeeded since this swap');
-    console.error('This script cannot see either of those — it only checks what a');
-    console.error('database query can prove.');
+    console.error('This script cannot see that — it only checks what a database query');
+    console.error('can prove. (A subsequent ingestion cycle is NOT required for this');
+    console.error('migration-era _old — see the governance v3 note atop this file.)');
     process.exit(1);
   }
 
