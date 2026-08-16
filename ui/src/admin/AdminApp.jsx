@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule } from './reviewQueueAdapter.js';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
 import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID } from '../../../state/editions.js';
 import ReviewQueueCard from './ReviewQueueCard.jsx';
+import FilterRulesManager from './FilterRulesManager.jsx';
 
 // Editorial Desk shell — per docs/editorial-desk-shell-implementation-plan-v1.md.
 // Four sections, container/navigation only — no new writable action here.
@@ -135,6 +136,35 @@ function ReviewQueue({ userId, role }) {
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState(null);
   const [activeSection, setActiveSection] = useState('hari-ini');
+  const [filterRules, setFilterRules] = useState(null); // null = not loaded yet
+  const [filterRulesError, setFilterRulesError] = useState(null);
+  const [filterRulesBusy, setFilterRulesBusy] = useState(false);
+
+  const loadFilterRules = useCallback(() => {
+    setFilterRulesError(null);
+    fetchFilterRules(adminSupabase)
+      .then(setFilterRules)
+      .catch(err => setFilterRulesError(err.message));
+  }, []);
+
+  // Lazy: only queried once the admin actually opens "Keputusan
+  // Editorial" — not edition-scoped (V1 is global-only), so no need to
+  // re-fetch on editionId changes, unlike the queue/digest above.
+  useEffect(() => {
+    if (activeSection === 'keputusan' && filterRules === null) loadFilterRules();
+  }, [activeSection, filterRules, loadFilterRules]);
+
+  const runFilterRuleAction = async action => {
+    setFilterRulesBusy(true);
+    try {
+      await action();
+      loadFilterRules();
+    } catch (err) {
+      setFilterRulesError(err.message);
+    } finally {
+      setFilterRulesBusy(false);
+    }
+  };
 
   const load = useCallback(() => {
     setEntries(null);
@@ -240,6 +270,26 @@ function ReviewQueue({ userId, role }) {
 
       {activeSection === 'keputusan' && (
         <section className="editorial-desk__section editorial-desk__keputusan">
+          {/* Editorial Filter Rules V1 — the one REAL, wired-up card here,
+              per docs/editorial-filter-rules-design-v1.md and ChatGPT's
+              2026-08-16 instruction to build this before dropping *_old. */}
+          {filterRulesError && <p className="review-queue__error">{filterRulesError}</p>}
+          {filterRules === null && !filterRulesError && (
+            <p className="admin-app__status">Memuatkan...</p>
+          )}
+          {filterRules !== null && (
+            <FilterRulesManager
+              rules={filterRules}
+              busy={filterRulesBusy}
+              onAdd={({ ruleType, phrase, reason }) => runFilterRuleAction(() =>
+                addFilterRule(adminSupabase, { ruleType, phrase, reason, createdBy: userId, role }))}
+              onToggle={(id, active) => runFilterRuleAction(() =>
+                setFilterRuleActive(adminSupabase, id, active, role))}
+              onDelete={id => runFilterRuleAction(() =>
+                deleteFilterRule(adminSupabase, id, role))}
+            />
+          )}
+
           {/* Per docs/editorial-desk-shell-implementation-plan-v1.md §4: honest
               "belum tersedia" cards, never a button that looks clickable but
               fails. No interactive control here fires a real request. */}

@@ -11,7 +11,7 @@
 // (via the "is this story already resolved" exclusion) must go through an
 // authenticated session, not the anonymous reader client.
 
-import { canPerformAction } from '../../../db/editor-auth.mjs';
+import { canPerformAction, isAdmin } from '../../../db/editor-auth.mjs';
 import { resolveEditorialFilterForStory } from '../../../state/editorialFilterResolver.mjs';
 
 // reason_code -> display_reason, per docs/review-queue-spec-v1.md's
@@ -190,6 +190,52 @@ export async function fetchEditorialFilterMatches(supabase, editionId) {
   }
 
   return matches.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+}
+
+// Editorial Filter Rules V1 management (Editorial Desk > Keputusan
+// Editorial), per docs/editorial-filter-rules-design-v1.md and ChatGPT's
+// 2026-08-16 instruction to build this before dropping any *_old table.
+//
+// Admin-only, checked here (same choke-point discipline as writeOverride()
+// below) — per db/editor-auth.mjs's own Principle of Escalation, a global
+// keyword rule affects every future story across every edition, the same
+// "impact compounds" class as source_overrides' ADMIN_ONLY_ACTIONS, even
+// though it isn't itself an override_type value canPerformAction() knows
+// about. RLS on editorial_filter_rules is signed-in-editor, matching
+// story_overrides' posture — this is the actual admin boundary.
+
+export async function fetchFilterRules(supabase) {
+  // ALL rows, not just active — an admin managing rules needs to see and
+  // re-toggle inactive ones too, unlike fetchEditorialFilterMatches()
+  // above (which only ever needs active rules to evaluate stories).
+  const { data, error } = await supabase
+    .from('editorial_filter_rules')
+    .select('id, rule_type, phrase, reason, active, created_at')
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(`fetchFilterRules: editorial_filter_rules — ${error.message}`);
+  return data;
+}
+
+export async function addFilterRule(supabase, { ruleType, phrase, reason, createdBy, role }) {
+  if (!isAdmin(role)) throw new Error(`Menambah rule penapisan memerlukan peranan admin. Peranan anda: ${role ?? 'tiada'}.`);
+  const trimmed = phrase.trim();
+  if (!trimmed) throw new Error('Kata/frasa tidak boleh kosong.');
+  const { error } = await supabase
+    .from('editorial_filter_rules')
+    .insert({ rule_type: ruleType, phrase: trimmed, reason: reason?.trim() || null, created_by: createdBy });
+  if (error) throw new Error(`addFilterRule: editorial_filter_rules — ${error.message}`);
+}
+
+export async function setFilterRuleActive(supabase, id, active, role) {
+  if (!isAdmin(role)) throw new Error(`Menukar status rule memerlukan peranan admin. Peranan anda: ${role ?? 'tiada'}.`);
+  const { error } = await supabase.from('editorial_filter_rules').update({ active }).eq('id', id);
+  if (error) throw new Error(`setFilterRuleActive: editorial_filter_rules — ${error.message}`);
+}
+
+export async function deleteFilterRule(supabase, id, role) {
+  if (!isAdmin(role)) throw new Error(`Membuang rule memerlukan peranan admin. Peranan anda: ${role ?? 'tiada'}.`);
+  const { error } = await supabase.from('editorial_filter_rules').delete().eq('id', id);
+  if (error) throw new Error(`deleteFilterRule: editorial_filter_rules — ${error.message}`);
 }
 
 // FASA 3.6.4 Admin Digest. Per docs/admin-digest-implementation-plan-v1.md
