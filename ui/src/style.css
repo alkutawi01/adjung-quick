@@ -438,7 +438,14 @@ body {
    docs/review-queue-ui-implementation-plan-v1.md §4's one-card-one-decision
    layout. --- */
 .admin-app {
-  min-height: 100dvh;
+  /* Fixed height (not min-height), so overflow-y:auto has a real bound to
+     scroll within — the reader's `body { overflow: hidden }` (custom Wheel
+     gesture, deliberately no native page scroll) applies globally, so a
+     bare min-height here let admin content grow taller than the viewport
+     with nowhere to scroll: it just overflowed the fixed body and got
+     silently clipped. Found live 2026-08-16 — Izzat: "tak boleh scroll"
+     on the Aliran RSS table, which has 40+ rows. */
+  height: 100dvh;
   overflow-y: auto;
   padding: 20px 16px 60px;
   max-width: 640px;
