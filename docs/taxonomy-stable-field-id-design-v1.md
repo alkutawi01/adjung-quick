@@ -192,21 +192,145 @@ Field
 └── label  ← 'Jenayah', 'Kesalahan & Jenayah', … — freely editable, per edition/locale
 ```
 
-## 3. Scenarios the design must answer (not just "rename")
+## 3. Taxonomy vs Classification Rule — two separate concepts, per ChatGPT's explicit correction
+
+**Locked distinction, must not be blurred:**
+
+```
+Taxonomy               "What Bidang/fields EXIST?"
+  crime → Jenayah
+
+Classification Rule    "WHEN should a story get that field?"
+  /jenayah/ → crime
+```
+
+This design (`taxonomy-stable-field-id-design-v1.md`) answers only the
+first question. The second — an admin-editable "URL pattern → field"
+rule, the mechanism Izzat independently proposed ("`/mutakhir/` = kod
+A, kod A = label Umum") and that matches ChatGPT's earlier-sketched
+"Classification Rules" family — is a **separate, later feature**, not
+part of this migration. Mixing them here would let migration scope
+expand indefinitely. `desk-vocabulary.mjs`'s `SUBJECT_VOCABULARY`
+remains the (currently hardcoded, not admin-editable) mechanism that
+answers the second question today — this design does not change that,
+only gives its OUTPUT (a Universal Subject / field) a stable identity
+to land on.
+
+## 4. Rename vs Merge vs Split — different classes of change, not one "taxonomy edit" operation
+
+**Rename — metadata-only, zero data migration:**
+```
+politics → politics   (id unchanged)
+label: Politik → Politik & Kerajaan
+```
+No `edition_story_classifications` row is touched. Every consumer
+that stores/compares `field_code` keeps working unmodified — only
+display-layer label lookups change.
+
+**Merge — genuine data migration, requires an explicit remapping:**
+```
+science
+technology
+       ↓
+science_technology
+```
+Existing rows carrying the old ids must be rewritten to the new id.
+This is real production data work (batch update + verification +
+rollback plan), not a metadata edit, even with stable ids in place.
+
+**Split — cannot be automated, requires an explicit editorial decision per row:**
+```
+science
+   ↓
+science
+environment
+```
+The system has no way to know which existing "science" stories should
+become "environment" — there is no automatic answer. A split must be
+named as a manual-effort case requiring a human (editor) decision per
+affected story, or a one-time re-classification pass with new evidence
+— never a silent/automatic remap.
+
+**Design implication:** the migration/implementation document (next
+step, not this one) must clearly separate two kinds of change:
+**taxonomy metadata change** (rename — safe, cheap, no data touched)
+vs **classification data migration** (merge/split — real production
+data work, needs its own plan, checklist, and rollback path, same
+discipline this project already applies to `_old`/ingestion swaps).
+
+## 5. Scope of `field_code`: global canonical identity, or per-edition membership?
+
+**Real question, not yet decided — audited, not assumed.**
+
+Per ChatGPT: should `field_code` be a single canonical identity shared
+across `ms-MY`/`en-global`/`ar-global`, or should each edition own an
+entirely independent `(edition, field_code)` namespace?
+
+**Audit finding: the codebase already has a de facto answer, just not
+formalized.** `classification/lib/edition-taxonomy.mjs`'s
+`default_mapping` field already expresses a cross-edition relationship
+today:
+
+```js
+// ms-MY
+{ label: 'Politik', default_mapping: ['Politics'] },
+{ label: 'Bisnes', default_mapping: ['Business', 'Economy'] }, // LOCKED merge — real ms-MY portals don't split these
+
+// en-global
+{ label: 'Business', default_mapping: ['Business'] },
+{ label: 'Economy', default_mapping: ['Economy'] }, // BBC/Guardian both split these — no merge for en
+```
+
+The **Universal Subject** vocabulary (`'Politics'`, `'Business'`,
+`'Economy'`, `'Crime'`, …, from `desk-vocabulary.mjs`'s
+`SUBJECT_VOCABULARY`) is already, in effect, a cross-edition canonical
+layer — every edition's per-locale field is defined as a mapping FROM
+one or more Universal Subject values. Critically, this mapping is
+**not always 1:1**: `ms-MY`'s "Bisnes" already collapses BOTH
+`Business` and `Economy` into one field, while `en-global` keeps them
+as two separate fields. This is a real, already-locked editorial
+decision (comment: "real ms-MY portals don't split these"), not a bug.
+
+**Recommendation, matching ChatGPT's stated preference, confirmed by
+this evidence:** `field_code` should sit at (or be derived 1:1 from)
+the Universal Subject layer — a **global canonical identity** — with
+each edition separately owning (a) which subjects it exposes as a
+Bidang at all, (b) whether it collapses multiple subjects into one
+Bidang or keeps them split, and (c) what label to display. Concretely:
+
+```
+crime                          ← global canonical field_code
+├── ms-MY:      label "Jenayah",  exposed
+├── en-global:  label "Crime",    exposed
+└── ar-global:  label "جرائم",    exposed
+
+business_economy               ← ms-MY's merged code (or: ms-MY maps
+├── ms-MY:      label "Bisnes",     both 'business' and 'economy' to
+                exposed              one Bidang — exact mechanism TBD)
+```
+
+**Not yet locked** — per ChatGPT's own framing, this needs one more
+pass once the exact mechanism for "one edition merges two global codes
+into one Bidang" is chosen (a single merged `field_code` per edition
+vs. an edition-level grouping table over global codes). Flagged
+explicitly as an open question for the next review, not resolved here.
+
+## 6. Scenarios the design must answer
 
 | Scenario | What must hold |
 |---|---|
-| **Rename** (`Jenayah` → `Kesalahan & Jenayah`) | `id: crime` unchanged; only `label` changes; all 491 existing rows, `rankingFlags.js`, pins, filter (if ever field-scoped) keep working with zero data migration — only display-layer lookups need the new label |
-| **Merge** (`Sains` + `Teknologi` → `Sains & Teknologi`) | Requires an explicit id-remapping table (`science` → `science_tech`, `technology` → `science_tech`) and a real one-time data migration over existing `field`/`new_field` rows — this is NOT free even with stable ids, must be designed as its own migration step |
-| **Split** (one field becomes two) | The inverse of merge — requires either re-classification of existing rows (expensive, needs new evidence) or an explicit admin decision per existing row; no automatic answer, must be named as a manual-effort case, not solved generically |
-| **Delete/deprecate** | An id can be marked deprecated (`active: false` on the taxonomy entry) without deleting historical rows — existing classified stories keep their `field_id`, simply stop being offered as a choice for NEW classification/reclassify actions |
-| **Alias** (e.g. `kes` added as a second RTM URL-path alias for Crime, done 2026-08-16 in `desk-vocabulary.mjs`) | Aliases are an EVIDENCE-layer concept (multiple tokens mapping to one Universal Subject), already correctly handled today via `SUBJECT_VOCABULARY`'s many-to-one shape — this is NOT the same problem as taxonomy id/label and needs no new mechanism |
-| **Ranking activation** (`rankingFlags.js`'s `'ms-MY.Politik'`) | Must key on `field_id` (`'ms-MY.crime'`... or rather `'ms-MY.politics'`), never on the mutable label, so a rename never silently deactivates a ranking pilot |
-| **Editorial Filter** (currently field-blind, may want field-scoping later) | If field-scoping is ever added to Filter Rules (not in V1), it must reference `field_id` from day one — never retrofit a label-based column that would repeat this exact problem |
-| **Pin's `new_field`** | Must migrate to `new_field_id` alongside reclassify's same column (they share it) — governance-limit queries (`reviewQueueAdapter.js:428`) must compare `field_id`, not label, so a rename never silently doubles the pin cap |
-| **Existing 491 `edition_story_classifications` rows** | A live migration pass converting stored labels to stable ids is required — this is real production data work, not a schema-only change, and needs its own careful plan (batch update, verification, rollback) separate from this design doc |
+| **Rename** (`Jenayah` → `Kesalahan & Jenayah`) | Metadata-only per §4 — `field_code: crime` unchanged; only `label` changes; all 491 existing rows, `rankingFlags.js`, pins, filter (if ever field-scoped) keep working with zero data migration |
+| **Merge** (`Sains` + `Teknologi` → `Sains & Teknologi`) | Real data migration per §4 — explicit id-remapping table (`science` → `science_tech`, `technology` → `science_tech`) and a one-time migration pass over existing `field`/`new_field` rows |
+| **Split** (one field becomes two) | Cannot be automated per §4 — explicit editorial decision or re-classification pass required, never a silent remap |
+| **Delete/deprecate** | A `field_code` can be marked deprecated (`active: false`) without deleting historical rows — existing classified stories keep their `field_code`, simply stop being offered as a choice for NEW classification/reclassify actions |
+| **Alias** | An EVIDENCE-layer concept (multiple URL/RSS tokens mapping to one Universal Subject), already correctly handled today via `SUBJECT_VOCABULARY`'s many-to-one shape — NOT part of this design, no new mechanism needed here |
+| **Classification Rule** (admin-editable "URL pattern → field") | Explicitly OUT OF SCOPE for this migration per §3 — a separate, later feature that will TARGET a `field_code` once one exists, not something this design builds |
+| **Ranking activation** (`rankingFlags.js`'s `'ms-MY.Politik'`) | Must key on `field_code` (`'ms-MY.crime'`), never the mutable label, so a rename never silently deactivates a ranking pilot |
+| **Editorial Filter** (currently field-blind) | Confirmed no field-scoping exists today (§1f) — if ever added, must reference `field_code` from day one |
+| **Pin's `new_field`** | Must migrate to `new_field_code` alongside reclassify's same column (they share it) — governance-limit queries (`reviewQueueAdapter.js:428`) must compare `field_code`, not label |
+| **Existing 491 `edition_story_classifications` rows** | A live migration pass converting stored labels to stable codes is required — real production data work, its own careful plan (batch update, verification, rollback), separate from this design doc |
 
-## 4. Two independent taxonomy lists — must be resolved as part of this work
+## 7. Two independent taxonomy lists — must be resolved as part of this work
 
 Beyond the rename/merge problem itself, §1a's finding stands on its
 own: `state/editions.js` and `classification/lib/edition-taxonomy.mjs`
@@ -230,11 +354,16 @@ duplication.
   `editions.js`, or any consumer listed in §1
 - Does not resolve the merge/split scenarios' specific remapping
   tables — named as required future work, not solved here
+- **Does not build Classification Rules** (admin-editable "URL pattern
+  → field") — explicitly out of scope per §3, a separate later feature
+- Does not finally lock §5's edition-vs-global `field_code` scope
+  question — flagged as needing one more review pass
 
 ## Next
 
-Awaiting ChatGPT's review of §2's stable-code-vs-UUID recommendation
-and §3's scenario coverage, before any implementation/migration
+Awaiting ChatGPT's review of the revised design (§3 Taxonomy vs
+Classification Rule split, §4 rename/merge/split semantics, §5
+edition-vs-global field_code scope) before any implementation/migration
 document is written. Per ChatGPT's stated order: this design →
 architecture decision → implementation/migration plan → only then a
 new classification generation, Filter UI, and `_old` retirement
