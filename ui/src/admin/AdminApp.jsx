@@ -7,12 +7,15 @@ import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
 import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID } from '../../../state/editions.js';
 import ReviewQueueCard from './ReviewQueueCard.jsx';
 import FilterRulesManager from './FilterRulesManager.jsx';
+import ClassificationFlow from './ClassificationFlow.jsx';
 
 // Editorial Desk shell — per docs/editorial-desk-shell-implementation-plan-v1.md.
-// Four sections, container/navigation only — no new writable action here.
+// 'aliran' added 2026-08-16, direct response to Izzat's complaint that raw
+// RSS-to-Bidang routing was invisible — a live table, not a report.
 const DESK_SECTIONS = [
   { id: 'hari-ini', label: 'Hari Ini' },
   { id: 'semakan', label: 'Semakan' },
+  { id: 'aliran', label: 'Aliran RSS' },
   { id: 'keputusan', label: 'Keputusan Editorial' },
   { id: 'rekod', label: 'Rekod' },
 ];
@@ -265,6 +268,12 @@ function ReviewQueue({ userId, role }) {
               />
             ))}
           </div>
+        </section>
+      )}
+
+      {activeSection === 'aliran' && (
+        <section className="editorial-desk__section">
+          <ClassificationFlow supabase={adminSupabase} editionId={editionId} />
         </section>
       )}
 

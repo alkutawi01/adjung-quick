@@ -21,12 +21,16 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const trustById = new Map(RSS_SOURCES.map(s => [s.id, s.trustScore]));
 
+// Taxonomy Stable Field-ID V1 (2026-08-16): `field` here is now a
+// field_code ('politics'), not the mutable label — this function is fed
+// from RANKING_FLAGS via db/daily-observation.mjs, which is keyed on
+// field_code as of this migration.
 export async function loadFieldCandidates(edition, field) {
   const { data: placements, error: pErr } = await supabase
     .from('edition_story_classifications')
     .select('story_id, classification_confidence')
     .eq('edition_id', edition)
-    .eq('field', field);
+    .eq('field_code', field);
   if (pErr) throw new Error(pErr.message);
   const ids = placements.map(p => p.story_id);
   if (ids.length === 0) return [];

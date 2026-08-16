@@ -719,6 +719,39 @@ body {
   border: 1px dashed var(--hairline);
 }
 
+.classification-flow__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.classification-flow__refreshed {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+.classification-flow__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.classification-flow__table th {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  font-weight: normal;
+}
+.classification-flow__table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--hairline);
+  vertical-align: top;
+}
+.classification-flow__row--unplaced td {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
 .review-queue__error {
   color: #a00;
   font-size: 0.85rem;

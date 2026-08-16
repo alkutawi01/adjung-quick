@@ -33,7 +33,7 @@ function makeObservation(overrides = {}) {
     knownBrokenSources: [],
     editions: JSON.parse(JSON.stringify(baseEditions)),
     rankingPilots: {
-      'ms-MY.Politik': { version: 'editorial_v1', candidatePoolSize: 36, selectedStoryIds: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'] },
+      'ms-MY.politics': { version: 'editorial_v1', candidatePoolSize: 36, selectedStoryIds: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'] },
     },
     ...overrides,
   };
@@ -126,7 +126,7 @@ console.log('\nDAILY OBSERVATION — alert logic test\n');
   const previous = makeObservation();
   const current = makeObservation({ counts: { ...makeObservation().counts, clusters: 950 } });
   // Entirely different selection — normal for a news reader over a day.
-  current.rankingPilots['ms-MY.Politik'].selectedStoryIds = ['k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't'];
+  current.rankingPilots['ms-MY.politics'].selectedStoryIds = ['k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't'];
   const alerts = evaluateAlerts(current, previous);
   assert('a completely changed ranking selection does NOT alert (churn is normal)', !alerts.some(a => /Ranking pilot/i.test(a)), JSON.stringify(alerts));
 }
@@ -134,7 +134,7 @@ console.log('\nDAILY OBSERVATION — alert logic test\n');
 // --- ranking pilot: empty candidate pool IS structurally wrong ---
 {
   const current = makeObservation({ counts: { ...makeObservation().counts, clusters: 950 } });
-  current.rankingPilots['ms-MY.Politik'] = { version: 'editorial_v1', candidatePoolSize: 0, selectedStoryIds: [] };
+  current.rankingPilots['ms-MY.politics'] = { version: 'editorial_v1', candidatePoolSize: 0, selectedStoryIds: [] };
   const alerts = evaluateAlerts(current, makeObservation());
   assert('an empty ranking candidate pool DOES alert', alerts.some(a => /EMPTY candidate pool/i.test(a)), JSON.stringify(alerts));
 }
@@ -142,7 +142,7 @@ console.log('\nDAILY OBSERVATION — alert logic test\n');
 // --- ranking pilot: candidates exist but nothing selected = broken ---
 {
   const current = makeObservation({ counts: { ...makeObservation().counts, clusters: 950 } });
-  current.rankingPilots['ms-MY.Politik'] = { version: 'editorial_v1', candidatePoolSize: 36, selectedStoryIds: [] };
+  current.rankingPilots['ms-MY.politics'] = { version: 'editorial_v1', candidatePoolSize: 36, selectedStoryIds: [] };
   const alerts = evaluateAlerts(current, makeObservation());
   assert('selecting nothing despite available candidates DOES alert (selection broken)', alerts.some(a => /selected nothing/i.test(a)), JSON.stringify(alerts));
 }
@@ -150,7 +150,7 @@ console.log('\nDAILY OBSERVATION — alert logic test\n');
 // --- ranking pilot: evaluation failure must surface, not vanish ---
 {
   const current = makeObservation({ counts: { ...makeObservation().counts, clusters: 950 } });
-  current.rankingPilots['ms-MY.Politik'] = { version: 'editorial_v1', error: 'fetch failed' };
+  current.rankingPilots['ms-MY.politics'] = { version: 'editorial_v1', error: 'fetch failed' };
   const alerts = evaluateAlerts(current, makeObservation());
   assert('a ranking pilot evaluation error surfaces as an alert', alerts.some(a => /failed to evaluate/i.test(a)), JSON.stringify(alerts));
 }

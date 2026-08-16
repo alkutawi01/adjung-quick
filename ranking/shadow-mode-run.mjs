@@ -10,12 +10,14 @@ import { runShadow } from './shadow-runner.mjs';
 import { compareSelections } from './ranking-comparator.mjs';
 import { printShadowReport } from './shadow-report.mjs';
 
+// Taxonomy Stable Field-ID V1 (2026-08-16): field_code, not label —
+// shadow-runner.mjs's loadFieldCandidates() now queries by field_code.
 const FIELDS = [
-  ['ms-MY', 'Politik'],   // many sources, real diversity/composition activity expected
-  ['ms-MY', 'Agama'],     // moderate sources, healthy natural spread (per small-field benchmark)
-  ['ms-MY', 'Pendidikan'],// single-source field, editorial expected to equal legacy
-  ['ms-MY', 'Sains'],     // smallest field, single-source
-  ['ms-MY', 'Teknologi'], // specialised single-newsroom source (Amanz)
+  ['ms-MY', 'politics'],   // many sources, real diversity/composition activity expected
+  ['ms-MY', 'religion'],   // moderate sources, healthy natural spread (per small-field benchmark)
+  ['ms-MY', 'education'],  // single-source field, editorial expected to equal legacy
+  ['ms-MY', 'science'],    // smallest field, single-source
+  ['ms-MY', 'technology'], // specialised single-newsroom source (Amanz)
 ];
 
 async function main() {

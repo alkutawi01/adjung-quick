@@ -139,8 +139,12 @@ async function gatherMetrics() {
   // Ranking pilot stability — per ChatGPT's suggested metric list for
   // the Observation Layer. Records WHICH stories the Editorial Ranking
   // Engine currently selects for each field that's actually on
-  // editorial_v1 (only ms-MY.Politik today, read from RANKING_FLAGS so
+  // editorial_v1 (only ms-MY.politics today, read from RANKING_FLAGS so
   // this follows activation automatically rather than hardcoding).
+  // Taxonomy Stable Field-ID V1 (2026-08-16): `key` below is now
+  // `${edition}.${field_code}` (e.g. 'ms-MY.politics'), not the label —
+  // survives a Bidang rename automatically, since RANKING_FLAGS/
+  // loadFieldCandidates() both operate on field_code now.
   //
   // Interpreting it: low overlap day-over-day is NOT automatically bad —
   // a news reader SHOULD churn as new stories arrive. What this makes

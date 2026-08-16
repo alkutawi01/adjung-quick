@@ -14,6 +14,10 @@
 // pure mapRowsToRankedQueue() the app calls in production
 // (ui/src/adapter/productionAdapter.js). No network, no DB — runs anytime.
 //
+// Taxonomy Stable Field-ID V1 (2026-08-16): `topic` is now field_code, not
+// the mutable label — placements fixtures below carry field_code, and
+// assertions check against it, not `field`.
+//
 // Run: node db/production-classification-acceptance.test.mjs
 
 import { mapRowsToRankedQueue } from '../ui/src/adapter/productionAdapter.js';
@@ -42,19 +46,19 @@ const items = clusters.map((c, i) => ({
 
 const placementsByEdition = {
   'ms-MY': [
-    { story_id: 'story-my-politics', field: 'Politik', classification_status: 'classified', classification_confidence: 0.9 },
-    { story_id: 'story-th-politics', field: 'Dunia', classification_status: 'classified', classification_confidence: 0.85 },
-    { story_id: 'story-science', field: 'Sains', classification_status: 'classified', classification_confidence: 0.9 },
+    { story_id: 'story-my-politics', field: 'Politik', field_code: 'politics', classification_status: 'classified', classification_confidence: 0.9 },
+    { story_id: 'story-th-politics', field: 'Dunia', field_code: 'dunia', classification_status: 'classified', classification_confidence: 0.85 },
+    { story_id: 'story-science', field: 'Sains', field_code: 'science', classification_status: 'classified', classification_confidence: 0.9 },
   ],
   'en-global': [
-    { story_id: 'story-my-politics', field: 'Politics', classification_status: 'classified', classification_confidence: 0.9 },
-    { story_id: 'story-th-politics', field: 'Politics', classification_status: 'classified', classification_confidence: 0.85 },
-    { story_id: 'story-science', field: 'Science', classification_status: 'classified', classification_confidence: 0.9 },
+    { story_id: 'story-my-politics', field: 'Politics', field_code: 'politics', classification_status: 'classified', classification_confidence: 0.9 },
+    { story_id: 'story-th-politics', field: 'Politics', field_code: 'politics', classification_status: 'classified', classification_confidence: 0.85 },
+    { story_id: 'story-science', field: 'Science', field_code: 'science', classification_status: 'classified', classification_confidence: 0.9 },
   ],
   'ar-global': [
-    { story_id: 'story-my-politics', field: 'سياسة', classification_status: 'classified', classification_confidence: 0.9 },
-    { story_id: 'story-th-politics', field: 'سياسة', classification_status: 'classified', classification_confidence: 0.85 },
-    { story_id: 'story-science', field: 'علوم', classification_status: 'classified', classification_confidence: 0.9 },
+    { story_id: 'story-my-politics', field: 'سياسة', field_code: 'politics', classification_status: 'classified', classification_confidence: 0.9 },
+    { story_id: 'story-th-politics', field: 'سياسة', field_code: 'politics', classification_status: 'classified', classification_confidence: 0.85 },
+    { story_id: 'story-science', field: 'علوم', field_code: 'science', classification_status: 'classified', classification_confidence: 0.9 },
   ],
 };
 
@@ -65,18 +69,18 @@ for (const [editionId, placements] of Object.entries(placementsByEdition)) {
   const byId = new Map(queue.map(c => [c.clusterKey, c]));
 
   console.log(`edition = ${editionId}`);
-  assert(`${editionId}: Malaysia politics -> ${placements[0].field}`,
-    byId.get('story-my-politics').topic === placements[0].field);
-  assert(`${editionId}: Thailand politics -> ${placements[1].field}`,
-    byId.get('story-th-politics').topic === placements[1].field);
-  assert(`${editionId}: Science -> ${placements[2].field}`,
-    byId.get('story-science').topic === placements[2].field);
+  assert(`${editionId}: Malaysia politics -> ${placements[0].field_code}`,
+    byId.get('story-my-politics').topic === placements[0].field_code);
+  assert(`${editionId}: Thailand politics -> ${placements[1].field_code}`,
+    byId.get('story-th-politics').topic === placements[1].field_code);
+  assert(`${editionId}: Science -> ${placements[2].field_code}`,
+    byId.get('story-science').topic === placements[2].field_code);
 
   // The regression guard ChatGPT specifically asked for: `topic` must never
   // equal the legacy `story_clusters.topic` value when the edition-specific
   // placement genuinely differs from it (as it does here for every row).
   assert(`${editionId}: topic is NOT the legacy story_clusters.topic value`,
-    byId.get('story-my-politics').topic !== 'Politics' || editionId === 'en-global');
+    byId.get('story-my-politics').topic !== 'Politics');
   assert(`${editionId}: legacyTopic is preserved separately, for audit only`,
     byId.get('story-my-politics').legacyTopic === 'Politics');
 }
@@ -87,9 +91,9 @@ for (const [editionId, placements] of Object.entries(placementsByEdition)) {
 // editorial home" divergence the Edition Architecture exists to produce.
 const msQueue = mapRowsToRankedQueue({ sources, clusters, items, placements: placementsByEdition['ms-MY'] });
 const enQueue = mapRowsToRankedQueue({ sources, clusters, items, placements: placementsByEdition['en-global'] });
-assert('cross-edition divergence: Thailand politics is Dunia in ms-MY but Politics in en-global',
-  msQueue.find(c => c.clusterKey === 'story-th-politics').topic === 'Dunia' &&
-  enQueue.find(c => c.clusterKey === 'story-th-politics').topic === 'Politics');
+assert('cross-edition divergence: Thailand politics is dunia in ms-MY but politics in en-global',
+  msQueue.find(c => c.clusterKey === 'story-th-politics').topic === 'dunia' &&
+  enQueue.find(c => c.clusterKey === 'story-th-politics').topic === 'politics');
 
 console.log(`\n${passed} passed, ${failed} failed.\n`);
 if (failed > 0) process.exit(1);

@@ -44,16 +44,16 @@ const items = clusters.map((c, i) => ({
   published_at: new Date(2026, 7, 13, i).toISOString(),
 }));
 const placements = [
-  { story_id: 'story-hidden', field: 'Politik', classification_status: 'classified', classification_confidence: 0.9 },
-  { story_id: 'story-reclassified', field: 'Politik', classification_status: 'classified', classification_confidence: 0.9 },
-  { story_id: 'story-untouched', field: 'Politik', classification_status: 'classified', classification_confidence: 0.9 },
+  { story_id: 'story-hidden', field: 'Politik', field_code: 'politics', classification_status: 'classified', classification_confidence: 0.9 },
+  { story_id: 'story-reclassified', field: 'Politik', field_code: 'politics', classification_status: 'classified', classification_confidence: 0.9 },
+  { story_id: 'story-untouched', field: 'Politik', field_code: 'politics', classification_status: 'classified', classification_confidence: 0.9 },
 ];
 
 const activeOverrides = [
-  { id: 'ov-hide', story_id: 'story-hidden', override_type: 'hide', new_field: null, created_at: '2026-08-13T10:00:00Z' },
-  { id: 'ov-reclassify', story_id: 'story-reclassified', override_type: 'reclassify', new_field: 'Bencana', created_at: '2026-08-13T10:00:00Z' },
-  // FASA 3.6.5: reuses new_field, same as reclassify — no new column.
-  { id: 'ov-pin', story_id: 'story-pinned-unclassified', override_type: 'pin', new_field: 'Nasional', created_at: '2026-08-13T09:00:00Z' },
+  { id: 'ov-hide', story_id: 'story-hidden', override_type: 'hide', new_field_code: null, created_at: '2026-08-13T10:00:00Z' },
+  { id: 'ov-reclassify', story_id: 'story-reclassified', override_type: 'reclassify', new_field_code: 'disaster', created_at: '2026-08-13T10:00:00Z' },
+  // FASA 3.6.5: reuses new_field_code, same as reclassify — no new column.
+  { id: 'ov-pin', story_id: 'story-pinned-unclassified', override_type: 'pin', new_field_code: 'nasional', created_at: '2026-08-13T09:00:00Z' },
 ];
 
 // --- Test 1: Hide story aktif -> override exists -> reader excludes ---
@@ -64,10 +64,10 @@ const activeOverrides = [
     hidden.topic === null);
   const reclassified = queue.find(c => c.clusterKey === 'story-reclassified');
   assert('Test 1b — reclassified story: topic follows the override, not the classifier',
-    reclassified.topic === 'Bencana');
+    reclassified.topic === 'disaster');
   const untouched = queue.find(c => c.clusterKey === 'story-untouched');
   assert('Test 1c — story with no override: classifier output passes through unchanged',
-    untouched.topic === 'Politik');
+    untouched.topic === 'politics');
 
   // FASA 3.6.5: adapter-level proof of Finding F's fix, not just the
   // pure resolver test — an UNCLASSIFIED story (no row in `placements`
@@ -75,7 +75,7 @@ const activeOverrides = [
   // `pinnedAt` through to the object state/reducer.js reads.
   const pinned = queue.find(c => c.clusterKey === 'story-pinned-unclassified');
   assert('Test 1d — pin rescues an unclassified story: topic comes from the pin, not the (absent) classifier',
-    pinned.topic === 'Nasional');
+    pinned.topic === 'nasional');
   assert('Test 1e — pinned flag threaded onto the cluster for the reducer to read',
     pinned.pinned === true);
   assert('Test 1f — pinnedAt threaded through for oldest-pin-first ordering',
@@ -102,7 +102,7 @@ const activeOverrides = [
 // pool a Bidang view would ever filter into, regardless of score.
 {
   const queue = mapRowsToRankedQueue({ sources, clusters, items, placements, overrides: activeOverrides });
-  const politikEligible = queue.filter(c => c.topic === 'Politik');
+  const politikEligible = queue.filter(c => c.topic === 'politics');
   assert('Test 3 — highest-scoring story is still excluded from the eligible pool once hidden',
     !politikEligible.some(c => c.clusterKey === 'story-hidden'));
   // Sanity: it's not gone from the array entirely (still a valid cluster,
@@ -123,7 +123,7 @@ const activeOverrides = [
   assert('Test 4 — before undo: story is hidden',
     queueWithHide.find(c => c.clusterKey === 'story-hidden').topic === null);
   assert('Test 4b — after undo: story reappears under its classifier field',
-    queueAfterUndo.find(c => c.clusterKey === 'story-hidden').topic === 'Politik');
+    queueAfterUndo.find(c => c.clusterKey === 'story-hidden').topic === 'politics');
 }
 
 // --- Test 5: Reclassify is edition-scoped ---
@@ -138,9 +138,9 @@ const activeOverrides = [
   const enOverrides = []; // what an en-global fetch would actually receive
   const enQueue = mapRowsToRankedQueue({ sources, clusters, items, placements, overrides: enOverrides });
   assert('Test 5 — ms-MY reclassify applies in ms-MY',
-    msQueue.find(c => c.clusterKey === 'story-reclassified').topic === 'Bencana');
+    msQueue.find(c => c.clusterKey === 'story-reclassified').topic === 'disaster');
   assert('Test 5b — the SAME story in en-global (no matching override): classifier field unaffected',
-    enQueue.find(c => c.clusterKey === 'story-reclassified').topic === 'Politik');
+    enQueue.find(c => c.clusterKey === 'story-reclassified').topic === 'politics');
 }
 
 // --- Test 6: Reclassify does not touch ranking score ---
@@ -165,9 +165,9 @@ const activeOverrides = [
   const queueAfterUndo = mapRowsToRankedQueue({ sources, clusters, items, placements, overrides: overridesAfterUndo });
 
   assert('Test 7 — before undo: story sits under the reclassified field',
-    queueWithReclassify.find(c => c.clusterKey === 'story-reclassified').topic === 'Bencana');
+    queueWithReclassify.find(c => c.clusterKey === 'story-reclassified').topic === 'disaster');
   assert('Test 7b — after undo: story reverts to its classifier field',
-    queueAfterUndo.find(c => c.clusterKey === 'story-reclassified').topic === 'Politik');
+    queueAfterUndo.find(c => c.clusterKey === 'story-reclassified').topic === 'politics');
 }
 
 console.log(`\n${passed} passed, ${failed} failed.\n`);

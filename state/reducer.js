@@ -304,12 +304,27 @@ export function reduce(state, action, context = {}) {
       // owns an independent taxonomy, so the currently-selected field may
       // simply not exist in the new one (ms-MY's "Agama" has no Arabic
       // Wheel equivalent). In that case the field is dropped rather than
-      // carried over or auto-mapped onto a "similar" field — auto-mapping
-      // is exactly the universal-taxonomy assumption the whole edition
-      // architecture rejected.
+      // carried over or auto-mapped onto a "similar" field.
+      //
+      // Taxonomy Stable Field-ID V1 (2026-08-16): `currentField` is now a
+      // field_code, and survival is checked against `taxonomyFieldCodes`,
+      // not the label list. Real fragility fixed: previously this compared
+      // LABELS, so a Bidang rename (e.g. Jenayah -> Kesalahan & Jenayah)
+      // silently dropped the user's selection on the next edition switch,
+      // even switching straight back to the same edition — field_code
+      // never changes on rename, so this survives one. One deliberate
+      // behavior note: since field_code is a global identity for
+      // non-merged fields (docs/taxonomy-stable-field-id-design-v1.md §5),
+      // a field whose code is genuinely shared across editions (e.g.
+      // 'crime' in both ms-MY and en-global) now legitimately survives a
+      // cross-edition switch too — this was previously impossible (labels
+      // never matched across languages, so real cross-edition switches
+      // always dropped the selection regardless) and is a side effect of
+      // field_code correctly representing "the same universal subject",
+      // not a regression.
       const nextEdition = getEdition(action.editionId);
       const currentField = state.userContext.selectedTopic;
-      const fieldSurvives = currentField != null && nextEdition.taxonomy.includes(currentField);
+      const fieldSurvives = currentField != null && nextEdition.taxonomyFieldCodes.includes(currentField);
 
       // Active Set is rebuilt because edition determines placement/ranking,
       // but capacity and the stable-spatial-slot model are untouched — the

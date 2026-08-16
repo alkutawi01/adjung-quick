@@ -40,6 +40,14 @@
 // check is what makes a hide correct even if that write-time guard were
 // ever bypassed.
 
+// Taxonomy Stable Field-ID V1 (2026-08-16, docs/taxonomy-stable-field-id-design-v1.md):
+// this resolver now operates on `field_code` (stable, rename-proof)
+// throughout, not the mutable display label — `classifierOutput.field_code`
+// and `new_field_code` on override rows, per Option C. The returned
+// `field` property is renamed `fieldCode` to make that explicit at every
+// call site; label lookup for display happens separately
+// (state/editions.js's getFieldLabel), never inside this pure resolver.
+//
 // activeOverrides: story_overrides rows already filtered by the caller
 // to `active = true` AND `story_id` + `edition_id` matching the story
 // being resolved (a query concern, not this function's — keeps this
@@ -49,7 +57,7 @@ export function resolveStoryField(classifierOutput, activeOverrides) {
   if (hide) {
     return {
       visible: false,
-      field: null,
+      fieldCode: null,
       source: 'override',
       overrideId: hide.id,
     };
@@ -59,7 +67,7 @@ export function resolveStoryField(classifierOutput, activeOverrides) {
   if (pin) {
     return {
       visible: true,
-      field: pin.new_field,
+      fieldCode: pin.new_field_code,
       source: 'override',
       overrideId: pin.id,
       // Consumed by state/reducer.js's selectFieldActiveSet: a pinned
@@ -76,7 +84,7 @@ export function resolveStoryField(classifierOutput, activeOverrides) {
   if (reclassify) {
     return {
       visible: true,
-      field: reclassify.new_field,
+      fieldCode: reclassify.new_field_code,
       source: 'override',
       overrideId: reclassify.id,
     };
@@ -84,7 +92,7 @@ export function resolveStoryField(classifierOutput, activeOverrides) {
 
   return {
     visible: classifierOutput.classification_status === 'classified',
-    field: classifierOutput.field ?? null,
+    fieldCode: classifierOutput.field_code ?? null,
     source: 'classifier',
     overrideId: null,
   };

@@ -171,7 +171,7 @@ async function main() {
   // editorial_v1 can't ship undetected again. Does not change any
   // reducer/ranking behavior — test-only. ---
   {
-    const politikState = reduce(state, actions.selectTopic('Politik'), context);
+    const politikState = reduce(state, actions.selectTopic('politics'), context);
     const politikVersion = getRankingVersion(politikState.editionContext.activeEdition, politikState.userContext.selectedTopic);
     assert('TEST 10 — sanity check: ms-MY/Politik is actually on editorial_v1 (if this fails, the pin below is testing nothing)',
       politikVersion === 'editorial_v1', `got version=${politikVersion}`);
@@ -190,7 +190,7 @@ async function main() {
       const maxOriginalSlot = Math.max(...before.map(s => s.slot));
       const noAppendedSlot = after.activeSet.every(a => a.slot <= maxOriginalSlot);
       const replacement = after.activeSet.find(a => a.slot === targetSlot);
-      const sameTopicIfReplaced = !replacement || replacement._cluster?.topic === 'Politik';
+      const sameTopicIfReplaced = !replacement || replacement._cluster?.topic === 'politics';
 
       assert('TEST 10a — editorial_v1 RELEASE_STORY: other slots untouched (position + story)', untouchedPreserved);
       assert('TEST 10b — editorial_v1 RELEASE_STORY: no slot appended beyond the original range', noAppendedSlot);
@@ -323,14 +323,24 @@ async function main() {
 
   // Test 3 — Field invalidation: a field that exists in the new edition
   // carries over; one that doesn't is dropped to null (never auto-mapped).
+  // Taxonomy Stable Field-ID V1 (2026-08-16): selectedTopic is now a
+  // field_code ('politics'), not the label ('Politik').
   const withSurvivingField = reduce(
-    { ...editionState, userContext: { ...editionState.userContext, selectedTopic: 'Politik' } },
+    { ...editionState, userContext: { ...editionState.userContext, selectedTopic: 'politics' } },
     actions.switchEdition('ms-MY'), context);
   assert('UI-1 TEST 3a — field valid in target edition carries over',
-    withSurvivingField.userContext.selectedTopic === 'Politik');
+    withSurvivingField.userContext.selectedTopic === 'politics');
 
+  // 'religion' (ms-MY's Agama) has no field_code equivalent in ar-global's
+  // wheel-visible taxonomy — 'ثقافة وفنون' merges culture+entertainment
+  // only, religion ('دين') exists in ar-global too, so use a field ms-MY
+  // has that ar-global genuinely lacks: none exist today (every ms-MY
+  // subject-code has an ar-global counterpart) — use a fabricated
+  // non-existent code instead, which correctly exercises the same "not
+  // found -> drop" path without relying on taxonomy content staying
+  // exactly this shape.
   const withDroppedField = reduce(
-    { ...editionState, userContext: { ...editionState.userContext, selectedTopic: 'Agama' } },
+    { ...editionState, userContext: { ...editionState.userContext, selectedTopic: 'not_a_real_field_code' } },
     actions.switchEdition('ar-global'), context);
   assert('UI-1 TEST 3b — field absent from target edition is dropped, not auto-mapped',
     withDroppedField.userContext.selectedTopic === null,

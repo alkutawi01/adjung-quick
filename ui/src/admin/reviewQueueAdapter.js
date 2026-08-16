@@ -13,6 +13,7 @@
 
 import { canPerformAction, isAdmin } from '../../../db/editor-auth.mjs';
 import { resolveEditorialFilterForStory } from '../../../state/editorialFilterResolver.mjs';
+import { getFieldEntryByLabel } from '../../../classification/lib/taxonomy-registry.mjs';
 
 // reason_code -> display_reason, per docs/review-queue-spec-v1.md's
 // translation table. Only the two v1-supported codes are here — see the
@@ -390,6 +391,14 @@ export async function submitPinOverride(supabase, { storyId, editionId, newField
   if (!newField) {
     throw new Error('Pin memerlukan bidang — tiada bidang dipilih.');
   }
+  // Taxonomy Stable Field-ID V1 (2026-08-16): governance-limit check below
+  // must compare field_code, not the mutable label — otherwise a Bidang
+  // rename mid-flight would let two "different" labels (old and new) both
+  // independently hit the 2-pin cap, silently doubling it during the
+  // rename window (docs/taxonomy-stable-field-id-design-v1.md §1g).
+  const pinFieldEntry = getFieldEntryByLabel(editionId, newField);
+  if (!pinFieldEntry) throw new Error(`submitPinOverride: label "${newField}" not found in ${editionId} taxonomy.`);
+  const pinFieldCode = pinFieldEntry.field_code;
 
   // Per ChatGPT's explicit UX instruction: hide and pin must never both
   // apply to one story — if hide already exists, pin is moot (restrictive
@@ -425,7 +434,7 @@ export async function submitPinOverride(supabase, { storyId, editionId, newField
     .select('id')
     .eq('edition_id', editionId)
     .eq('override_type', 'pin')
-    .eq('new_field', newField)
+    .eq('new_field_code', pinFieldCode)
     .eq('active', true)
     .gt('expires_at', new Date().toISOString());
   if (pinErr) throw new Error(`submitPinOverride: checking pin limit — ${pinErr.message}`);
@@ -478,11 +487,26 @@ async function writeOverride(supabase, { storyId, editionId, overrideType, newFi
   // computes expires_at server-side from override_type, unconditionally —
   // the same clock sets it and later checks it, and duration policy lives
   // in exactly one place (SQL), not duplicated as a JS constant here.
+  // Taxonomy Stable Field-ID V1 (2026-08-16): the UI still passes a label
+  // (ReviewQueueCard's dropdown value), so it's resolved to the stable
+  // new_field_code here, at the single write choke point — same reasoning
+  // as canPerformAction() above, no future caller can forget this step.
+  // resolveStoryField() (state/editorialStateResolver.mjs) reads
+  // new_field_code, not new_field — an override written without it would
+  // silently become invisible to every reader.
+  let newFieldCode = null;
+  if (newField) {
+    const entry = getFieldEntryByLabel(editionId, newField);
+    if (!entry) throw new Error(`writeOverride(${overrideType}): label "${newField}" not found in ${editionId} taxonomy — cannot resolve a stable field_code.`);
+    newFieldCode = entry.field_code;
+  }
+
   const { error } = await supabase.from('story_overrides').insert({
     story_id: storyId,
     edition_id: editionId,
     override_type: overrideType,
     new_field: newField ?? null,
+    new_field_code: newFieldCode,
     reason,
     created_by: createdBy,
   });

@@ -48,7 +48,7 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
       // classifier's Politics/Economy/Sports/World vocabulary, which has ZERO
       // overlap with any edition's real taxonomy).
       supabase.from('edition_story_classifications')
-        .select('story_id, field, classification_status, classification_confidence')
+        .select('story_id, field, field_code, classification_status, classification_confidence')
         .eq('edition_id', editionId),
       // FASA 3.6.3a — Resolver Integration: this is the ONE place a human
       // editorial decision (ui/src/admin's Review Queue) actually reaches a
@@ -69,7 +69,7 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
       // inert here — it sorted undefined against undefined. Selecting them is
       // half the fix; the view had to expose them too.
       supabase.from('public_active_overrides')
-        .select('id, story_id, override_type, new_field, created_at')
+        .select('id, story_id, override_type, new_field, new_field_code, created_at')
         .eq('edition_id', editionId),
       // Editorial Filter Rules V1 (docs/editorial-filter-rules-design-v1.md,
       // approved by ChatGPT 2026-08-16) — global keyword exclude/except
@@ -166,7 +166,7 @@ export function mapRowsToRankedQueue({ sources, clusters, items, placements, ove
       // structurally (the ranking step never even sees it), not as a
       // separate check layered on top.
       const resolved = resolveStoryField(
-        { field: placement?.field ?? null, classification_status: placement?.classification_status ?? 'unclassified' },
+        { field_code: placement?.field_code ?? null, classification_status: placement?.classification_status ?? 'unclassified' },
         overridesByStory.get(c.id) ?? [],
       );
       // FASA 3.6.3c: a `boost` override is NOT resolved by
@@ -190,7 +190,13 @@ export function mapRowsToRankedQueue({ sources, clusters, items, placements, ove
         // expected in both cases — "Unclassified"/"Hidden" are STATUSES,
         // never a Bidang value (docs/structural-evidence-fallback-policy.md).
         // Such stories simply don't appear under any Wheel field.
-        topic: resolved.visible ? resolved.field : null,
+        //
+        // Taxonomy Stable Field-ID V1 (2026-08-16): `topic` is now the
+        // stable field_code, never the mutable display label — matching
+        // against it (ActiveSetList.jsx, reducer.js) survives a Bidang
+        // rename. state/editions.js's getFieldLabel() is the ONLY place
+        // this becomes user-visible text.
+        topic: resolved.visible ? resolved.fieldCode : null,
         // Kept for audit/debugging: what the OLD classifier said. Not used
         // for placement anymore. Remove once the new path is proven in
         // production, per db/schema-edition-classification.sql's own note.

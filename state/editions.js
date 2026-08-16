@@ -3,16 +3,20 @@
 // Per docs/edition-state-model.md (Session UI-1, Step 1): editionContext
 // is the single source of taxonomy for the Wheel — each edition owns its
 // own independent field list, never derived from a shared universal
-// taxonomy (same principle as classification/lib/edition-taxonomy.mjs,
-// kept as a separate state-layer module rather than importing that
-// classification-internal file directly, since this registry is about
-// what the UI presents, not how the classification engine resolves
-// evidence — the two may diverge, e.g. a field present in classification
-// but deliberately not shown in the Wheel).
+// taxonomy.
+//
+// Taxonomy Stable Field-ID V1 (2026-08-16, docs/taxonomy-stable-field-id-design-v1.md):
+// `taxonomy` (labels, for display) and `taxonomyFieldCodes` (stable codes,
+// for matching/dispatch — never renamed) are now BOTH derived from
+// classification/lib/taxonomy-registry.mjs's single source of truth,
+// filtered to `wheel_visible` entries, in the same order. This is the
+// same consolidation classification/lib/edition-taxonomy.mjs already did
+// for the classifier's own table — collapsing what were two independently
+// hand-maintained lists into one.
+import { TAXONOMY_REGISTRY, getFieldEntry } from '../classification/lib/taxonomy-registry.mjs';
 
-export const EDITIONS = {
+const EDITION_META = {
   'ms-MY': {
-    editionId: 'ms-MY',
     locale: 'ms',
     direction: 'ltr',
     // UI-2A (per ChatGPT, 2026-08-13): label communicates EDITION identity
@@ -20,22 +24,6 @@ export const EDITIONS = {
     // "Malay" would wrongly imply this is a translation switch. Malaysia
     // context is real for this edition only (docs/edition-source-profile-model.md).
     label: 'Malaysia · Malay Edition',
-    // 'Nasional' and 'Dunia' added 2026-08-13, per Izzat's direct decision
-    // (docs/geography-residual-navigation-policy-v1.md found these two
-    // geography-residual classification outputs — 63+46 real stories,
-    // ~15% of placed ms-MY content — had no Wheel entry, unreachable by
-    // any reader). Izzat corrected the session's over-engineered "separate
-    // navigation mode" design with a simpler, industry-standard one: real
-    // Malay portals just list Nasional/Dunia as ORDINARY categories
-    // alongside Politik/Sukan/etc — no special mode needed. taxonomy[0]
-    // is the cold-start default (App.jsx) — 'Nasional' leading matches
-    // standard portal convention (Astro Awani/Utusan/BH all lead with
-    // Nasional/Utama), a deliberate choice, not incidental ordering.
-    taxonomy: [
-      'Nasional', 'Dunia', 'Politik', 'Jenayah', 'Bisnes', 'Sukan',
-      'Alam Sekitar', 'Bencana', 'Kesihatan', 'Pendidikan', 'Teknologi',
-      'Sains', 'Budaya', 'Hiburan', 'Agama', 'Gaya Hidup',
-    ],
   },
   // en-global / ar-global: INTERNATIONAL editions, not "Malaysian news in
   // English/Arabic". Named with the -global suffix deliberately so the
@@ -43,7 +31,6 @@ export const EDITIONS = {
   // language, and the locked decision is that language does not determine
   // audience. See docs/edition-source-profile-model.md.
   'en-global': {
-    editionId: 'en-global',
     locale: 'en',
     direction: 'ltr',
     // Deliberately "Global", never "Global · Malaysia" or similar — per
@@ -51,23 +38,35 @@ export const EDITIONS = {
     // en-global/ar-global for v1, only as a possible future personalization
     // feature (login / prior ms-MY choice / shared location).
     label: 'Global · English Edition',
-    taxonomy: [
-      'Politics', 'Crime', 'Economy', 'Business', 'Sports', 'Environment',
-      'Disaster', 'Health', 'Education', 'Technology', 'Science', 'Culture',
-      'Entertainment', 'Religion', 'Lifestyle',
-    ],
   },
   'ar-global': {
-    editionId: 'ar-global',
     locale: 'ar',
     direction: 'rtl',
     label: 'Global · Arabic Edition',
-    taxonomy: [
-      'سياسة', 'جريمة', 'اقتصاد', 'رياضة', 'بيئة', 'كوارث', 'صحة وعلوم',
-      'تعليم', 'تكنولوجيا', 'ثقافة وفنون', 'دين', 'منوعات',
-    ],
   },
 };
+
+export const EDITIONS = Object.fromEntries(
+  Object.entries(EDITION_META).map(([editionId, meta]) => {
+    // 'Nasional'/'Dunia' lead ms-MY's list (taxonomy[0] is the cold-start
+    // default, App.jsx) — real Malay portals (Astro Awani/Utusan/BH) lead
+    // with Nasional/Utama, a deliberate choice preserved from the registry's
+    // own ordering (docs/geography-residual-navigation-policy-v1.md).
+    const wheelEntries = TAXONOMY_REGISTRY[editionId].filter(e => e.wheel_visible);
+    return [editionId, {
+      editionId,
+      ...meta,
+      taxonomy: wheelEntries.map(e => e.label),
+      taxonomyFieldCodes: wheelEntries.map(e => e.field_code),
+    }];
+  }),
+);
+
+// field_code -> label, for this edition. What TopicWheel/ActiveSetList
+// render — the ONLY place a field_code becomes user-visible text.
+export function getFieldLabel(editionId, fieldCode) {
+  return getFieldEntry(editionId, fieldCode)?.label ?? fieldCode;
+}
 
 // Stable iteration order for the edition switcher UI — Object.keys() order
 // is technically insertion order for string keys, but naming it explicitly
