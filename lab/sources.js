@@ -125,7 +125,20 @@ export const RSS_SOURCES = [
   // with government procurement notices. 116/309 Pendidikan-classified
   // items in the first full re-ingest after the evidence-persistence fix
   // were tender/sebut-harga notices, not news, per docs/known-issues.
+  //
+  // DISABLED 2026-08-16 (docs/published-at-integrity-containment-plan-v1.md,
+  // Option A, ChatGPT-approved): moe.gov.my/feed is Atom with no <published>
+  // tag, only <updated> — confirmed live (docs/rss-kpm-published-date-resolution-audit-v1.md)
+  // to be the CMS's last-sync time, not a real publish date, on EVERY sampled
+  // entry including ones whose own titles reference 2018/2019 events. This
+  // is the same status:'disabled' mechanism JAKIM used above while its TLS
+  // issue was unresolved — kept registered (not deleted) so the gap stays
+  // visible, per that same precedent. Existing rss-kpm rows already in
+  // production are NOT cleaned up by this change — per ChatGPT's explicit
+  // instruction, that is a separate ingestion-lifecycle decision, not part
+  // of this containment step.
   { id: 'rss-kpm', name: 'Kementerian Pendidikan', url: 'https://www.moe.gov.my/feed', language: 'ms', trustScore: 85, knownCategory: 'pendidikan', sourceType: 'authority_niche',
+    status: 'disabled',
     excludePatterns: [/tender/i, /sebut harga/i, /perolehan/i, /^notis\b/i] },
   // Amanz — a real Malay tech newsroom (not a ministry), so unlike MOSTI/KPM
   // it publishes daily and won't leave the Bidang looking stale. 30 items
