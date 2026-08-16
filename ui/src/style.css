@@ -292,6 +292,36 @@ body {
 .story-card:active { cursor: grabbing; }
 .story-card--highlighted { background: rgba(122, 59, 46, 0.05); }
 
+/* Loading skeleton (2026-08-16, Izzat live report) — fills the same
+   fixed-row grid a real story-card slot would, so nothing reflows once
+   real data arrives. Respects prefers-reduced-motion (no pulse, just a
+   static muted block) since this is a content-loading indicator, not a
+   deliberate animation. */
+.story-card-skeleton {
+  min-height: 0;
+  margin: 4px 0;
+  border-bottom: 1px solid var(--hairline);
+  position: relative;
+  overflow: hidden;
+}
+.story-card-skeleton::before {
+  content: '';
+  position: absolute;
+  inset: 8px 0;
+  background: var(--hairline);
+  border-radius: 3px;
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-card-skeleton::before {
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+  }
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.6; }
+}
+
 .story-card__meta {
   font-size: 0.66rem;
   color: var(--ink-faint);

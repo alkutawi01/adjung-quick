@@ -23,6 +23,12 @@ export default function App() {
   const [rankedQueue, setRankedQueue] = useState([]);
   const [sourceNames, setSourceNames] = useState(new Map());
   const [loadError, setLoadError] = useState(null);
+  // Distinguishes "still fetching" from "genuinely no stories in this
+  // Bidang" — before this, ActiveSetList had no way to tell the two apart
+  // (rankedQueue/activeSet both start empty), so a reader saw the same
+  // "Belum ada berita..." message on a slow connection as on a real
+  // editorial-empty Bidang. Izzat caught this live (2026-08-16).
+  const [isLoading, setIsLoading] = useState(true);
   const controlRef = useRef(createEditorialControl());
   const pendingFocusStoryId = useRef(null); // set right before CLOSE_BRIEF, consumed by the effect below
 
@@ -40,6 +46,7 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
     (async () => {
       try {
         // Edition-scoped: each cluster's `topic` comes back as THIS
@@ -88,6 +95,8 @@ export default function App() {
         }));
       } catch (err) {
         if (!cancelled) setLoadError(err.message);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -203,6 +212,7 @@ export default function App() {
           activeSetCapacity={state.activeSetCapacity}
           highlightedStoryId={state.selection.highlightedStoryId}
           locale={currentEdition.locale}
+          isLoading={isLoading}
           onSelect={id => dispatch(selectStory(id))}
           onOpen={id => dispatch(openBrief(id))}
           onRelease={id => dispatch(releaseStory(id))}

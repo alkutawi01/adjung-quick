@@ -17,16 +17,19 @@ export const STRINGS = {
     emptyField: 'Belum ada berita yang memenuhi piawaian editorial hari ini.',
     back: '← Kembali',
     loadError: 'Gagal memuatkan berita',
+    loading: 'Memuatkan berita...',
   },
   en: {
     emptyField: 'No stories meeting today’s editorial standard yet.',
     back: '← Back',
     loadError: 'Failed to load stories',
+    loading: 'Loading stories...',
   },
   ar: {
     emptyField: 'لا توجد أخبار تستوفي المعايير التحريرية اليوم.',
     back: 'رجوع →',
     loadError: 'فشل تحميل الأخبار',
+    loading: 'جارٍ تحميل الأخبار...',
   },
 };
 

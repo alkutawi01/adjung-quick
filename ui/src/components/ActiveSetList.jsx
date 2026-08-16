@@ -20,7 +20,7 @@ import { t } from '../i18n.js';
 // unrelated slots never reflow, because the underlying state.activeSet
 // (all 10 engine-controlled slots) is completely untouched by this view
 // filter — Stable Spatial Slots still governs the real data underneath.
-export default function ActiveSetList({ activeSet, sourceNames, highlightedStoryId, selectedTopic, activeSetCapacity, locale, onSelect, onOpen, onRelease }) {
+export default function ActiveSetList({ activeSet, sourceNames, highlightedStoryId, selectedTopic, activeSetCapacity, locale, isLoading, onSelect, onOpen, onRelease }) {
   // selectedTopic == null only during cold start, before the Bidang list has
   // loaded (there is no "Semua"/All pseudo-Bidang — removed 2026-08-12 per
   // Izzat). Once a real Bidang is selected, the view always filters to it.
@@ -32,6 +32,26 @@ export default function ActiveSetList({ activeSet, sourceNames, highlightedStory
   const visible = selectedTopic == null
     ? activeSet
     : activeSet.filter(slot => slot._cluster?.topic === selectedTopic);
+
+  // BUG FIX (2026-08-16, Izzat live report): before this, "still fetching"
+  // and "genuinely no stories in this Bidang" were indistinguishable — both
+  // rendered the same "Belum ada berita..." message, since activeSet starts
+  // empty either way. A skeleton now covers the loading window; the
+  // empty-Bidang message only ever appears once the fetch has resolved.
+  if (isLoading && visible.length === 0) {
+    return (
+      <div
+        className="active-set-list active-set-list--loading"
+        style={{ '--capacity': activeSetCapacity }}
+        aria-busy="true"
+        aria-label={t(locale, 'loading')}
+      >
+        {Array.from({ length: activeSetCapacity }, (_, i) => (
+          <div className="story-card-skeleton" key={i} />
+        ))}
+      </div>
+    );
+  }
 
   if (visible.length === 0) {
     return (
