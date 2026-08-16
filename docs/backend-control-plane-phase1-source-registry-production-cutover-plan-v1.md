@@ -1,6 +1,6 @@
 # Backend Control Plane — Phase 1 Production Cutover Plan v1 (2026-08-16)
 
-Status: `[x] Plan` `[ ] Approved` — **read-only. No production migration
+Status: `[x] Plan` `[x] Approved (conditional, 2026-08-16, 3 amendments applied — §4, §4a, §7)` — **read-only. No production migration
 executed, no cutover applied, no frontend built.**
 
 Follow-up to `docs/backend-control-plane-phase1-source-registry-design-v1.md`
@@ -132,14 +132,52 @@ language                       ==      language
 trustScore                     ==      trust_score
 knownCategory                  ==      known_category
 sourceType                     ==      source_type
-status (default 'active')      ==      status
+status (s.status ?? 'active')  ==      status
 excludePatterns (as strings)   ==      exclude_patterns
 ```
+
+**Corrected per ChatGPT's explicit instruction (2026-08-16)**: `status`
+must be compared against each entry's **actual** `RSS_SOURCES[i].status`
+value (defaulting to `'active'` only when the field is genuinely absent
+on that entry) — never against a blanket `'active'` expected value. With
+a blanket default, the one row that must differ (`rss-kpm`, `disabled`)
+would silently pass parity even if the migration incorrectly activated
+it — the exact failure this test exists to catch. Expected: 42 rows
+`status: 'active'`, 1 row (`rss-kpm`) `status: 'disabled'`.
 
 **Required result: 0 missing, 0 extra, 0 mismatch** — printed
 explicitly (not just a boolean pass/fail) so a human can review the
 exact diff if anything is off. This comparison script is written but
 NOT run against production until this plan is approved.
+
+### 4a. `active` ↔ `status` invariant — mandatory pre-cutover audit
+
+Per ChatGPT's explicit instruction: `status` supersedes the legacy
+`active BOOLEAN` column, but `active` is not dropped — it must be kept
+in lockstep so no code path can observe two conflicting definitions of
+"is this source live":
+
+```
+status = active    → active = true
+status = disabled  → active = false
+status = archived  → active = false
+```
+
+The backfill script (§3) sets `active` alongside `status` on every row,
+per this mapping, in the same transaction.
+
+**Before cutover (§7) is attempted**, a full `grep`/search of every
+production code path for `.active` / `sources.active` reads is
+required, and each consumer found must be one of:
+- migrated to read `status` instead, or
+- proven read-only/compatibility-only (never gates a real decision).
+
+No consumer may be left reading `active` as if it were still
+independently authoritative — that would let an admin `disable` a
+source via `status` while some other code path still treats it as
+active, reintroducing exactly the dual-source-of-truth problem Phase 1
+exists to remove. This audit is a required gate before §7's cutover,
+not an optional nice-to-have.
 
 ## 5. Test: a source added purely via production backend (the test that proves independence from code)
 
@@ -206,10 +244,29 @@ production code path reads it anymore. Per ChatGPT's explicit
 principle: production never has two competing sources of truth at
 once — this is a single-line cutover, not a gradual dual-read period.
 
-**Verification immediately after cutover**: a `--dry-run` ingestion run
-produces IDENTICAL item/cluster counts as the last real run before
-cutover (same 42 active sources — `rss-kpm` correctly excluded as
-`disabled`).
+**Verification immediately after cutover — corrected per ChatGPT's
+explicit rejection of "IDENTICAL item/cluster counts" as an acceptance
+criterion**: RSS content changes continuously (feeds update, items
+appear/disappear, fetch timing varies) — the same 43 sources producing
+a different item/cluster count between two runs is normal, expected
+variance, not a defect. Requiring an exact match would be testing the
+wrong thing.
+
+**What must be exact** (the actual claim this phase makes):
+```
+Sources fetched:  42/42 — exact parity (same set, same exclude_patterns, same metadata)
+Sources skipped:  1/1   — rss-kpm, correctly excluded as disabled
+```
+
+**What is observational only, reported but never gating pass/fail**:
+```
+RSS items:  747 → 752   (expected runtime variance)
+Clusters:   693 → 698   (expected runtime variance)
+```
+
+A `--dry-run` ingestion run immediately post-cutover reports both
+sections; only the source-set-parity section has a pass/fail
+threshold (must be exact).
 
 ## 8. Rollback — explicit, not "redeploy code"
 
