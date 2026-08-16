@@ -7,6 +7,7 @@ import { RSS_SOURCES } from '../lab/sources.js';
 import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
 import { createEditorialControl } from '../lab/control.js';
+import { deterministicFixtureItems } from '../lab/testFixtures.js';
 import { createInitialState, getRepresentationPreference } from './model.js';
 import { getEdition } from './editions.js';
 import { reduce } from './reducer.js';
@@ -22,8 +23,13 @@ function assert(name, condition, detail = '') {
 async function main() {
   console.log('Fetching real RSS data for state regression suite...\n');
   const results = await Promise.all(RSS_SOURCES.map(fetchFeed));
-  const allItems = results.filter(r => r.ok).flatMap(r => r.items);
-  console.log(`${allItems.length} items from ${results.filter(r => r.ok).length}/${RSS_SOURCES.length} sources.\n`);
+  const liveItems = results.filter(r => r.ok).flatMap(r => r.items);
+  const allItems = liveItems.length >= 50 ? liveItems : deterministicFixtureItems();
+  if (liveItems.length < 50) {
+    console.log(`Only ${liveItems.length} live items fetched — using deterministic fixture for state regression assertions. Check network/sources for the live RSS smoke check.\n`);
+  } else {
+    console.log(`${liveItems.length} items from ${results.filter(r => r.ok).length}/${RSS_SOURCES.length} sources.\n`);
+  }
 
   const rankedQueue = buildRankedQueue(allItems);
   const control = createEditorialControl();
