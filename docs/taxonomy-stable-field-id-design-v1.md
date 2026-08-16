@@ -258,62 +258,169 @@ vs **classification data migration** (merge/split — real production
 data work, needs its own plan, checklist, and rollback path, same
 discipline this project already applies to `_old`/ingestion swaps).
 
-## 5. Scope of `field_code`: global canonical identity, or per-edition membership?
+## 5. Global Field Identity vs Edition Taxonomy Mapping
 
-**Real question, not yet decided — audited, not assumed.**
+**Admin-facing note, per Izzat's explicit concern (2026-08-16): none of
+§5's internal complexity (`field_code`, `subject_code`, the mapping
+table) is ever surfaced to an admin.** An editor's actual experience —
+typing a new Bidang label and saving, or managing Editorial Filter
+Rules — stays exactly as simple as it is today, before and after this
+migration. `field_code`/`subject_code` are internal plumbing, the same
+category as a database row id — never shown in any admin screen, never
+something an editor types or needs to understand. The entire point of
+this work is to make an admin's future maintenance SAFER (renaming a
+Bidang currently risks silently losing stories; after this, it won't),
+not to add a concept an admin has to learn.
 
-Per ChatGPT: should `field_code` be a single canonical identity shared
-across `ms-MY`/`en-global`/`ar-global`, or should each edition own an
-entirely independent `(edition, field_code)` namespace?
+**Revised 2026-08-16 per ChatGPT's second review — this is the
+decision the whole design has been building toward, audited directly
+against the resolution code (not assumed).**
 
-**Audit finding: the codebase already has a de facto answer, just not
-formalized.** `classification/lib/edition-taxonomy.mjs`'s
-`default_mapping` field already expresses a cross-edition relationship
-today:
+### 5.1 How the merge actually happens today — confirmed in code
 
+`classification/lib/edition-taxonomy.mjs:113-117`:
 ```js
-// ms-MY
-{ label: 'Politik', default_mapping: ['Politics'] },
-{ label: 'Bisnes', default_mapping: ['Business', 'Economy'] }, // LOCKED merge — real ms-MY portals don't split these
-
-// en-global
-{ label: 'Business', default_mapping: ['Business'] },
-{ label: 'Economy', default_mapping: ['Economy'] }, // BBC/Guardian both split these — no merge for en
+export function resolveDefaultPlacement(edition, universalSubject) {
+  const table = EDITION_TAXONOMY[edition] ?? [];
+  const entry = table.find(e => e.default_mapping.includes(universalSubject));
+  return entry?.label ?? null;
+}
 ```
+This function takes exactly ONE Universal Subject value (a story's top
+`subject_candidates` entry — `'Business'` OR `'Economy'`, never both at
+once for one story) and resolves it to ONE edition-specific label. The
+merge (`ms-MY`'s `Bisnes` accepting both `'Business'` and `'Economy'`)
+happens entirely inside this lookup — `default_mapping.includes(...)`
+matching either value to the same `entry.label`. **The true
+classification fact — which Universal Subject the story actually
+matched — already exists as a distinct value in the pipeline before
+this function collapses it.** Today that fact is thrown away the
+moment `resolveDefaultPlacement()` returns; only the collapsed label
+(`'Bisnes'`) is what gets stored in `edition_story_classifications.field`.
 
-The **Universal Subject** vocabulary (`'Politics'`, `'Business'`,
-`'Economy'`, `'Crime'`, …, from `desk-vocabulary.mjs`'s
-`SUBJECT_VOCABULARY`) is already, in effect, a cross-edition canonical
-layer — every edition's per-locale field is defined as a mapping FROM
-one or more Universal Subject values. Critically, this mapping is
-**not always 1:1**: `ms-MY`'s "Bisnes" already collapses BOTH
-`Business` and `Economy` into one field, while `en-global` keeps them
-as two separate fields. This is a real, already-locked editorial
-decision (comment: "real ms-MY portals don't split these"), not a bug.
-
-**Recommendation, matching ChatGPT's stated preference, confirmed by
-this evidence:** `field_code` should sit at (or be derived 1:1 from)
-the Universal Subject layer — a **global canonical identity** — with
-each edition separately owning (a) which subjects it exposes as a
-Bidang at all, (b) whether it collapses multiple subjects into one
-Bidang or keeps them split, and (c) what label to display. Concretely:
+### 5.2 Three-layer model, confirmed compatible with existing code shape
 
 ```
-crime                          ← global canonical field_code
-├── ms-MY:      label "Jenayah",  exposed
-├── en-global:  label "Crime",    exposed
-└── ar-global:  label "جرائم",    exposed
-
-business_economy               ← ms-MY's merged code (or: ms-MY maps
-├── ms-MY:      label "Bisnes",     both 'business' and 'economy' to
-                exposed              one Bidang — exact mechanism TBD)
+Global Field                  ← the Universal Subject, formalized as a stable code
+  business
+  economy
+  crime
+  politics
+       ↓
+Edition Taxonomy Mapping       ← EDITION_TAXONOMY, already exists, just needs codes not labels
+  ms-MY:      business + economy → field_code 'bisnes', label "Bisnes"
+  en-global:  business           → field_code 'business', label "Business"
+              economy            → field_code 'economy',  label "Economy"
+       ↓
+edition_story_classifications  ← what actually gets stored, per story per edition
 ```
 
-**Not yet locked** — per ChatGPT's own framing, this needs one more
-pass once the exact mechanism for "one edition merges two global codes
-into one Bidang" is chosen (a single merged `field_code` per edition
-vs. an edition-level grouping table over global codes). Flagged
-explicitly as an open question for the next review, not resolved here.
+`resolveDefaultPlacement()` becomes the function that performs exactly
+this lookup already — it just needs to return a stable `field_code`
+(`'bisnes'`) instead of a display `label` (`'Bisnes'`), and the design
+needs to decide what ELSE gets stored alongside it (§5.3).
+
+### 5.3 What should `edition_story_classifications` actually store — audited both options
+
+**Option A — store the edition-resolved `field_code` only** (e.g.
+`'bisnes'` for an ms-MY Business-or-Economy story):
+- Zero change to every downstream consumer's *shape* — `reducer.js`'s
+  `===` comparisons (§1d/§1h), `rankingFlags.js`'s keying (§1e), Pin's
+  governance-limit `.eq()` (§1g) all keep working exactly as they do
+  today, just comparing a stable code instead of a mutable label.
+- **Loses the classification fact** — whether the story specifically
+  matched `Business` or `Economy` is gone the moment it's stored. This
+  is the loss ChatGPT flagged: *"itu menjaga fakta klasifikasi daripada
+  presentation taxonomy"* — Option A does NOT preserve that fact.
+
+**Option B — store the global Universal Subject code only** (e.g.
+`'business'` or `'economy'`, never the merged `'bisnes'`):
+- Preserves the classification fact exactly, per ChatGPT's stated
+  preference.
+- **Real, non-trivial cost**: every downstream consumer that currently
+  does exact-match comparison (`c.topic === selectedTopic` in
+  `ActiveSetList.jsx:34`/`reducer.js:213`, `taxonomy.includes(field)`
+  in `reducer.js:312`, `rankingFlags.js`'s single-key lookup, Pin's
+  `.eq('new_field', ...)`) would need to become a GROUP-membership
+  check instead — "does this story's global code belong to the set of
+  codes ms-MY groups under the currently selected Bidang?" — a real
+  logic rewrite at every one of those sites, not a data-only change.
+
+**Option C — store BOTH, recommended**: a `subject_code` column (the
+raw global Universal Subject fact, e.g. `'business'`) AND a
+`field_code` column (the edition-resolved, already-grouped display
+code, e.g. `'bisnes'`), both written once at classification time via
+`resolveDefaultPlacement()`'s lookup (which already has both values
+available in the same function call — no extra computation, just
+return both instead of only the label). This:
+- Preserves the classification fact (`subject_code`) exactly, per
+  ChatGPT's stated priority — nothing is thrown away.
+- Keeps every existing downstream consumer's matching logic AS
+  EXACT-MATCH, unchanged in shape (`reducer.js`, `rankingFlags.js`,
+  Pin's governance query all key off `field_code`, same as Option A) —
+  no group-membership rewrite needed anywhere.
+- Costs one extra TEXT column and one extra value returned from an
+  already-existing function call — the cheapest of the three for the
+  fact-preservation guarantee it buys.
+
+**Worked example (ms-MY, the real locked-merge case):**
+
+| Story | Universal Subject (evidence fact) | `subject_code` (stored) | `field_code` (stored) | Bidang shown |
+|---|---|---|---|---|
+| "Bank Negara umum kadar faedah" | `Business` | `business` | `bisnes` | Bisnes |
+| "Ringgit susut nilai" | `Economy` | `economy` | `bisnes` | Bisnes |
+
+Both stories correctly land under the same displayed Bidang
+(`field_code: 'bisnes'`, matching every existing exact-match consumer
+unchanged) while the underlying fact — which one was actually
+`Business` vs `Economy` — survives in `subject_code`, available for
+any future need (audit, re-derivation if an edition's grouping choice
+changes later, or a future admin screen showing the raw evidence).
+
+**Recommendation: Option C.** It satisfies ChatGPT's explicit priority
+(preserve the classification fact) without requiring the group-
+membership rewrite Option B would force across `reducer.js`,
+`rankingFlags.js`, and Pin's governance query — real, avoidable scope.
+
+### 5.4 Answering the specific audit questions ChatGPT asked
+
+- **ms-MY Business + Economy → Bisnes**: §5.3's worked example, above.
+- **en-global Business ≠ Economy**: both keep their own `field_code`
+  (`'business'`, `'economy'`) — `EDITION_TAXONOMY['en-global']`'s
+  existing 1:1 entries already express this; no change needed to that
+  table's *shape*, only label→code formalization.
+- **Arabic's own mapping** (`اقتصاد` merging `Business`+`Economy`, and
+  `صحة وعلوم` merging `Health`+`Science`) — same Option C mechanism:
+  both stories get `field_code: 'iqtisad'` (or similar) regardless of
+  which Universal Subject they matched, `subject_code` preserves which.
+- **Rename without data migration**: unaffected by this layer —
+  renaming a `label` in `EDITION_TAXONOMY` never touches `field_code`
+  or `subject_code`, exactly §4's rename guarantee, still holds.
+- **Genuine merge of two global fields into one universal field**
+  (e.g. if `science` and `technology` were ever merged at the GLOBAL
+  layer, not just within one edition's grouping) — this is different
+  from an edition's grouping choice (§5.2's layer 2) and would be a
+  real `subject_code` migration (per §4's Merge case) across ALL
+  editions' stored rows, not just one edition's mapping table.
+- **Split of one universal field into two** — same as §4's Split case,
+  applies at the `subject_code` layer, still cannot be automated.
+- **`rankingFlags.js`'s `ms-MY.Politik`**: becomes `'ms-MY.politics'`,
+  keyed on `field_code` (Option C) — unaffected by the subject/field
+  split, since ranking activation is a presentation-layer (per
+  displayed Bidang) concern, correctly modeled on `field_code`.
+- **`story_overrides.new_field`**: becomes `new_field_code`, storing
+  the edition-resolved code (an editor reclassifying a story picks a
+  DISPLAYED Bidang from that edition's taxonomy, not a raw global
+  subject) — `subject_code` has no equivalent for a human override,
+  since a human decision IS the edition-level fact, not raw evidence.
+- **`edition_story_classifications`**: gains both columns per §5.3.
+- **Review Queue / reader / reducer**: all continue to key on
+  `field_code` only, per Option C's whole point — zero logic-shape
+  change beyond swapping label-string comparisons for code-string
+  comparisons.
+
+**This is now locked as the recommended model, pending ChatGPT's
+final confirmation** — §5.1-5.4 replace the earlier open question.
 
 ## 6. Scenarios the design must answer
 
