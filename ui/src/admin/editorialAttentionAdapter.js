@@ -1,11 +1,22 @@
-// Editorial Attention Evaluation Layer — V1.
+// Editorial Attention Evaluation Layer — V2.
 //
 // This module is a derived, read-only projection over existing editorial and
 // operational state. It never writes a table, changes reader state, ranks
 // stories, or calls an external service. UI and Digest integration are
 // intentionally deferred.
+//
+// V1 -> V2 (docs/editorial-attention-model-v2.md): the production
+// simulation proved classification_confidence < 0.5 ALONE is too broad —
+// 19 real items, 17 of them weeks/months/years old. The age-bucket
+// analysis found a genuine gap in the real data (nothing between 24h and
+// 70h), and that classification_confidence = 0.4 only ever appeared on
+// stories already 70+ hours old — i.e. it behaves like a stale-pipeline
+// residue, not a graded editorial probability. V2 therefore adds a second,
+// independent qualification: the story must ALSO be under 48 hours old.
+// This is a GATE (yes/no), never a score — it is not blended with
+// confidence into a combined number, and there is still no ranking here.
 
-import { PIN_EXPIRING_WINDOW_HOURS } from './editorialAttentionConfig.js';
+import { PIN_EXPIRING_WINDOW_HOURS, LOW_CONFIDENCE_FRESHNESS_WINDOW_HOURS } from './editorialAttentionConfig.js';
 
 const LOW_CONFIDENCE_QUERY = 'classification_confidence.lt.0.5';
 
@@ -17,25 +28,31 @@ const validDateMs = value => {
 };
 
 /**
- * Pure evaluator for the three V1 signals. `now` is injectable for boundary
+ * Pure evaluator for the three V2 signals. `now` is injectable for boundary
  * tests; production always supplies the current time at read time.
  */
 export function evaluateEditorialAttention({ classifications = [], snapshot = null, pins = [] }, now = new Date()) {
   const nowMs = now.getTime();
   const pinWindowEndsAtMs = nowMs + PIN_EXPIRING_WINDOW_HOURS * 60 * 60 * 1000;
+  const freshnessCutoffMs = nowMs - LOW_CONFIDENCE_FRESHNESS_WINDOW_HOURS * 60 * 60 * 1000;
   const items = [];
 
   // The value 0.5 is intentionally not a new config/threshold: it is the
-  // exact existing Review Queue predicate, reused here verbatim.
+  // exact existing Review Queue predicate, reused here verbatim. Age is a
+  // SEPARATE, ADDITIONAL qualification (docs/editorial-attention-model-v2.md)
+  // — a story failing the freshness gate is excluded here, not deleted,
+  // expired, or reclassified anywhere else in the system.
   for (const classification of classifications) {
     if (Number(classification.classification_confidence) >= 0.5) continue;
+    const publishedAtMs = validDateMs(classification.publishedAt);
+    if (publishedAtMs === null || publishedAtMs < freshnessCutoffMs) continue;
     items.push({
       type: 'low_confidence',
       category: 'action_required',
       presentation: { status: 'action_required' },
       relatedStoryId: classification.story_id,
       what: 'Bidang berita ini belum cukup pasti.',
-      reason: 'Keyakinan klasifikasi berada di bawah ambang semakan sedia ada.',
+      reason: 'Keyakinan klasifikasi berada di bawah ambang semakan sedia ada, dan berita ini masih baharu.',
       recommendedAction: action('review_classification', 'Semak klasifikasi'),
     });
   }
@@ -85,7 +102,7 @@ const localDateString = date => {
 };
 
 /**
- * Fetches only the V1 sources of truth and evaluates them at request time.
+ * Fetches only the V2 sources of truth and evaluates them at request time.
  * It is deliberately not called by AdminApp, Admin Digest, Review Queue, or
  * the reader path yet.
  */
@@ -117,8 +134,31 @@ export async function fetchEditorialAttention(supabase, editionId, now = new Dat
   if (snapshotsError) throw new Error(`fetchEditorialAttention: operational_snapshots_public — ${snapshotsError.message}`);
   if (pinsError) throw new Error(`fetchEditorialAttention: story_overrides — ${pinsError.message}`);
 
+  // The freshness gate (docs/editorial-attention-model-v2.md) needs each
+  // story's publish time — the same canonical resolution reviewQueueAdapter.js
+  // already uses (earliest rss_items row for the cluster). Only fetched for
+  // the (already small) low-confidence set, not every story in the edition.
+  const lowConfidenceStoryIds = (classifications ?? []).map(c => c.story_id);
+  let publishedAtByStoryId = new Map();
+  if (lowConfidenceStoryIds.length > 0) {
+    const { data: rssItems, error: rssItemsError } = await supabase
+      .from('rss_items')
+      .select('cluster_id, published_at')
+      .in('cluster_id', lowConfidenceStoryIds);
+    if (rssItemsError) throw new Error(`fetchEditorialAttention: rss_items — ${rssItemsError.message}`);
+    for (const row of rssItems ?? []) {
+      const existing = publishedAtByStoryId.get(row.cluster_id);
+      if (!existing || new Date(row.published_at) < new Date(existing)) {
+        publishedAtByStoryId.set(row.cluster_id, row.published_at);
+      }
+    }
+  }
+
   return evaluateEditorialAttention({
-    classifications: classifications ?? [],
+    classifications: (classifications ?? []).map(c => ({
+      ...c,
+      publishedAt: publishedAtByStoryId.get(c.story_id) ?? null,
+    })),
     snapshot: snapshots?.[0] ?? null,
     pins: pins ?? [],
   }, now);
