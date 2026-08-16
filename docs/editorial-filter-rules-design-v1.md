@@ -73,19 +73,28 @@ artis") is a standing editorial policy, structurally closer to
 
 ### 2. Precedence
 
-Exactly the four tiers named in the brief, evaluated in this order,
-first match wins:
+Full documented chain per the brief:
 
 ```
-1. Explicit Keep  — reserved for a future per-story "always show" pin;
-                     NOT built in V1 (no such mechanism requested or
-                     needed yet — named here only so the precedence
-                     chain has a documented slot, not implemented)
-2. Exception       — any active 'except' phrase found in title/description
-                      → story is KEPT regardless of any exclude match
-3. Exclude         — any active 'exclude' phrase found in title/description
-                      → story is DROPPED
-4. Default         — no rule matched → story is KEPT
+Explicit Keep > Exception > Exclude > Default
+```
+
+**V1 implements only three of these tiers** — decided by ChatGPT
+2026-08-16: `Explicit Keep` is a reserved future slot, named in this
+document so the chain has a place for it, but **no mechanism is built
+for it in V1** — no schema column, no resolver branch, no UI. Building
+it now would mean maintaining three mechanisms (Keep, Exception,
+Exclude) for a use pattern (editing the keyword lists roughly weekly)
+that doesn't need it yet.
+
+V1's actual, implemented precedence, first match wins:
+
+```
+1. Exception  — any active 'except' phrase found in title/description
+                 → story is KEPT regardless of any exclude match
+2. Exclude    — any active 'exclude' phrase found in title/description
+                 → story is DROPPED (reader) / MARKED (admin, see §3)
+3. Default    — no rule matched → story is KEPT
 ```
 
 Matching is case-insensitive substring match against the canonical
@@ -117,19 +126,49 @@ export function resolveEditorialFilter(text, rules) {
 
 ### 3. Where it applies
 
-Applied in `ui/src/adapter/productionAdapter.js`, at the same per-story
-loop that already calls `resolveStoryField()` (line ~138) — a sibling
-check, not a replacement. Proposed order: filter runs first (a
-filtered-out story never needs field resolution), `resolveStoryField`
-runs only for stories that survive the filter. A `hide` override
-(per-story, already existing) and an `exclude` filter (keyword,
-new) both result in "not shown" but via entirely separate mechanisms —
-neither should call into the other.
+**Reader and admin behave differently — decided by ChatGPT 2026-08-16,
+explicitly to avoid silent data loss from an audit/debugging
+standpoint** ("admin nampak 466 berita → pembaca nampak 420 → admin tak
+tahu 46 hilang kerana dasar editorial" — exactly the failure this
+design must not create):
 
-Reader-facing only for V1 (matches where `resolveStoryField` already
-runs) — does not touch `classify-production.js`, `ingest-production.js`,
-or any classification/ranking file, satisfying the explicit "jangan
-ubah classification pipeline" instruction.
+```
+RSS → classification → Editorial Filter → Reader
+                              │
+                              ├── excluded story → NOT shown (reader)
+                              └── kept story      → shown, resolveStoryField() runs as today
+
+RSS → classification → Review Queue (admin)
+                              │
+                              └── excluded story → STILL VISIBLE, marked
+                                  "Ditapis oleh kata kunci" — not hidden,
+                                  not marked action_required, not
+                                  re-added to the Active Set just
+                                  because an admin viewed it
+```
+
+**Reader**: applied in `ui/src/adapter/productionAdapter.js`, at the
+same per-story loop that already calls `resolveStoryField()` (line
+~138) — a sibling check, not a replacement. Filter runs first (a
+filtered-out story never needs field resolution); `resolveStoryField`
+runs only for stories that survive the filter. No special reader UI
+needed — excluded stories simply don't appear.
+
+**Admin (Review Queue)**: the filter result is computed and attached
+as a label on the existing Review Queue row (`reviewQueueAdapter.js`),
+not used to remove the row. Purpose is audit visibility, not asking the
+admin to resolve anything — the label is informational only, distinct
+from `editorialAttentionAdapter.js`'s `action_required` items which
+imply an admin should act.
+
+A `hide` override (per-story, already existing) and an `exclude`
+filter (keyword, new) both result in "not shown to reader" but via
+entirely separate mechanisms — neither should call into the other.
+
+Does not touch `classify-production.js`, `ingest-production.js`, or
+any classification/ranking file, satisfying the explicit "jangan ubah
+classification pipeline" instruction — the filter reads classification
+output, never influences it.
 
 ### 4. Admin/UI surface
 
@@ -167,16 +206,21 @@ accident, before implementation).
 - Does not decide per-edition scoping — assumes global-only for V1 per
   explicit instruction, revisit only if a real need appears
 
-## Open question for approval
+## Decisions confirmed by ChatGPT (2026-08-16)
 
-Is `productionAdapter.js` (reader-facing, matches where
-`resolveStoryField` already runs) the right single integration point,
-or should the filter also apply to `/admin` Review Queue visibility
-(i.e., should editors see excluded stories in the queue, marked as
-filtered, or should they disappear from admin too)? Not decided here —
-flagged for explicit direction before implementation.
+- Reader vs. admin integration resolved — see §3 above (reader hides,
+  admin marks-but-keeps-visible). No longer an open question.
+- V1 precedence is `Exception > Exclude > Default` only —
+  `Explicit Keep` stays a named, unbuilt reserved slot.
+- `reason` stays optional, informational only, never part of match
+  logic (already the case in §1's schema — confirmed correct, no
+  change needed).
+- Matching stays case-insensitive substring, `title + description`,
+  no fuzzy matching, no AI, no scoring (already the case in §2 —
+  confirmed correct, no change needed).
 
 ## Next
 
-Awaiting approval of this design (schema shape, precedence order,
-integration point, terminology) before any code is written.
+Design updated per the decisions above (schema shape, precedence
+order, reader/admin integration split, terminology). Awaiting final
+go-ahead before any code is written.
