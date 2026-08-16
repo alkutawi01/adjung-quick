@@ -179,6 +179,20 @@ active, reintroducing exactly the dual-source-of-truth problem Phase 1
 exists to remove. This audit is a required gate before §7's cutover,
 not an optional nice-to-have.
 
+**Audit result (2026-08-16, run against the full codebase)**: every
+`.from('sources').select(...)` call (`ui/src/admin/classificationFlowAdapter.js:31`,
+`ui/src/adapter/productionAdapter.js:43,221`, `ui/src/admin/reviewQueueAdapter.js:90,150`)
+selects only `id`, `name`, `trust_score` — **none select or read the
+`active` column**. All other `.active`/`.eq('active', ...)` matches in
+the codebase belong to unrelated tables (`editorial_filter_rules.active`,
+`story_overrides.active`, `operational_snapshots.active_override_count`)
+— confirmed by inspecting each match, not by the column name alone.
+**Zero production consumers read `sources.active` today** — the
+invariant in §4a is satisfied trivially at cutover time (nothing to
+migrate), but the backfill still sets `active` correctly per the
+mapping above so the column never drifts from `status` if a future
+consumer is added.
+
 ## 5. Test: a source added purely via production backend (the test that proves independence from code)
 
 Per ChatGPT's explicit escalation from the staging version — this must
