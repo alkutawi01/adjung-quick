@@ -87,7 +87,8 @@ export default function App() {
         // holds the PRE-fetch `rankedQueue` state (empty) since this runs
         // before React re-renders from the setRankedQueue() call above.
         const activeEdition = getEdition(state.editionContext.activeEdition);
-        const firstTopic = activeEdition.taxonomy[0];
+        // field_code, not label — see topics useMemo below for why.
+        const firstTopic = activeEdition.taxonomyFieldCodes[0];
         setState(s => reduce(s, selectTopic(firstTopic), {
           rankedQueue: queue,
           control: controlRef.current,
@@ -120,10 +121,13 @@ export default function App() {
   // taxonomy. The Wheel is the edition's editorial map, not a filter over
   // available content — stories determine how MUCH is in each Bidang, never
   // WHICH Bidang exist.
-  const topics = useMemo(
-    () => getEdition(state.editionContext.activeEdition).taxonomy,
-    [state.editionContext.activeEdition],
-  );
+  // Taxonomy Stable Field-ID V1 (2026-08-16): TopicWheel needs both the
+  // stable code (dispatch/matching) and the label (display) — paired here
+  // from editions.js's parallel `taxonomy`/`taxonomyFieldCodes` arrays.
+  const topics = useMemo(() => {
+    const edition = getEdition(state.editionContext.activeEdition);
+    return edition.taxonomyFieldCodes.map((code, i) => ({ code, label: edition.taxonomy[i] }));
+  }, [state.editionContext.activeEdition]);
 
   // There is no "Semua"/All Bidang (removed 2026-08-12 per Izzat — he never
   // decided to have one). The reader is always inside exactly one real
@@ -134,7 +138,7 @@ export default function App() {
   // per docs/core-reading-ui-contract.md §11a).
   useEffect(() => {
     if (state.userContext.selectedTopic == null && topics.length > 0) {
-      dispatch(selectTopic(topics[0]));
+      dispatch(selectTopic(topics[0].code));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topics, state.userContext.selectedTopic]);

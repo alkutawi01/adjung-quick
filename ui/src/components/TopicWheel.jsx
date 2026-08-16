@@ -54,13 +54,20 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 // (rendered again in the next copy) — wrapping the committed index just
 // keeps the tripled list anchored on the correct copy after the fact, it
 // never has to visually "jump" backward across the whole list.
+// Taxonomy Stable Field-ID V1 (2026-08-16): `topics` is now an array of
+// { code, label } pairs, not plain label strings — selection/dispatch
+// happens on `code` (field_code, rename-proof), rendering shows `label`.
+// Found live: this component previously used the same string for both,
+// so selecting "Pendidikan" dispatched the label — but productionAdapter.js
+// now sets `topic` to field_code ('education'), so nothing ever matched
+// and every Bidang looked empty.
 export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   // Real Bidang only. The "Semua" pseudo-Bidang that used to sit at index 0
   // was REMOVED 2026-08-12 — Izzat's correction: he never decided to have
   // one, it was added without approval. The reader is always inside exactly
   // one real Bidang; there is no unfiltered view.
   const allValues = topics;
-  const currentIndex = Math.max(0, allValues.indexOf(selectedTopic));
+  const currentIndex = Math.max(0, allValues.findIndex(v => v.code === selectedTopic));
   // Middle-copy index: where the selection actually renders in the tripled list.
   const middleIndex = allValues.length + currentIndex;
   const tripledValues = useMemo(() => [...allValues, ...allValues, ...allValues], [allValues]);
@@ -111,7 +118,7 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
   const selectIndex = i => {
     if (!hasTopics) return;
     const wrapped = wrapIndex(i);
-    if (allValues[wrapped] !== selectedTopic) onSelect(allValues[wrapped]);
+    if (allValues[wrapped].code !== selectedTopic) onSelect(allValues[wrapped].code);
   };
 
   // Gesture-level debounce: a whole physical scroll gesture (however many
@@ -287,12 +294,12 @@ export default function TopicWheel({ topics, selectedTopic, onSelect }) {
             return (
               <div
                 key={domIndex}
-                data-value={value ?? ''}
+                data-value={value?.code ?? ''}
                 className={`bidang-wheel__item${domIndex === liveMiddleIndex ? ' bidang-wheel__item--active' : ''}`}
                 style={{ opacity: 1 - t * 0.75, transform: `scale(${1 - t * 0.28})` }}
                 aria-hidden={domIndex !== liveMiddleIndex}
               >
-                {value}
+                {value?.label}
               </div>
             );
           })}
