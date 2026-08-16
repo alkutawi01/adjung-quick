@@ -14,6 +14,15 @@
 import { resolveDefaultPlacement, EDITION_GEOGRAPHY_RESIDUAL_LABEL } from './lib/edition-taxonomy.mjs';
 import { evaluateEditionRules } from './lib/edition-rules.mjs';
 import { checkConfidenceGate } from './lib/confidence-policy.mjs';
+import { getFieldEntryByLabel } from './lib/taxonomy-registry.mjs';
+
+// Taxonomy Stable Field-ID V1 (2026-08-16): field_code is derived from
+// whichever label a code path already resolved — every branch below
+// already computes `label`/`field` before this runs, so this never
+// duplicates resolution logic, only attaches the stable code alongside it.
+function fieldCodeFor(edition, label) {
+  return getFieldEntryByLabel(edition, label)?.field_code ?? null;
+}
 
 export const RULESET_VERSION = 'v1.3.0'; // bumped: Confidence Gate (Sesi 3B.2C-1) inserted between Edition Rules and Default Placement Mapping
 
@@ -40,6 +49,11 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
     return {
       edition_id: edition,
       field: ruleMatch.display_field,
+      field_code: fieldCodeFor(edition, ruleMatch.display_field),
+      // The one rule that exists (foreign_politics_to_world) requires a
+      // subject match to fire at all — subjectCandidates[0].value is the
+      // real Universal Subject fact this rule actually matched on.
+      subject_code: subjectCandidates[0]?.value ?? null,
       sub_field: null,
       classification_status: 'classified',
       classification_method: 'edition_rule',
@@ -72,6 +86,10 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
       return {
         edition_id: edition,
         field: label,
+        field_code: fieldCodeFor(edition, label),
+        // Geography-residual path, by definition no subject candidate was
+        // usable — subject_code is genuinely null here, not a gap.
+        subject_code: null,
         sub_field: null,
         classification_status: 'classified',
         classification_method: 'low_confidence_fallback',
@@ -101,6 +119,8 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
       return {
         edition_id: edition,
         field: label,
+        field_code: fieldCodeFor(edition, label),
+        subject_code: candidate.value,
         sub_field: null,
         classification_status: 'classified',
         classification_method: 'default_mapping',
@@ -131,6 +151,8 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
     return {
       edition_id: edition,
       field: label,
+      field_code: fieldCodeFor(edition, label),
+      subject_code: null,
       sub_field: null,
       classification_status: 'classified',
       classification_method: 'geography_fallback',
@@ -145,6 +167,8 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
   return {
     edition_id: edition,
     field: null,
+    field_code: null,
+    subject_code: null,
     sub_field: null,
     classification_status: 'unclassified',
     classification_method: 'none',

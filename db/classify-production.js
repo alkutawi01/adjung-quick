@@ -110,6 +110,13 @@ async function main() {
         story_id: cluster.id,
         edition_id: editionId,
         field: result.field,
+        // Taxonomy Stable Field-ID V1 (docs/taxonomy-stable-field-id-design-v1.md,
+        // Option C, locked by ChatGPT 2026-08-16): field_code is what every
+        // consumer compares going forward, never the mutable label above.
+        // subject_code preserves the raw Universal Subject fact — null is
+        // correct for geography-residual/unclassified results, not a gap.
+        field_code: result.field_code,
+        subject_code: result.subject_code,
         sub_field: result.sub_field,
         classification_status: result.classification_status,
         classification_method: result.classification_method,

@@ -16,55 +16,25 @@
 // required contract. A subject with no default_mapping anywhere just falls
 // through to geography_fallback / unclassified, which is normal, not a gap.
 
-export const EDITION_TAXONOMY = {
-  'ms-MY': [
-    { label: 'Politik', default_mapping: ['Politics'] },
-    { label: 'Jenayah', default_mapping: ['Crime'] },
-    { label: 'Bisnes', default_mapping: ['Business', 'Economy'] }, // LOCKED merge, real ms-MY portals don't split these
-    { label: 'Sukan', default_mapping: ['Sports'] },
-    { label: 'Alam Sekitar', default_mapping: ['Environment'] },
-    { label: 'Bencana', default_mapping: ['Disaster'] },
-    { label: 'Kesihatan', default_mapping: ['Health'] },
-    { label: 'Pendidikan', default_mapping: ['Education'] },
-    { label: 'Teknologi', default_mapping: ['Technology'] },
-    { label: 'Sains', default_mapping: ['Science'] },
-    { label: 'Budaya', default_mapping: ['Culture'] },
-    { label: 'Hiburan', default_mapping: ['Entertainment'] },
-    { label: 'Agama', default_mapping: ['Religion'] }, // future candidate for Wheel display; still a valid classification result
-    { label: 'Gaya Hidup', default_mapping: ['Lifestyle'] },
-  ],
-  'en-global': [
-    { label: 'Politics', default_mapping: ['Politics'] },
-    { label: 'Crime', default_mapping: ['Crime'] },
-    { label: 'Economy', default_mapping: ['Economy'] },
-    { label: 'Business', default_mapping: ['Business'] }, // BBC/Guardian both split these — no merge for en
-    { label: 'Sports', default_mapping: ['Sports'] },
-    { label: 'Environment', default_mapping: ['Environment'] },
-    { label: 'Disaster', default_mapping: ['Disaster'] },
-    { label: 'Health', default_mapping: ['Health'] },
-    { label: 'Education', default_mapping: ['Education'] },
-    { label: 'Technology', default_mapping: ['Technology'] },
-    { label: 'Science', default_mapping: ['Science'] },
-    { label: 'Culture', default_mapping: ['Culture'] },
-    { label: 'Entertainment', default_mapping: ['Entertainment'] },
-    { label: 'Religion', default_mapping: ['Religion'] },
-    { label: 'Lifestyle', default_mapping: ['Lifestyle'] },
-  ],
-  'ar-global': [
-    { label: 'سياسة', default_mapping: ['Politics'] },
-    { label: 'جريمة', default_mapping: ['Crime'] },
-    { label: 'اقتصاد', default_mapping: ['Business', 'Economy'] }, // LOCKED merge, Arabic sources show no real split
-    { label: 'رياضة', default_mapping: ['Sports'] },
-    { label: 'بيئة', default_mapping: ['Environment'] },
-    { label: 'كوارث', default_mapping: ['Disaster'] },
-    { label: 'صحة وعلوم', default_mapping: ['Health', 'Science'] }, // LOCKED merge, BBC Arabic evidence
-    { label: 'تعليم', default_mapping: ['Education'] },
-    { label: 'تكنولوجيا', default_mapping: ['Technology'] },
-    { label: 'ثقافة وفنون', default_mapping: ['Culture', 'Entertainment'] }, // LOCKED v1 merge, editorial choice not unanimous evidence — see sesi2-edition-taxonomy-design.md
-    { label: 'دين', default_mapping: ['Religion'] },
-    { label: 'منوعات', default_mapping: ['Lifestyle'] },
-  ],
-};
+import { TAXONOMY_REGISTRY, GEOGRAPHY_RESIDUAL_FIELD_CODE } from './taxonomy-registry.mjs';
+
+// Taxonomy Stable Field-ID V1 (2026-08-16, docs/taxonomy-stable-field-id-design-v1.md):
+// this table is now DERIVED from taxonomy-registry.mjs's single source of
+// truth, rather than hand-maintained here — the exact same shape
+// ({ label, default_mapping }) is preserved so resolveDefaultPlacement()
+// below needed zero changes to its own logic. Geography-residual entries
+// (Nasional/Dunia/World/العالم — subject_codes: null in the registry) are
+// excluded here, matching this table's pre-migration behavior exactly:
+// default_mapping resolution never applied to those, only
+// EDITION_GEOGRAPHY_RESIDUAL_LABEL below did.
+export const EDITION_TAXONOMY = Object.fromEntries(
+  Object.entries(TAXONOMY_REGISTRY).map(([editionId, entries]) => [
+    editionId,
+    entries
+      .filter(e => e.subject_codes !== null)
+      .map(e => ({ label: e.label, default_mapping: e.subject_codes, field_code: e.field_code })),
+  ]),
+);
 
 // EDITION POSITIONING (locked 2026-08-12, per Izzat + docs/edition-source-profile-model.md):
 //   ms-MY     — Malaysian local edition (Malaysian readers)
