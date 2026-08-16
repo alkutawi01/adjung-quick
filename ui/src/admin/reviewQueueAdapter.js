@@ -152,7 +152,11 @@ export async function fetchEditorialFilterMatches(supabase, editionId) {
   if (clustersErr) throw new Error(`fetchEditorialFilterMatches: story_clusters — ${clustersErr.message}`);
   if (itemsErr) throw new Error(`fetchEditorialFilterMatches: rss_items — ${itemsErr.message}`);
   if (sourcesErr) throw new Error(`fetchEditorialFilterMatches: sources — ${sourcesErr.message}`);
-  if (filterRulesErr) throw new Error(`fetchEditorialFilterMatches: editorial_filter_rules — ${filterRulesErr.message}`);
+  // Non-fatal, like productionAdapter.js's identical guard: if the schema
+  // hasn't been applied yet (manual Supabase SQL Editor step, no automated
+  // migration path here), this section just shows nothing — never breaks
+  // the rest of the admin UI.
+  if (filterRulesErr) { console.warn(`fetchEditorialFilterMatches: editorial_filter_rules unavailable — ${filterRulesErr.message}`); return []; }
   if (filterRules.length === 0) return [];
 
   const liveClusterIds = new Set(

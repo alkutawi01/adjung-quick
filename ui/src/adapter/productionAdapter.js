@@ -85,9 +85,15 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
   if (itemsErr) throw new Error(`fetchRankedQueue: rss_items — ${itemsErr.message}`);
   if (placementsErr) throw new Error(`fetchRankedQueue: edition_story_classifications — ${placementsErr.message}`);
   if (overridesErr) throw new Error(`fetchRankedQueue: public_active_overrides — ${overridesErr.message}`);
-  if (filterRulesErr) throw new Error(`fetchRankedQueue: editorial_filter_rules — ${filterRulesErr.message}`);
+  // Deliberately non-fatal, unlike every other query above: editorial_filter_rules
+  // is a genuinely optional table — if it hasn't been created yet (schema
+  // applied separately via Supabase SQL Editor, no automated migration path
+  // in this project), the reader must keep working exactly as before, not
+  // go dark. A missing table degrades to "no active rules", never to a
+  // broken reader. Logged so the gap is visible in the console, not silent.
+  if (filterRulesErr) console.warn(`fetchRankedQueue: editorial_filter_rules unavailable, filter disabled — ${filterRulesErr.message}`);
 
-  return mapRowsToRankedQueue({ sources, clusters, items, placements, overrides, filterRules });
+  return mapRowsToRankedQueue({ sources, clusters, items, placements, overrides, filterRules: filterRulesErr ? [] : filterRules });
 }
 
 // Pure reshape, split out from fetchRankedQueue so the edition-placement
