@@ -1,9 +1,15 @@
 # Editorial State Orphan Lifecycle — Design v1 (2026-08-17)
 
-Status: `[x] Design` `[ ] Approved` — **revised 2026-08-17 per ChatGPT's
-review of the first draft (diagnosis/principles approved, §8's FK-removal
-mechanism sent back for a race-condition analysis — now added as §8a–8e).
-Still no code written, no schema migration, no cleanup mechanism built.**
+Status: `[x] Design` `[ ] Approved` — **revised twice, 2026-08-17.**
+Rev 1: added §8a–8e (race-condition analysis) per ChatGPT's first
+review. Rev 2: ChatGPT identified that §8d's concurrency proof for
+Option B (`FOR KEY SHARE`) relied on an unverified assumption about
+PostgreSQL relation-resolution timing during a blocked lock wait — this
+project has no safe Postgres test environment to confirm it. Decision
+changed to **Option D** (`pg_advisory_xact_lock`, §8a/§8f), whose
+correctness follows from the primitive's own documented contract
+instead of needing that proof. Still no code written, no schema
+migration, no cleanup mechanism built.
 
 Per ChatGPT's explicit instruction after the production ingestion swap
 (2026-08-17) nearly failed on a real FK violation: `story_overrides`
@@ -273,14 +279,58 @@ silently reintroduces Option A's race. Postgres already solved this
 exact problem for the FK; re-solving it per-call-site in application
 code is strictly more error-prone for equivalent protection.
 
-**Decision: Option B.** A `BEFORE INSERT`/`BEFORE UPDATE` trigger,
-using `FOR KEY SHARE`, on `story_overrides`, `saved_stories`, and
-`history_entries`. This is not proposed as literal SQL to apply yet —
-per ChatGPT's instruction, no code/migration is written in this pass —
-but it is the concrete mechanism this design commits to when a future
-phase implements it.
+**Option D — a dedicated transaction-scoped advisory lock as an explicit boundary**
+(added per ChatGPT's second review, 2026-08-17 — Option B's `FOR KEY
+SHARE` claim turned out to rest on an unverified assumption about
+Postgres relation-resolution timing; see §8d for why this matters and
+§8f for why D avoids needing that assumption at all):
+```sql
+-- Illustrative shape only — not proposed for implementation yet
+-- Editorial writes (trigger on story_overrides/saved_stories/history_entries):
+  PERFORM pg_advisory_xact_lock_shared(hashtext('adjung_quick_ingestion_swap_boundary'));
+  PERFORM 1 FROM story_clusters WHERE id = NEW.story_id;   -- FOR KEY SHARE no longer load-bearing here — see §8f
+  IF NOT FOUND THEN RAISE EXCEPTION '...'; END IF;
 
-### 8b. Why Option B doesn't reintroduce the swap-blocking problem
+-- swap_ingestion_staging(), as its very first statement:
+  PERFORM pg_advisory_xact_lock(hashtext('adjung_quick_ingestion_swap_boundary'));
+  -- ... existing ALTER TABLE renames follow, unchanged ...
+```
+`pg_advisory_xact_lock_shared`/`pg_advisory_xact_lock` are a documented
+Postgres primitive with precise, simple semantics (PostgreSQL docs,
+"Advisory Locks"): any number of transactions may hold the SHARED form
+of a given key concurrently; the EXCLUSIVE form cannot be granted while
+any SHARED (or EXCLUSIVE) holder exists, and vice versa; both are
+automatically released at transaction end (commit or rollback) when
+using the `_xact_` variant — no manual unlock needed, no risk of a
+forgotten release leaking the lock. This gives a clean mutual-exclusion
+boundary: **no editorial write's transaction and the swap's transaction
+can ever be "in progress" at the same time**, full stop — not "probably
+serialized via an inferred side-effect of table-level locking," but
+literally, by the lock's own documented contract, mutually exclusive.
+This makes §8d's Case 1/Case 2 analysis **provably correct by the
+advisory lock's own semantics alone** — it does not depend on any claim
+about what `story_clusters` resolves to after a blocked query wakes up,
+because with D, no editorial write is ever blocked-and-waiting while a
+swap is concurrently renaming anything — one side always fully finishes
+(commits or rolls back) before the other side's lock request is even
+granted.
+
+**Decision: Option D**, not B — reversed from this document's first
+draft. B is not wrong in principle (its `FOR KEY SHARE` idea is a real,
+correct Postgres mechanism for row-level FK-equivalent locking), but
+proving its safety for THIS specific scenario requires verifying subtle
+relation-name-resolution behavior across a blocked lock wait during
+concurrent DDL — exactly what §8d's revision below explains this
+document cannot currently prove. D sidesteps that requirement entirely
+by using a primitive whose safety is guaranteed by its documented
+contract, not by an interpretation of DDL/DML interaction internals.
+D's operational cost is the same class as B's: both are enforced from
+exactly two choke points (a shared trigger function on the 3 tables,
+and the swap function's own entry point) — not scattered per-call-site
+like Option C, so D is not meaningfully harder to apply correctly than
+B was believed to be.
+
+### 8b. Why a write-time-only check (B or D — this applies to both) doesn't reintroduce the swap-blocking problem
 
 The original bug was never "writes need to validate `story_id`" — it
 was "a **standing constraint** re-validates EVERY existing row's
@@ -292,9 +342,10 @@ rows that already exist. Once the FK itself is gone, `swap_ingestion_staging()`'
 `ALTER TABLE ... RENAME` has nothing left to re-check against
 `story_overrides`/`saved_stories`/`history_entries` at all, regardless
 of how many old rows in those tables point at stories the new
-generation doesn't have. That's the actual fix — Option B is what makes
-new writes safe, not what makes the swap succeed; those are two
-separate problems this design was at risk of conflating.
+generation doesn't have. That's the actual fix — the trigger (under
+either B or D) is what makes new writes safe, not what makes the swap
+succeed; those are two separate problems this design was at risk of
+conflating. This part of the reasoning is unaffected by the B→D switch.
 
 `repoint_story_clusters_fks()` (the swap-time FK-repoint function)
 simply stops needing to touch these three tables at all — no
@@ -318,60 +369,124 @@ itself a transactional DDL statement requiring an `ACCESS EXCLUSIVE`
 lock, is a well-defined, unambiguous answer even during a swap (§8d
 works through exactly this timing).
 
-### 8d. Concurrency scenario — Admin writes while an ingestion swap is in flight (per ChatGPT's explicit request)
+### 8d. Concurrency scenario — Admin writes while an ingestion swap is in flight (per ChatGPT's explicit request), and why the first draft's proof was incomplete
+
+**This document's first draft claimed** that if the swap wins the
+race for `story_clusters`'s lock, Admin's blocked `FOR KEY SHARE`
+query would, upon waking up, automatically re-resolve against the
+NEW `story_clusters` (the just-promoted staging table) rather than the
+OLD one (now renamed to `story_clusters_old`). **ChatGPT correctly
+identified this as an unproven assumption, not a demonstrated fact.**
+The honest state of that claim:
+
+- The specific mechanism that WOULD make it true is real and
+  documented: PostgreSQL resolves a `RangeVar` (a bare table name in a
+  query) to a relation OID, and when the requested lock on that OID
+  can't be granted immediately, the resolving function re-validates
+  that the name still maps to the same OID *after* the lock is finally
+  acquired — retrying resolution if a concurrent DDL statement (like a
+  `RENAME`) changed what the name points to while the wait was
+  happening. This is PostgreSQL's standard defense against exactly
+  this class of race between DML and concurrent DDL.
+- **What this document cannot honestly claim**: that this behavior has
+  been verified against this project's specific Supabase-hosted
+  Postgres version, inside a `plpgsql` trigger invoked via Supabase's
+  PostgREST connection-pooling layer, for this exact statement shape
+  (`SELECT ... FOR KEY SHARE` inside a trigger fired by an `INSERT`
+  coming through PostgREST). No local or isolated Postgres test
+  environment exists in this project (every schema file's own header
+  already says so — applied manually via Supabase SQL Editor, no
+  migration runner) to safely construct and observe this exact race
+  without risk to the shared production database. Per ChatGPT's
+  explicit instruction, this document does **not** claim that
+  proof — it states this limitation plainly instead of asserting an
+  unverified mechanism as settled fact.
+
+**This is exactly why §8a's decision changed from B to D.** Option D
+does not need this proof at all — its correctness follows directly
+from `pg_advisory_xact_lock`'s own documented, simple contract (mutual
+exclusion between SHARED and EXCLUSIVE holders of the same key), which
+requires no claim whatsoever about relation-resolution timing during a
+blocked wait. The race scenario below is worked through under Option D,
+where it can be reasoned about with full confidence.
 
 ```
 Admin clicks Hide on story X                    Ingestion swap running
         │                                                │
-        │  BEGIN (implicit, via trigger)                 │  swap_ingestion_staging()
-        │  SELECT story_clusters WHERE id=X              │  needs ACCESS EXCLUSIVE
-        │  FOR KEY SHARE                                 │  on story_clusters to
-        │       — this takes at least ACCESS SHARE        │  rename it
-        │         on story_clusters for the statement     │
-        ▼                                                ▼
-   Postgres's own lock manager serializes these two — ACCESS EXCLUSIVE
-   conflicts with every other lock mode, including ACCESS SHARE. One
-   of the two transactions is queued behind the other; Postgres decides
-   the order (whichever asked for its lock first), not this design.
+        │  pg_advisory_xact_lock_shared(K)               │  swap_ingestion_staging()
+        │       — succeeds immediately UNLESS             │  pg_advisory_xact_lock(K)
+        │         swap already holds the EXCLUSIVE         │       — succeeds immediately
+        │         form of K                                │         UNLESS any editorial
+        ▼                                                ▼         writer holds SHARED K
+   By pg_advisory_xact_lock's documented contract: SHARED and
+   EXCLUSIVE holders of the same key are MUTUALLY EXCLUSIVE. Exactly
+   one of the two transactions proceeds past its lock-acquisition step
+   first; the other blocks until the first COMMITS OR ROLLS BACK
+   (releasing its xact-scoped advisory lock automatically).
 ```
 
-**Case 1 — Admin's check/insert wins the race** (acquires its lock
-first): the row exists (old generation still live), `FOR KEY SHARE`
-succeeds, `INSERT` commits. The swap's `RENAME` then proceeds
-immediately after, unaffected — Admin's row is already committed
-against the OLD `story_clusters`'s row, and per §8b nothing re-checks
-it later. **Result: succeeds, no invalid row possible.**
+**Case 1 — Admin's transaction acquires the SHARED lock first**: the
+swap's `pg_advisory_xact_lock(K)` call blocks completely — it cannot
+even begin its `ALTER TABLE` statements — until Admin's transaction
+commits or rolls back. Admin's existence check and insert run against
+whichever generation is currently live (unambiguous — nothing is
+mid-rename), and commit normally. Only then does the swap's exclusive
+lock get granted and its renames proceed. **Result: fully serialized,
+no ambiguity, no invalid row possible — by the lock's own contract, not
+by an inference about DDL behavior.**
 
-**Case 2 — Swap wins the race** (acquires `ACCESS EXCLUSIVE` first):
-Admin's trigger query blocks until the swap's transaction commits.
-Once it does, `story_clusters` now refers to the NEW generation.
-Admin's trigger query then runs against that new table:
+**Case 2 — Swap acquires the EXCLUSIVE lock first**: Admin's
+`pg_advisory_xact_lock_shared(K)` call blocks completely — the trigger
+cannot even reach its `story_clusters` existence check — until the
+swap's ENTIRE transaction (all three renames, `repoint_story_clusters_fks()`,
+everything) has committed or rolled back. Only after that does Admin's
+transaction proceed, and by then the swap is a completed, committed
+fact — `story_clusters` is unambiguously the new generation, no lock
+wait on a renaming table is involved at all, and the existence check
+runs cleanly against it:
 - If story X **is** in the new generation too (common — most stories
   survive a re-ingestion): the check succeeds, insert proceeds
-  normally. Admin never even sees a delay worth noticing.
-- If story X is **not** in the new generation: `FOR KEY SHARE` finds
+  normally.
+- If story X is **not** in the new generation: the check finds
   nothing, the trigger raises, the `INSERT` is rolled back. **The
   write fails cleanly — no invalid row is ever created.**
+
+**What changed vs the first draft's Case 2**: the first draft required
+believing Admin's *already-in-flight, blocked* query would correctly
+re-target itself post-rename. Under Option D, Admin's query is never
+in flight during the rename at all — it's blocked at a completely
+separate, simple mutex *before* it ever touches `story_clusters`, and
+only proceeds once the swap is entirely finished. There is no
+relation-resolution subtlety left to reason about.
 
 **What the Admin sees on failure**: a clear, specific error — e.g.
 *"Berita ini tiada lagi dalam edisi RSS terkini, jadi tindakan ini
 tidak dapat disimpan."* (exact copy is a later implementation detail,
-not decided here) — not a generic 500, not a silent no-op. The Admin's
-intended action simply didn't have a valid target anymore at the
-moment it was attempted; this is the correct, honest outcome, not a
-bug to work around.
+not decided here) — not a generic 500, not a silent no-op.
 
-**Can the Admin retry?** Yes, exactly as with any other write failure
-— but a retry against the same now-orphaned story X will fail again
-for the same, correct reason: the story is genuinely gone from the
-live generation. Nothing about this design proposes hiding that fact
-from the Admin or auto-retrying against a different id.
+**Can the Admin retry?** Yes — a retry against the same now-orphaned
+story X will fail again for the same, correct reason: the story is
+genuinely gone from the live generation.
 
-**Can this race ever produce an invalid row?** No — by construction,
-per Postgres's own lock-manager guarantee (the same one the FK already
-relied on), one of the two orderings above always happens; there is no
-third outcome where the check passes against a row that's simultaneously
-being removed from `story_clusters`.
+**Can this race ever produce an invalid row?** No — under Option D,
+this follows directly from `pg_advisory_xact_lock`'s documented
+mutual-exclusion contract, not from an inference about internal
+Postgres relation-resolution behavior this document cannot verify.
+
+### 8f. Trade-off summary, B vs D
+
+| | Option B (`FOR KEY SHARE` trigger) | Option D (advisory lock boundary) |
+|---|---|---|
+| Closes Option A's TOCTOU race | Yes, in the common case | Yes, unconditionally |
+| Proof basis | Relies on PostgreSQL's RangeVar re-resolution-after-blocked-lock behavior — real mechanism, but **unverified here** for this exact trigger/PostgREST shape | Relies on `pg_advisory_xact_lock`'s documented SHARED/EXCLUSIVE contract alone — no DDL-timing claim needed |
+| Verifiable without a live Postgres test environment? | No — the specific claim in §8d's first draft cannot be confirmed by reading documentation alone; it needs an actual observed trace | Yes — the lock's contract is sufficient on its own |
+| Choke points to implement correctly | 2 (shared trigger function; swap function) | 2 (same two — the trigger additionally takes the shared lock; the swap function additionally takes the exclusive lock first) |
+| What it protects against post-swap old rows | Nothing — orphan rows from past commits still exist, exactly as intended (§8b) | Same — unrelated to which locking primitive is used |
+
+**Decision stands: Option D**, specifically because this project has no
+safe way to empirically verify B's timing claim (per ChatGPT's explicit
+instruction not to claim unverified concurrency proof), and D achieves
+the same goal without needing that verification at all.
 
 ### 8e. The boundary principle this design locks (per ChatGPT's explicit instruction)
 
@@ -412,9 +527,12 @@ that ingestion has no authority over."
 
 ## 9. How swap should behave once this is implemented (future phase)
 
-Once the FK is dropped:
+Once the FK is dropped and Option D's advisory lock is added:
 ```
 swap_ingestion_staging()
+   pg_advisory_xact_lock(K)   -- NEW, per §8a/8d — first statement,
+        ↓                        blocks until no editorial writer
+                                  currently holds the SHARED form of K
    ALTER TABLE renames (unchanged)
         ↓
    repoint_story_clusters_fks()
