@@ -1,0 +1,213 @@
+# Backend Control Plane — Phase 2: Browser Consumer Cutover, Implementation Plan v1 (2026-08-17)
+
+Status: `[x] Plan` `[ ] Approved` — no code written.
+
+Follow-up to `docs/control-plane-phase2-taxonomy-browser-consumer-design-v1.md`
+(mini-design, **APPROVED** by ChatGPT 2026-08-17, Approach A —
+`useEffect`-driven `loadEditionsFromDB()`, sequencing fix for the
+React re-render gap, locked bootstrap order, independent `AdminApp.jsx`
+call). This plan covers exactly how to implement it — code next, only
+after this is approved.
+
+## 1. `state/editions.js` changes
+
+```js
+// Illustrative — not written yet
+import { TAXONOMY_REGISTRY as FALLBACK_TAXONOMY_REGISTRY } from '../classification/lib/taxonomy-registry.mjs';
+
+function buildEditionsFromRegistry(registry) {
+  return Object.fromEntries(
+    Object.entries(EDITION_META).map(([editionId, meta]) => {
+      const wheelEntries = (registry[editionId] ?? []).filter(e => e.wheel_visible);
+      return [editionId, { editionId, ...meta,
+        taxonomy: wheelEntries.map(e => e.label),
+        taxonomyFieldCodes: wheelEntries.map(e => e.field_code) }];
+    }),
+  );
+}
+
+// Sync initial value — never undefined, but ONLY a pre-fetch
+// placeholder (per design §8), never a silent production fallback.
+export let EDITIONS = buildEditionsFromRegistry(FALLBACK_TAXONOMY_REGISTRY);
+
+export async function loadEditionsFromDB(supabase) {
+  const { data, error } = await supabase
+    .from('taxonomy_fields')
+    .select('edition_id, field_code, label, wheel_visible')
+    .eq('status', 'active')
+    .order('display_order');
+  if (error) throw new Error(`loadEditionsFromDB: ${error.message}`);
+  if (data.length === 0) {
+    throw new Error('loadEditionsFromDB: taxonomy_fields returned 0 active rows — refusing to load an empty taxonomy.');
+  }
+  const grouped = {};
+  for (const row of data) {
+    if (!grouped[row.edition_id]) grouped[row.edition_id] = [];
+    grouped[row.edition_id].push({ field_code: row.field_code, label: row.label, wheel_visible: row.wheel_visible });
+  }
+  EDITIONS = buildEditionsFromRegistry(grouped);
+  return EDITIONS;
+}
+```
+
+`getFieldLabel()`, `getEdition()`, `EDITION_IDS`, `DEFAULT_EDITION_ID`
+— **all unchanged**, since they already read `EDITIONS`/module-level
+state, and `EDITIONS` being reassigned is transparent to them (they
+never cache a snapshot of their own).
+
+## 2. `App.jsx` bootstrap effect — exact diff
+
+Current (`App.jsx:47-108`, simplified):
+```js
+useEffect(() => {
+  (async () => {
+    const [queue, names] = await Promise.all([fetchRankedQueue(...), fetchSourceNames()]);
+    setRankedQueue(queue);
+    const firstTopic = getEdition(...).taxonomyFieldCodes[0];
+    setState(s => reduce(s, selectTopic(firstTopic), {...}));
+  })();
+}, [state.editionContext.activeEdition]);
+```
+
+Revised (per design §4b — taxonomy gate added, everything else unchanged):
+```js
+useEffect(() => {
+  let cancelled = false;
+  setIsLoading(true);
+  (async () => {
+    try {
+      // NEW — must resolve before anything below reads getEdition()/EDITIONS.
+      await loadEditionsFromDB(supabase);
+      if (cancelled) return;
+
+      const [queue, names] = await Promise.all([fetchRankedQueue(...), fetchSourceNames()]);
+      if (cancelled) return;
+      setRankedQueue(queue);
+      setSourceNames(names);
+      const activeEdition = getEdition(state.editionContext.activeEdition); // now reads DB-backed EDITIONS
+      const firstTopic = activeEdition.taxonomyFieldCodes[0];
+      setState(s => reduce(s, selectTopic(firstTopic), {...}));
+    } catch (err) {
+      if (!cancelled) setLoadError(err.message);
+    } finally {
+      if (!cancelled) setIsLoading(false);
+    }
+  })();
+  return () => { cancelled = true; };
+}, [state.editionContext.activeEdition]);
+```
+
+**Why re-run on every edition switch, not just once**: the existing
+effect already re-runs on `state.editionContext.activeEdition` change
+(to re-fetch the ranked queue). `loadEditionsFromDB()` re-running on
+every switch is harmless (same idempotent read, no side effect) and
+keeps the code path uniform — a separate "only on first mount" branch
+would be new complexity for no real benefit, since the DB call is
+cheap and this project's own `productionAdapter.js` pattern already
+re-fetches other backend data on every edition switch too.
+
+**Loading/error state**: `setLoadError(err.message)` already exists
+(catch block, confirmed) — a `loadEditionsFromDB()` failure surfaces
+through the exact same path a `fetchRankedQueue()` failure already
+does. No new UI state, no new component.
+
+## 3. `AdminApp.jsx` bootstrap — independent call
+
+Current auth-session effect (`AdminApp.jsx:35-41`):
+```js
+useEffect(() => {
+  adminSupabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
+  const { data: sub } = adminSupabase.auth.onAuthStateChange((_event, newSession) => setSession(newSession ?? null));
+  return () => sub.subscription.unsubscribe();
+}, []);
+```
+
+**New, separate effect** (per design §4c — independent of the session
+effect, since taxonomy has nothing to do with auth):
+```js
+const [taxonomyReady, setTaxonomyReady] = useState(false);
+const [taxonomyError, setTaxonomyError] = useState(null);
+
+useEffect(() => {
+  loadEditionsFromDB(adminSupabase)
+    .then(() => setTaxonomyReady(true))
+    .catch(err => setTaxonomyError(err.message));
+}, []);
+```
+
+Every render path that shows real Admin content (Review Queue,
+Classification Flow, Editorial Activity Timeline — all of which read
+`getEdition()`/`EDITION_IDS` per the design doc's confirmed import)
+gates on `taxonomyReady` the same way the component already gates on
+`roleChecked`/`session` today — exact gating placement is a normal
+implementation detail (likely combined into the same top-level
+loading check `AdminApp.jsx` already has for auth), not a new pattern.
+
+**Which Supabase client**: `adminSupabase`, not the reader's
+`supabase` from `productionAdapter.js` — `AdminApp.jsx` already uses
+its own client (`adminSupabase.js`, confirmed) for every other query;
+`taxonomy_fields` read access needs the same RLS/role treatment as any
+other Admin-visible data, no new client instance introduced.
+
+## 4. Migration order
+
+1. Land `state/editions.js` changes (§1) — additive, `EDITIONS` still
+   has a valid synchronous value the instant the module loads (the
+   fallback), so nothing breaks even before any caller ever calls
+   `loadEditionsFromDB()`.
+2. Land `App.jsx` change (§2).
+3. Land `AdminApp.jsx` change (§3).
+4. Deploy together (these three files are interdependent for this one
+   feature — landing §1 alone changes nothing observable, but §2/§3
+   only work once §1 exists, so they ship as one deploy, not three
+   separate ones).
+
+## 5. Rollback
+
+Revert `App.jsx`'s and `AdminApp.jsx`'s new `loadEditionsFromDB()`
+calls (each a small, isolated diff — removing one `await`/`useEffect`
+block) — `EDITIONS` falls back to being computed once from
+`FALLBACK_TAXONOMY_REGISTRY` at module load, exactly today's current
+behavior. `state/editions.js`'s own changes (§1) can stay in place
+even during a rollback — they're additive and harmless if
+`loadEditionsFromDB()` is simply never called.
+
+## 6. Verification
+
+- **Parity test**: capture `EDITIONS` (all 3 editions'
+  `taxonomy`/`taxonomyFieldCodes` arrays) computed from
+  `FALLBACK_TAXONOMY_REGISTRY` (today's known values), then after
+  cutover, capture the same shape from `loadEditionsFromDB()`'s real
+  output against production `taxonomy_fields` — 0 mismatches required,
+  same discipline as every prior parity check this session.
+- **Manual reader check**: load `adjung-quick.vercel.app`, confirm the
+  Wheel renders the same 16/16/13 Kategori in the same order, for all
+  3 editions, switching between editions to confirm the re-fetch
+  sequencing doesn't introduce a flash-of-stale-taxonomy or a hang.
+- **Manual Admin check**: load `/admin` directly (fresh tab, no prior
+  reader visit) — confirms `AdminApp.jsx`'s independent call actually
+  works standalone, not just "happens to work because the reader
+  loaded taxonomy first in the same session."
+- **Regression**: full `npm test`, 0 failures required (though this
+  cutover touches browser-only code paths most of this project's test
+  suite doesn't directly exercise — the manual checks above are the
+  real verification for this phase).
+- **DB-unreachable simulation** (optional, if safely testable): confirm
+  the app shows its existing error state rather than silently falling
+  back to `FALLBACK_TAXONOMY_REGISTRY`, per design §8's explicit
+  requirement.
+
+## What this plan does NOT do
+
+- No code written yet
+- Does not introduce Context, a store, or any new state-management primitive
+- Does not change `AdminApp.jsx`'s existing auth-session effect —
+  taxonomy loading is a separate, independent effect
+- Does not redesign any loading/error UI beyond reusing what already exists
+- Does not touch `classification/lib/taxonomy-registry.mjs` or
+  `classify-production.js` further — those are already cut over
+  (commit `698773b`)
+
+## Next
+
+Awaiting ChatGPT's review before code is written.
