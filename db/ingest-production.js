@@ -113,8 +113,20 @@ async function main() {
   await new Promise(r => setTimeout(r, 1500));
 
   // --- 1. Sources -> staging ---
+  // Carries the full Source Registry V1 shape through the staging cycle
+  // (status/known_category/source_type/exclude_patterns/extra_ca), not
+  // just the original 4 columns — otherwise every row would silently
+  // fall back to sources_staging's column DEFAULTs on insert (status
+  // defaulting to 'active' would incorrectly re-activate rss-kpm on the
+  // very next swap, undoing the Phase 1 migration one ingestion cycle
+  // at a time).
   const sourceRows = sources.map(s => ({
     id: s.id, name: s.name, url: s.url, language: s.language, trust_score: s.trustScore,
+    status: s.status ?? 'active',
+    known_category: s.knownCategory ?? null,
+    source_type: s.sourceType ?? null,
+    exclude_patterns: s.excludePatterns ? s.excludePatterns.map(String) : null,
+    extra_ca: s.extraCa ?? null,
   }));
   const { error: sourcesErr } = await supabase.from('sources_staging').insert(sourceRows);
   if (sourcesErr) { console.error('sources_staging insert failed:', sourcesErr); process.exit(1); }
