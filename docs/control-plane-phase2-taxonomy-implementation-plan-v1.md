@@ -1,6 +1,12 @@
 # Backend Control Plane — Phase 2: Taxonomy/Kategori, Implementation Plan v1 (2026-08-17)
 
-Status: `[x] Plan` `[ ] Approved` — no SQL/schema/code written.
+Status: `[x] Plan` `[ ] Approved` — **revised 2026-08-17 per ChatGPT's
+review: §3-4 rewritten to strictly separate PostgreSQL RPC functions
+from the JS adapter layer, `merge_taxonomy_fields()` locked as a real
+atomic Postgres function with all validation moved server-side
+(closing a TOCTOU gap in the first draft), `listTaxonomyFields()`
+downgraded from "RPC" to a plain read query.** No SQL/schema/code
+written yet.
 
 Follow-up to `docs/control-plane-phase2-taxonomy-design-v1.md` (design,
 **APPROVED** by ChatGPT 2026-08-17 with 2 conditions, both incorporated
@@ -108,55 +114,143 @@ CREATE TABLE taxonomy_fields (
 );
 ```
 
-## 3. RPC / API surface — exact functions, per ChatGPT's explicit requirement
+## 3. RPC / API surface — PostgreSQL RPC vs JavaScript adapter, kept strictly separate (per ChatGPT's explicit correction)
 
-Mirrors `source-registry-adapter.mjs`'s pattern (admin-gated, one
-choke point per operation, no generic "update anything" function):
+The first draft of this plan blurred "RPC" to mean both the JS wrapper
+functions and the eventual database operation. Per ChatGPT's explicit
+instruction, this revision names the two layers separately, and is
+precise about which operations get a REAL PostgreSQL function
+(atomic, `SECURITY DEFINER`, callable via `supabase.rpc(...)`) versus
+which stay simple client-side table operations wrapped in JS for a
+consistent call shape.
 
-- `addTaxonomyField(supabase, { editionId, fieldCode, label, subjectCodes, wheelVisible, role })`
-  — validates `fieldCode` per §0's rules, admin-only, inserts with
-  `status='active'`, `display_order` = current max + 1 for that edition
-- `renameTaxonomyField(supabase, { id, label, role })` — label-only,
-  `field_code` never in the update payload at all (not just
-  "ignored" — the function signature doesn't accept it, so it's
-  structurally impossible to change)
-- `setTaxonomyFieldVisibility(supabase, { id, wheelVisible, role })` —
-  the "Hide" operation
-- `setTaxonomyFieldStatus(supabase, { id, status, role })` — `status`
-  ∈ `{active, archived}`, the "Archive/Restore" operation, mirrors
-  `setSourceStatus()`'s exact shape from Phase 1
-- `mergeTaxonomyFields(supabase, { editionId, fromFieldCode, intoFieldCode, role })`
-  — the one multi-step operation, detailed in §4
-- `listTaxonomyFields(supabase, { editionId })` — read helper, no
-  admin gate needed (read-only)
+**PostgreSQL RPC functions** (real `CREATE FUNCTION`, atomic by
+construction — Postgres treats one function invocation as one
+implicit transaction, same guarantee every prior phase's RPCs relied
+on):
+- `add_taxonomy_field(edition_id, field_code, label, subject_codes, wheel_visible)` —
+  single `INSERT`, but still an RPC (not a raw client `.insert()`) so
+  `field_code` validation (§0) and `display_order` computation
+  (`current max + 1` for that edition) happen server-side, atomically,
+  never as a client-computed value that could race
+- `rename_taxonomy_field(id, label)` — single `UPDATE`, RPC mainly for
+  consistency with the rest of the surface and to keep the "field_code
+  never accepted as a parameter" guarantee enforced at the function
+  signature level, not just by JS convention
+- `set_taxonomy_field_visibility(id, wheel_visible)` — single `UPDATE`
+- `set_taxonomy_field_status(id, status)` — single `UPDATE`, `status`
+  ∈ `{active, archived}`, mirrors `setSourceStatus()`'s shape from
+  Phase 1
+- `merge_taxonomy_fields(edition_id, from_field_code, into_field_code)` —
+  **the one operation that genuinely requires a multi-statement
+  transaction** — detailed in §4. This one is non-negotiably a real
+  PostgreSQL function; a JS-side sequence of 3 separate
+  `supabase.from(...).update(...)` calls is explicitly rejected (no
+  shared transaction across separate PostgREST requests — the same
+  fact `db/ingest-production.js`'s own header comment already
+  documents, and the same reasoning that made every Phase 1
+  swap/repoint operation a real Postgres function instead of
+  sequential client calls).
 
-All write operations admin-only via the same `isAdmin(role)` /
-`assertAdmin()` choke point already established in
-`db/editor-auth.mjs` and reused by every prior phase's adapter.
+**JavaScript adapter** (`db/taxonomy-fields-adapter.mjs`, thin wrappers
+— each one's ENTIRE body is an admin-role check via `assertAdmin()`
+followed by exactly one `supabase.rpc(...)` call, no business logic
+duplicated client-side):
+- `addTaxonomyField()` → calls `add_taxonomy_field` RPC
+- `renameTaxonomyField()` → calls `rename_taxonomy_field` RPC
+- `setTaxonomyFieldVisibility()` → calls `set_taxonomy_field_visibility` RPC
+- `setTaxonomyFieldStatus()` → calls `set_taxonomy_field_status` RPC
+- `mergeTaxonomyFields()` → calls `merge_taxonomy_fields` RPC — the JS
+  function is a THIN WRAPPER ONLY; it does not itself perform any of
+  the 3 update steps, it does not pre-check `into_code`'s existence
+  (that check belongs in the DB function, §4, not here — a client-side
+  pre-check followed by a separate RPC call is exactly the TOCTOU
+  pattern this project already rejected once this session for the
+  editorial-state lifecycle design)
+- `listTaxonomyFields(supabase, { editionId })` — **NOT an RPC**, per
+  ChatGPT's explicit correction. A plain `supabase.from('taxonomy_fields').select(...)`
+  read query is sufficient; there is no atomicity concern for a read,
+  and no reason to add a database function just to wrap a `SELECT`.
 
-## 4. Merge — exact transaction contract
+All 5 write RPCs are admin-only, enforced identically to Phase 1: the
+adapter checks `role` via `assertAdmin()` before calling `.rpc(...)`,
+AND the underlying Postgres functions are `GRANT EXECUTE ... TO
+service_role` only (never `authenticated`/`anon`) — the same two-layer
+enforcement Phase 1's `source-registry-adapter.mjs` already
+establishes, not a new pattern.
+
+## 4. Merge — exact transaction contract, validation moved server-side (per ChatGPT's explicit correction)
+
+**`merge_taxonomy_fields()` is a real PostgreSQL function.** All
+validation happens INSIDE the function, in the same transaction as the
+writes — not as a JS pre-check before calling the RPC (§3's TOCTOU
+point). The function fails closed (raises, transaction rolls back,
+nothing partially applied) if any of:
+- `edition_id` doesn't correspond to any row in `taxonomy_fields`
+- `from_field_code` doesn't exist for that `edition_id`
+- `into_field_code` doesn't exist for that `edition_id`
+- `from_field_code = into_field_code`
+- the `from` row is already `status = 'archived'`
+- the `into` row is not `status = 'active'`
+- `from` and `into` belong to different editions (shouldn't be
+  reachable given both lookups are scoped by the same `edition_id`
+  parameter, but checked explicitly rather than assumed)
 
 ```sql
--- Illustrative — not written as real SQL yet
-BEGIN;
+-- Illustrative shape only — not written as real SQL yet
+CREATE OR REPLACE FUNCTION merge_taxonomy_fields(
+  p_edition_id TEXT, p_from_field_code TEXT, p_into_field_code TEXT
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_into_label TEXT;
+BEGIN
+  IF p_from_field_code = p_into_field_code THEN
+    RAISE EXCEPTION 'merge_taxonomy_fields: from and into are the same field_code';
+  END IF;
+
+  SELECT label INTO v_into_label FROM taxonomy_fields
+    WHERE edition_id = p_edition_id AND field_code = p_into_field_code AND status = 'active';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'merge_taxonomy_fields: into_field_code % not found or not active', p_into_field_code;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM taxonomy_fields
+    WHERE edition_id = p_edition_id AND field_code = p_from_field_code AND status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'merge_taxonomy_fields: from_field_code % not found or already archived', p_from_field_code;
+  END IF;
+
+  -- All 3 writes below run inside THIS function's single implicit
+  -- transaction — either all three commit, or (on any error above,
+  -- or any error in the writes themselves) none do.
   UPDATE edition_story_classifications
-    SET field_code = :into_code, field = (SELECT label FROM taxonomy_fields WHERE field_code = :into_code AND edition_id = :edition)
-    WHERE field_code = :from_code AND edition_id = :edition;
+    SET field_code = p_into_field_code, field = v_into_label
+    WHERE field_code = p_from_field_code AND edition_id = p_edition_id;
 
   UPDATE story_overrides
-    SET new_field_code = :into_code, new_field = (SELECT label FROM taxonomy_fields WHERE field_code = :into_code AND edition_id = :edition)
-    WHERE new_field_code = :from_code AND edition_id = :edition
-      AND override_type = 'reclassify';  -- only reclassify rows set new_field_code at all
+    SET new_field_code = p_into_field_code, new_field = v_into_label
+    WHERE new_field_code = p_from_field_code AND edition_id = p_edition_id
+      AND override_type = 'reclassify';
 
-  UPDATE taxonomy_fields SET status = 'archived' WHERE field_code = :from_code AND edition_id = :edition;
-COMMIT;
+  UPDATE taxonomy_fields SET status = 'archived'
+    WHERE edition_id = p_edition_id AND field_code = p_from_field_code;
+END;
+$$;
 ```
 
-Single transaction — a merge that updates `edition_story_classifications`
-but not `story_overrides` (or vice versa) would leave the reader and
-Review Queue disagreeing about a story's field, a worse state than no
-merge at all. `into_code` must already exist and be `active`
-(validated before the transaction starts, fail-closed if not).
+This is the exact shape ChatGPT specified:
+```
+Admin → mergeTaxonomyFields() (JS, thin wrapper)
+      → supabase.rpc('merge_taxonomy_fields', ...)
+      → PostgreSQL function: validate → update classifications →
+        update overrides → archive taxonomy field → COMMIT (or
+        rollback on any failure, atomically, as one unit)
+```
+Never the rejected shape (JS issuing 3 separate `UPDATE` calls with no
+shared transaction).
 
 ## 5. Backfill — 45 rows, fail-closed (same discipline as every prior backfill this session)
 
