@@ -60,10 +60,17 @@ One row = one rule. Every rule has exactly these fields, regardless of type
 (type-specific fields are simply null for the types that don't use them):
 
 - `rule_type`: `source` | `url` | `keyword`
-- `edition_id`: which edition this applies to, OR null for global (see §7)
-- `pattern`: the source_id / URL substring / keyword phrase, depending on type
-- `field_code`: the Kategori this rule assigns (FK into `taxonomy_fields`,
-  reusing Phase 2's table — no separate Kategori list to keep in sync)
+- `edition_id`: **NOT NULL for an edition-specific rule, NULL for a global
+  rule** — see §3a/§3b below for what each case actually targets. This is
+  the field ChatGPT's revision request centers on; the naive nullable design
+  from the first draft didn't work because `field_code` isn't globally
+  unique or even globally meaningful (see §3a).
+- `pattern`: the source_id / URL substring / keyword phrase, depending on
+  type — see §3c for `source` rules specifically.
+- `field_code`: the target Kategori — **only set when `edition_id` is set**
+  (§3a). Null for global rules.
+- `subject_code`: the target Universal Subject — **only set when
+  `edition_id` is NULL** (§3b). Null for edition-specific rules.
 - `priority`: integer, admin-set, used only to break ties between two
   rules of the SAME type (see §5) — not a cross-type priority number
 - `status`: `active` | `archived` (same posture as `taxonomy_fields` — no
@@ -71,17 +78,77 @@ One row = one rule. Every rule has exactly these fields, regardless of type
 - `created_at` / `updated_at`, `created_by` (which admin — for the "why did
   this story get this Kategori" explainability Admin needs)
 
+Enforced invariant (a CHECK constraint at implementation time, not
+described further here since this doc has no SQL): exactly one of
+`(edition_id IS NOT NULL AND field_code IS NOT NULL AND subject_code IS NULL)`
+or `(edition_id IS NULL AND subject_code IS NOT NULL AND field_code IS NULL)`
+must hold — never both, never neither.
+
 Nothing else. No `conditions_json`, no `operator`, no generic expression —
 the type IS the shape of the match.
 
 ## 4. How a rule produces a field_code
 
-Directly. A Source rule's `field_code` says "any story from this source, in
-this edition, is exactly this Kategori" — no candidate, no confidence
-score, no evidence tier. This is what makes Classification Rules
-explainable in a way the existing candidate/confidence system structurally
-cannot be (per the audit's finding: disagreeing candidates today are
-silently discarded, never surfaced).
+### 4a. Edition-specific rule → field_code directly, via a real composite FK
+
+`field_code` is **not** globally unique — Phase 2 made it unique only
+*per edition* (`UNIQUE(edition_id, field_code)` on `taxonomy_fields`), and
+different editions don't share field_code strings for the "same" Kategori
+(ms-MY's Business+Economy merge is `field_code = 'bisnes'`, en-global's
+equivalent is `field_code = 'business'` — different strings, per
+`taxonomy-registry.mjs`'s existing per-edition tables). So a rule that
+targets one specific edition can and must FK straight into that pair:
+
+```
+FOREIGN KEY (edition_id, field_code) REFERENCES taxonomy_fields (edition_id, field_code)
+```
+
+This reuses the exact natural key Phase 2 already established — no new
+UUID, no new identity concept, per ChatGPT's explicit instruction. This is
+the *only* case where `field_code` is set on a rule, and it's an exact,
+unambiguous FK: "this rule points at precisely this row of
+`taxonomy_fields`."
+
+### 4b. Global rule → Universal Subject, resolved per-edition at classification time (not stored as a field_code)
+
+A genuinely global rule (`edition_id IS NULL`) cannot target one
+`field_code`, because no single field_code string is valid across all three
+editions. Rather than invent a translation table (a new concept) or force
+every "global" rule to actually be three duplicate rows (defeats the point
+of "global"), a global rule stores a **Universal Subject** value instead —
+the exact same domain already used by `taxonomy_fields.subject_codes`
+(Phase 2) and by `desk-vocabulary.mjs`/`story-understanding.mjs` today
+(Politics, Crime, Economy, Business, Sports, ...). At classification time,
+the resolver converts subject → field_code for the CURRENT edition using
+the identical subject→field_code lookup `edition-taxonomy.mjs`'s
+`resolveDefaultPlacement()` already does for the existing classifier — no
+new lookup mechanism, reuses what's already proven and running.
+
+This means: an edition-specific rule is exact (points at one taxonomy row);
+a global rule is one level more abstract (points at a Subject, resolved
+per-edition through existing, already-trusted machinery) — but *neither*
+is a probability or a candidate. Both are still direct, deterministic
+assignments once resolved; only the resolution step differs by scope.
+
+### 4c. Source Rule pattern = stable `source_id`, not a name or URL
+
+Per ChatGPT's explicit correction: `sources.id` (e.g. `'rss-kosmo'`, TEXT
+PRIMARY KEY on the production `sources` table since before Phase 1, and
+Phase 1's own Source Registry stable identifier) is what `pattern` stores
+for a `rule_type = 'source'` row — never the source's display `name`
+(which Admin can already rename) and never a feed URL. A single shared
+`pattern` TEXT column can't carry a real FK constraint that only applies
+conditionally on `rule_type`, so referential integrity for this case is
+enforced at the write layer (the future add/edit RPC validates
+`pattern` exists in `sources` before insert, matching this project's
+existing convention of validating inside the RPC rather than only via DB
+constraints — same pattern `merge_taxonomy_fields()` already uses). If a
+source is later renamed, the rule is unaffected — `id` never changes,
+only `name` does, exactly why ChatGPT flagged this.
+
+URL rules and keyword rules keep `pattern` as plain text (a path substring
+or a phrase) — no stable-identifier concern for those two, since URLs and
+keywords aren't Phase 1/2 first-class entities with their own identity.
 
 ## 5. Precedence and conflict resolution (the big question)
 
@@ -143,11 +210,14 @@ not by re-ordering the whole precedence model.
 
 ## 6. Scope: global vs. edition-specific
 
-`edition_id` nullable on every rule:
-- **Global** (`edition_id = null`): a Source rule for "RTM Hiburan" almost
-  certainly should apply to whichever editions read that source at all —
-  most Source/URL rules will be global.
-- **Edition-specific**: matches `edition-rules.mjs`'s existing pattern
+`edition_id` nullable on every rule (mechanism detailed in §4a/§4b — this
+section covers *when* to use which, not *how* the target field resolves):
+- **Global** (`edition_id = null`, targets a `subject_code`, §4b): a
+  Source rule for RTM's Hiburan feed almost certainly should apply to
+  whichever editions read that source at all — most Source/URL rules will
+  be global.
+- **Edition-specific** (`edition_id` set, targets a `field_code`, §4a):
+  matches `edition-rules.mjs`'s existing pattern
   (`foreign_politics_to_world` is ms-MY only) — needed for cases where the
   SAME pattern should mean something different per edition, or should only
   apply in one. Keyword rules are the most likely to need this (an
@@ -174,6 +244,37 @@ scope, priority, status, created_by/created_at. Plus, critically, **per
 classified story: which rule (if any) decided its Kategori** — this is the
 explainability gap the audit doc identified as currently completely
 missing (disagreeing candidates discarded silently today).
+
+### 8a. Provenance survives rule archival — reusing existing columns, no new history system
+
+Per ChatGPT's correction: explainability must reflect the rule that fired
+**at classification time**, not a live re-evaluation against whatever
+rules happen to be active when Admin later looks at the story — otherwise
+archiving a rule silently erases the historical explanation for every
+story it ever classified.
+
+`edition_story_classifications` (Phase "3B.2B" schema,
+`db/schema-edition-classification.sql`) **already has exactly the two
+columns this needs** — no new table, no audit log, no event bus, per
+ChatGPT's explicit "guna tempat sedia ada" instruction:
+
+- `classification_method` (TEXT) — already holds one of `'edition_rule'`,
+  `'default_mapping'`, `'geography_fallback'`, `'low_confidence_fallback'`,
+  `'none'`. Phase 3 adds one more value: **`'admin_rule'`**, written when a
+  Classification Rule short-circuits the pipeline (§10).
+- `classification_rule` (TEXT) — already exists, currently unused by any
+  classifier path (`edition-rules.mjs`'s single rule doesn't populate it
+  today, a separate small gap this phase doesn't need to fix). Phase 3
+  writes the firing rule's **stable row id** here (its own primary key,
+  never reused — archiving only changes `status`, never the id).
+
+At read time: story shows `classification_method = 'admin_rule'`,
+`classification_rule = <rule id>` → Admin UI joins that id against the
+rules table to show type/pattern/target, **plus an "archived" badge if the
+rule's current `status` is `archived`** — the historical fact ("this rule
+decided this") stays correct and visible even after the rule itself is
+retired, exactly answering ChatGPT's "kenapa cerita ini masuk Kategori
+ini?" requirement without inventing a versioning/history system.
 
 ## 9. What V1 cannot do
 
@@ -222,7 +323,16 @@ per-source/per-pattern decision, not the whole classifier.
   that is structurally identical to what a Source rule is — "this source's
   stories are always this Kategori" is exactly `knownCategory`'s job today,
   just unreachable by Admin. This is the natural V1 seed set, not a fresh
-  guess.
+  guess. Each `knownCategory` value today is itself a desk-vocabulary key
+  (e.g. `'bisnes'`, `'sukan'`, `'hiburan'` — confirmed by reading
+  `lab/sources.js` directly), not a raw source_id or field_code — so
+  migration is a **one-time deterministic lookup** through the existing
+  `SUBJECT_VOCABULARY` table to resolve each `knownCategory` string to its
+  Universal Subject, then stored as that Source rule's `subject_code`
+  (§4b) with `edition_id = NULL` — these were always global, source-level
+  facts (`rss-metro-bisnes` is Bisnes-desk regardless of which edition
+  eventually reads it), consistent with how `knownCategory` behaves today
+  as Tier 1 evidence.
 - **Do NOT migrate**: `desk-vocabulary.mjs`, `content-rules.mjs`,
   `bernama-prefix.mjs`, `confidence-policy.mjs` — these are the general
   linguistic classifier, not per-source/per-URL editorial facts. Migrating
