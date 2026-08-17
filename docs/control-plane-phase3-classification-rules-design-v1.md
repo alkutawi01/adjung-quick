@@ -130,6 +130,36 @@ per-edition through existing, already-trusted machinery) — but *neither*
 is a probability or a candidate. Both are still direct, deterministic
 assignments once resolved; only the resolution step differs by scope.
 
+#### 4b-i. What happens when a global rule's subject has no active mapping in this edition — added per ChatGPT's correction
+
+Editions don't all carry the same set of subjects (per the audit doc: ar-global
+has 13 Kategori vs. 16 for ms-MY/en-global — some subjects genuinely have no
+home in every edition). A global Source rule targeting `subject_code =
+'education'` matches correctly in ms-MY and en-global, but if ar-global has
+no active `taxonomy_fields` row whose `subject_codes` includes Education,
+the rule cannot produce a `field_code` for that one edition.
+
+**This must never be treated as "the admin rule fired but produced
+nothing."** Per ChatGPT's explicit instruction: if a global rule matches
+but its subject_code can't resolve to an active field_code for the current
+edition, the rule is **unresolved for that edition** — treated exactly as
+if it had never matched at all. The story falls all the way through to
+§5b's existing classifier pipeline for that edition (edition rules →
+confidence gate → default placement → unclassified), same as any other
+non-match. `classification_method` is written as whatever that fallback
+path actually produces (`'edition_rule'` / `'default_mapping'` /
+`'geography_fallback'` / `'none'`) — **never `'admin_rule'`**, because the
+rule did not actually decide the outcome for this edition, even though its
+pattern matched. This keeps the provenance column (§8a) honest: a story
+tagged `admin_rule` always means a Classification Rule genuinely produced
+its Kategori, with no exceptions.
+
+This is a per-(story, edition) outcome, not a property of the rule itself
+— the same global rule can be `admin_rule`-attributed in ms-MY and
+silently unresolved (falling through to the classifier) in ar-global for
+the exact same story, since `classifyForEdition()` already runs
+independently per edition today.
+
 ### 4c. Source Rule pattern = stable `source_id`, not a name or URL
 
 Per ChatGPT's explicit correction: `sources.id` (e.g. `'rss-kosmo'`, TEXT
@@ -154,23 +184,41 @@ keywords aren't Phase 1/2 first-class entities with their own identity.
 
 Two separate conflict questions exist, and they need two separate answers.
 
-### 5a. Two rules of the SAME type both match
+### 5a. Two Classification Rules both match — priority is cross-type, not per-type
 
-Example from ChatGPT's brief: keyword "artis" → Hiburan AND keyword
-"didakwa" → Jenayah, both present in "Artis X didakwa atas kes rasuah."
+**Revised per ChatGPT's correction.** The first draft only defined
+precedence for two rules of the *same* type, leaving cross-type collisions
+(a Source rule vs. a URL rule vs. a Keyword rule, all matching the same
+story) undefined. That's wrong: if priority only worked within a type,
+Admin couldn't actually control the outcome when different rule types
+collide — a low-priority Source rule would always structurally beat a
+high-priority Keyword rule regardless of what Admin set, which defeats the
+entire point of giving Admin a priority lever.
 
-Resolution, in order:
-1. **Higher `priority` number wins.** Admin sets this explicitly per rule
-   — this is the only lever Admin has to say "if these two ever collide, I
-   want THIS one to win." Simple, visible, no magic.
-2. **If priority ties**: the more specific pattern wins — longer keyword
-   phrase, or longer URL path. ("kes rasuah" beats "artis" if both were
-   phrases; `/jenayah/mahkamah/` beats `/jenayah/` if both matched.) This
-   mirrors ordinary intuition without needing Admin to pre-empt every
-   possible collision by hand.
-3. **If still tied**: reject the match — story falls through to §5b
-   (existing classifier) rather than picking arbitrarily. A silent
-   coin-flip is worse than falling back to what already exists today.
+`priority` is **one flat number across every Classification Rule,
+regardless of `rule_type`.** Resolution, in order, over the full set of
+rules that matched (any type):
+
+1. **Higher `priority` wins**, full stop, across types. Example: Source
+   rule `rss-rtm-hiburan → Hiburan` at priority 10 vs. URL rule
+   `/jenayah/ → Jenayah` at priority 20, both matching the same story →
+   priority 20 wins → Jenayah. If Admin later wants the Source rule to
+   win instead, they raise its priority above 20 — that's the entire
+   lever, and it now actually works regardless of type.
+2. **If priority ties AND both rules are the SAME type**: the more
+   specific pattern wins — longer keyword phrase, or longer URL path.
+   ("kes rasuah" beats "artis" if both were phrases;
+   `/jenayah/mahkamah/` beats `/jenayah/` if both matched.)
+3. **If priority ties AND the rules are DIFFERENT types**: **no
+   specificity comparison is attempted.** Per ChatGPT's explicit
+   instruction — comparing a `source_id`'s "length" against a URL path's
+   or a keyword phrase's length would be an arbitrary, meaningless
+   cross-type ranking, not a real specificity judgment. Reject the match
+   outright, same outcome as step 4.
+4. **If still tied (same type, same specificity) or rejected by step 3**:
+   reject — story falls through to §5b (existing classifier) rather than
+   picking arbitrarily. A silent coin-flip is worse than falling back to
+   what already exists today.
 
 This needs to be genuinely rare in practice — V1's job is to let Admin see
 and manage the table, not to become a conflict-resolution puzzle. If
