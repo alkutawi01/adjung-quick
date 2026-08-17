@@ -1,7 +1,9 @@
 # Editorial State Orphan Lifecycle — Design v1 (2026-08-17)
 
-Status: `[x] Design` `[ ] Approved` — **no code written, no schema
-migration, no cleanup mechanism built.**
+Status: `[x] Design` `[ ] Approved` — **revised 2026-08-17 per ChatGPT's
+review of the first draft (diagnosis/principles approved, §8's FK-removal
+mechanism sent back for a race-condition analysis — now added as §8a–8e).
+Still no code written, no schema migration, no cleanup mechanism built.**
 
 Per ChatGPT's explicit instruction after the production ingestion swap
 (2026-08-17) nearly failed on a real FK violation: `story_overrides`
@@ -206,22 +208,196 @@ existence.** The FK currently forces "this row must die exactly when
 its story leaves the live table" — a rule nothing in this project's own
 design actually wants (§1).
 
-**What replaces the FK's safety property** (never silently accepting a
-garbage `story_id`):
-- Application-layer validation at write time — the same place that
-  already enforces `reason NOT NULL`, `edition_id` values, and
-  `override_type` allowed values (`db/editor-auth.mjs`,
-  `ui/src/admin/reviewQueueAdapter.js::writeOverride()`) checks that
-  `story_id` resolves to a real, currently-live `story_clusters` row
-  BEFORE insert. A typo or a fabricated id is caught exactly as
-  reliably as before — just at write time instead of via a standing
-  constraint. This is strictly the FK's original purpose (reject
-  invalid references), not a weakening of it.
-- `repoint_story_clusters_fks()` (the swap-time FK-repoint function)
-  simply stops needing to touch these three tables at all — no
-  DELETE-then-repoint dance like `edition_story_classifications`
-  currently needs (§9), because there's no FK left to repoint or
-  violate.
+### 8a. What replaces the FK — three options, compared (per ChatGPT's explicit requirement)
+
+The FK's safety property was never just "reject a garbage `story_id`
+at write time" — it was that PLUS **atomicity**: Postgres's own FK
+enforcement takes a row-level lock (`FOR KEY SHARE`) on the referenced
+row for the duration of the check, so no concurrent operation can make
+that row disappear between "checked, it exists" and "committed, the
+reference is now real." Any replacement must be judged against that
+same atomicity property, not just against the happy path.
+
+**Option A — Application-layer validation only** (originally proposed
+in this document's first draft; **ChatGPT correctly rejected this**):
+```
+Admin's write path:
+  1. SELECT story_clusters WHERE id = X          -- sees: exists
+  2. (concurrent ingestion swap renames the table, X is gone)
+  3. INSERT story_overrides(story_id = X)         -- succeeds anyway
+```
+Step 1 and step 3 are two separate statements with no shared lock
+between them — under Postgres's default READ COMMITTED isolation,
+nothing prevents another transaction from committing in between. This
+is a textbook TOCTOU (time-of-check-to-time-of-use) race. **Rejected**
+— does not provide the guarantee a removed FK was providing.
+
+**Option B — Database trigger performing the check inside the write's own transaction**:
+```sql
+-- Illustrative shape only — not proposed for implementation yet
+CREATE OR REPLACE FUNCTION validate_story_exists()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM 1 FROM story_clusters WHERE id = NEW.story_id FOR KEY SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'story_id % does not exist in the current live generation', NEW.story_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+The critical detail: `FOR KEY SHARE` is the **exact same row-lock mode
+Postgres's own FK enforcement uses internally** — this is not a weaker
+imitation of what the FK did, it is the identical primitive. Because
+the check runs inside the INSERT's own transaction and takes a real
+lock, it closes Option A's race: either the row is genuinely still
+there when the trigger fires (lock acquired, insert proceeds), or it
+isn't (exception raised, transaction rolls back, no invalid row is
+ever created). This has all of a real FK's atomicity, without being a
+standing referential constraint — see §8b for why that distinction is
+what un-blocks the swap.
+
+**Option C — Explicit transaction/locking strategy at the call site**
+(e.g., the app wraps existence-check + insert in one client-managed
+transaction with an explicit `LOCK`/`FOR UPDATE`): technically
+equivalent to Option B's guarantee if implemented correctly, but
+strictly worse in practice for this codebase — every write path
+(`writeOverride()` and any future admin action) would have to
+correctly re-implement the same locking discipline by hand, in
+JavaScript, calling Supabase's REST layer (which does not expose
+raw multi-statement transactions the way this project's own comments
+already note — `db/ingest-production.js`'s header explains PostgREST
+issues one HTTP request per statement, no client-side BEGIN/COMMIT
+across separate `.from()` calls). A single missed call site
+silently reintroduces Option A's race. Postgres already solved this
+exact problem for the FK; re-solving it per-call-site in application
+code is strictly more error-prone for equivalent protection.
+
+**Decision: Option B.** A `BEFORE INSERT`/`BEFORE UPDATE` trigger,
+using `FOR KEY SHARE`, on `story_overrides`, `saved_stories`, and
+`history_entries`. This is not proposed as literal SQL to apply yet —
+per ChatGPT's instruction, no code/migration is written in this pass —
+but it is the concrete mechanism this design commits to when a future
+phase implements it.
+
+### 8b. Why Option B doesn't reintroduce the swap-blocking problem
+
+The original bug was never "writes need to validate `story_id`" — it
+was "a **standing constraint** re-validates EVERY existing row's
+`story_id` at swap time, and fails the whole swap if even one old row
+(created in a past transaction, already committed) doesn't resolve
+against the new generation." A trigger only fires on INSERT/UPDATE of
+that specific row, at that specific moment — it says nothing about
+rows that already exist. Once the FK itself is gone, `swap_ingestion_staging()`'s
+`ALTER TABLE ... RENAME` has nothing left to re-check against
+`story_overrides`/`saved_stories`/`history_entries` at all, regardless
+of how many old rows in those tables point at stories the new
+generation doesn't have. That's the actual fix — Option B is what makes
+new writes safe, not what makes the swap succeed; those are two
+separate problems this design was at risk of conflating.
+
+`repoint_story_clusters_fks()` (the swap-time FK-repoint function)
+simply stops needing to touch these three tables at all — no
+DELETE-then-repoint dance like `edition_story_classifications`
+currently needs (§9), because there's no FK left to repoint or
+violate.
+
+### 8c. Precise definition of "currently live story" (per ChatGPT's explicit request)
+
+**"Live" means: a row exists in the table currently named
+`story_clusters`, evaluated by the trigger's own `SELECT ... FOR KEY
+SHARE` query, executed inside the SAME transaction as the write.**
+
+Not "any `story_id` that was ever valid" (too permissive — would let
+Admin actions target arbitrary garbage). Not a cached/precomputed list
+(would reintroduce a staleness window — a plain restatement of Option
+A's race under a different name). The trigger always resolves against
+whatever `story_clusters` currently is at the exact instant of the
+write's own transaction — which, because `ALTER TABLE ... RENAME` is
+itself a transactional DDL statement requiring an `ACCESS EXCLUSIVE`
+lock, is a well-defined, unambiguous answer even during a swap (§8d
+works through exactly this timing).
+
+### 8d. Concurrency scenario — Admin writes while an ingestion swap is in flight (per ChatGPT's explicit request)
+
+```
+Admin clicks Hide on story X                    Ingestion swap running
+        │                                                │
+        │  BEGIN (implicit, via trigger)                 │  swap_ingestion_staging()
+        │  SELECT story_clusters WHERE id=X              │  needs ACCESS EXCLUSIVE
+        │  FOR KEY SHARE                                 │  on story_clusters to
+        │       — this takes at least ACCESS SHARE        │  rename it
+        │         on story_clusters for the statement     │
+        ▼                                                ▼
+   Postgres's own lock manager serializes these two — ACCESS EXCLUSIVE
+   conflicts with every other lock mode, including ACCESS SHARE. One
+   of the two transactions is queued behind the other; Postgres decides
+   the order (whichever asked for its lock first), not this design.
+```
+
+**Case 1 — Admin's check/insert wins the race** (acquires its lock
+first): the row exists (old generation still live), `FOR KEY SHARE`
+succeeds, `INSERT` commits. The swap's `RENAME` then proceeds
+immediately after, unaffected — Admin's row is already committed
+against the OLD `story_clusters`'s row, and per §8b nothing re-checks
+it later. **Result: succeeds, no invalid row possible.**
+
+**Case 2 — Swap wins the race** (acquires `ACCESS EXCLUSIVE` first):
+Admin's trigger query blocks until the swap's transaction commits.
+Once it does, `story_clusters` now refers to the NEW generation.
+Admin's trigger query then runs against that new table:
+- If story X **is** in the new generation too (common — most stories
+  survive a re-ingestion): the check succeeds, insert proceeds
+  normally. Admin never even sees a delay worth noticing.
+- If story X is **not** in the new generation: `FOR KEY SHARE` finds
+  nothing, the trigger raises, the `INSERT` is rolled back. **The
+  write fails cleanly — no invalid row is ever created.**
+
+**What the Admin sees on failure**: a clear, specific error — e.g.
+*"Berita ini tiada lagi dalam edisi RSS terkini, jadi tindakan ini
+tidak dapat disimpan."* (exact copy is a later implementation detail,
+not decided here) — not a generic 500, not a silent no-op. The Admin's
+intended action simply didn't have a valid target anymore at the
+moment it was attempted; this is the correct, honest outcome, not a
+bug to work around.
+
+**Can the Admin retry?** Yes, exactly as with any other write failure
+— but a retry against the same now-orphaned story X will fail again
+for the same, correct reason: the story is genuinely gone from the
+live generation. Nothing about this design proposes hiding that fact
+from the Admin or auto-retrying against a different id.
+
+**Can this race ever produce an invalid row?** No — by construction,
+per Postgres's own lock-manager guarantee (the same one the FK already
+relied on), one of the two orderings above always happens; there is no
+third outcome where the check passes against a row that's simultaneously
+being removed from `story_clusters`.
+
+### 8e. The boundary principle this design locks (per ChatGPT's explicit instruction)
+
+```
+INGESTION
+  can replace which stories exist
+        │
+        │  CANNOT
+        ▼
+EDITORIAL STATE
+  ├── Pin
+  ├── Hide
+  ├── Reclassify
+  ├── Saved Stories
+  └── History
+```
+
+**Ingestion never has the authority to delete editorial state.** It
+can only cause a piece of editorial state to have no live story left
+to apply to (§5) — a row without an effect, not a row that's been
+removed. Symmetrically, **an editorial action can never block or
+corrupt an ingestion swap** — §8a–§8d's design is what makes both
+halves of this boundary hold at the same time, which the pre-FK-removal
+design (a hard, bidirectional FK) could not: it let ingestion's own
+table-rename mechanics threaten to fail because of unrelated editorial
+decisions, exactly the incident that triggered this document.
 
 **What this does NOT change**: `edition_story_classifications.story_id`
 keeps its FK and its existing `ON DELETE CASCADE` + pre-repoint cleanup
