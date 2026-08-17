@@ -13,7 +13,7 @@
 // same consolidation classification/lib/edition-taxonomy.mjs already did
 // for the classifier's own table — collapsing what were two independently
 // hand-maintained lists into one.
-import { TAXONOMY_REGISTRY, getFieldEntry } from '../classification/lib/taxonomy-registry.mjs';
+import { TAXONOMY_REGISTRY as FALLBACK_TAXONOMY_REGISTRY, getFieldEntry } from '../classification/lib/taxonomy-registry.mjs';
 
 const EDITION_META = {
   'ms-MY': {
@@ -46,21 +46,61 @@ const EDITION_META = {
   },
 };
 
-export const EDITIONS = Object.fromEntries(
-  Object.entries(EDITION_META).map(([editionId, meta]) => {
-    // 'Nasional'/'Dunia' lead ms-MY's list (taxonomy[0] is the cold-start
-    // default, App.jsx) — real Malay portals (Astro Awani/Utusan/BH) lead
-    // with Nasional/Utama, a deliberate choice preserved from the registry's
-    // own ordering (docs/geography-residual-navigation-policy-v1.md).
-    const wheelEntries = TAXONOMY_REGISTRY[editionId].filter(e => e.wheel_visible);
-    return [editionId, {
-      editionId,
-      ...meta,
-      taxonomy: wheelEntries.map(e => e.label),
-      taxonomyFieldCodes: wheelEntries.map(e => e.field_code),
-    }];
-  }),
-);
+// Backend Control Plane Phase 2 (2026-08-17): builds the EDITIONS shape
+// from whichever taxonomy table is passed in — the hardcoded fallback
+// at module load, or `taxonomy_fields` after loadEditionsFromDB()
+// resolves. Public shape unchanged either way.
+function buildEditionsFromRegistry(registry) {
+  return Object.fromEntries(
+    Object.entries(EDITION_META).map(([editionId, meta]) => {
+      // 'Nasional'/'Dunia' lead ms-MY's list (taxonomy[0] is the cold-start
+      // default, App.jsx) — real Malay portals (Astro Awani/Utusan/BH) lead
+      // with Nasional/Utama, a deliberate choice preserved from the
+      // registry's own ordering (docs/geography-residual-navigation-policy-v1.md).
+      const wheelEntries = (registry[editionId] ?? []).filter(e => e.wheel_visible);
+      return [editionId, {
+        editionId,
+        ...meta,
+        taxonomy: wheelEntries.map(e => e.label),
+        taxonomyFieldCodes: wheelEntries.map(e => e.field_code),
+      }];
+    }),
+  );
+}
+
+// Mutable — reassigned once by loadEditionsFromDB() below, per
+// docs/control-plane-phase2-taxonomy-browser-cutover-implementation-plan-v1.md.
+// This initial, synchronous value is ONLY a pre-fetch placeholder
+// (never rendered to a real user — App.jsx/AdminApp.jsx both gate their
+// real content behind a loading state until loadEditionsFromDB()
+// resolves) — never a silent production fallback if the DB call fails.
+export let EDITIONS = buildEditionsFromRegistry(FALLBACK_TAXONOMY_REGISTRY);
+
+// Loads taxonomy_fields (the backend source of truth, Backend Control
+// Plane Phase 2) and reassigns EDITIONS. Callers (App.jsx, AdminApp.jsx)
+// MUST await this and keep their own loading gate active until it
+// resolves — this function has no opinion about React rendering, it
+// only updates the module-level cache other functions here read.
+export async function loadEditionsFromDB(supabase) {
+  const { data, error } = await supabase
+    .from('taxonomy_fields')
+    .select('edition_id, field_code, label, wheel_visible, display_order')
+    .eq('status', 'active')
+    .order('display_order');
+  if (error) throw new Error(`loadEditionsFromDB: ${error.message}`);
+  if (data.length === 0) {
+    throw new Error('loadEditionsFromDB: taxonomy_fields returned 0 active rows — refusing to load an empty taxonomy.');
+  }
+  // Preserves the DB's own .order('display_order') sequence — a single
+  // forward pass over an already-sorted array never reorders entries.
+  const grouped = {};
+  for (const row of data) {
+    if (!grouped[row.edition_id]) grouped[row.edition_id] = [];
+    grouped[row.edition_id].push({ field_code: row.field_code, label: row.label, wheel_visible: row.wheel_visible });
+  }
+  EDITIONS = buildEditionsFromRegistry(grouped);
+  return EDITIONS;
+}
 
 // field_code -> label, for this edition. What TopicWheel/ActiveSetList
 // render — the ONLY place a field_code becomes user-visible text.

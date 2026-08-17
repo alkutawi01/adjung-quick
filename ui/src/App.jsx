@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createInitialState } from '../../state/model.js';
 import { reduce } from '../../state/reducer.js';
 import { selectTopic, selectStory, openBrief, closeBrief, releaseStory, switchEdition } from '../../state/actions.js';
-import { getEdition } from '../../state/editions.js';
+import { getEdition, loadEditionsFromDB } from '../../state/editions.js';
 import { createEditorialControl } from '../../lab/control.js';
-import { fetchRankedQueue, fetchSourceNames } from './adapter/productionAdapter.js';
+import { fetchRankedQueue, fetchSourceNames, supabase } from './adapter/productionAdapter.js';
 import TopicWheel from './components/TopicWheel.jsx';
 import ActiveSetList from './components/ActiveSetList.jsx';
 import Brief from './components/Brief.jsx';
@@ -49,6 +49,15 @@ export default function App() {
     setIsLoading(true);
     (async () => {
       try {
+        // Backend Control Plane Phase 2 (2026-08-17): taxonomy MUST be
+        // loaded and resolved BEFORE the ranked-queue fetch starts —
+        // getEdition() below (line ~89) needs the DB-backed taxonomy,
+        // not the pre-fetch fallback. Not run in parallel with
+        // fetchRankedQueue()/fetchSourceNames() deliberately — a queue
+        // built against stale taxonomy would need re-deriving anyway.
+        await loadEditionsFromDB(supabase);
+        if (cancelled) return;
+
         // Edition-scoped: each cluster's `topic` comes back as THIS
         // edition's placement (docs/edition-state-model.md). Switching
         // edition re-runs this effect, since the whole ranked queue must be
@@ -174,6 +183,16 @@ export default function App() {
   // property (state/editions.js), so ar-global renders RTL from the very
   // root, before any child component needs to know about it individually.
   const currentEdition = getEdition(state.editionContext.activeEdition);
+
+  // Backend Control Plane Phase 2 (2026-08-17): gates the WHOLE reader
+  // render — not just a prop to one child (isLoading was previously
+  // only passed to ActiveSetList, which meant TopicWheel/currentEdition
+  // rendered on the very first paint using EDITIONS' pre-fetch fallback
+  // value, before loadEditionsFromDB() had a chance to resolve). Must
+  // come before anything below reads getEdition()/topics.
+  if (isLoading) {
+    return <div className="app-loading">{t(currentEdition.locale, 'loading')}</div>;
+  }
 
   if (loadError) {
     return <div className="app-error">{t(currentEdition.locale, 'loadError')}: {loadError}</div>;

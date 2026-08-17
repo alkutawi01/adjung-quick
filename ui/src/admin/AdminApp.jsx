@@ -4,7 +4,7 @@ import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
 import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule } from './reviewQueueAdapter.js';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
-import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID } from '../../../state/editions.js';
+import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID, loadEditionsFromDB } from '../../../state/editions.js';
 import ReviewQueueCard from './ReviewQueueCard.jsx';
 import FilterRulesManager from './FilterRulesManager.jsx';
 import ClassificationFlow from './ClassificationFlow.jsx';
@@ -31,6 +31,18 @@ export default function AdminApp() {
   const [session, setSession] = useState(undefined); // undefined = not checked yet, null = signed out
   const [role, setRole] = useState(null);
   const [roleChecked, setRoleChecked] = useState(false);
+  const [taxonomyReady, setTaxonomyReady] = useState(false);
+  const [taxonomyError, setTaxonomyError] = useState(null);
+
+  // Backend Control Plane Phase 2 (2026-08-17): independent of the
+  // auth-session effect below — Admin can be the only page loaded in a
+  // browser tab, so this must not assume App.jsx's own
+  // loadEditionsFromDB() call has already run in this session.
+  useEffect(() => {
+    loadEditionsFromDB(adminSupabase)
+      .then(() => setTaxonomyReady(true))
+      .catch(err => setTaxonomyError(err.message));
+  }, []);
 
   useEffect(() => {
     adminSupabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
@@ -69,7 +81,14 @@ export default function AdminApp() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [session === undefined, userId]);
 
-  if (session === undefined || (userId && !roleChecked)) {
+  // taxonomyError gates alongside taxonomyReady — a load failure must
+  // stop the gate the same way a missing session already does, never
+  // rendering a half-ready Admin page against fallback taxonomy.
+  if (taxonomyError) {
+    return <main className="admin-app"><p className="admin-app__status">Ralat memuatkan taksonomi: {taxonomyError}</p></main>;
+  }
+
+  if (!taxonomyReady || session === undefined || (userId && !roleChecked)) {
     return <main className="admin-app"><p className="admin-app__status">Memuatkan...</p></main>;
   }
 
