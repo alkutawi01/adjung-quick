@@ -21,10 +21,18 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { RSS_SOURCES } from '../lab/sources.js';
 import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
 import { assertWriteAllowed, evaluateDestructiveRebuildGuard } from './production-write-guard.mjs';
+import { fetchAllSourcesForIngestion } from './source-registry-adapter.mjs';
+
+// CUTOVER (2026-08-17, Backend Control Plane Phase 1, per ChatGPT's
+// explicit go-ahead): production ingestion's source registry now reads
+// from public.sources (the real DB, single source of truth) instead of
+// importing lab/sources.js. lab/sources.js is NOT deleted — it remains
+// a development/lab reference (Editorial Ranking Laboratory tests still
+// use it directly) — but this file, the production entrypoint, no
+// longer reads it at all.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,10 +53,14 @@ async function main() {
   assertWriteAllowed();
 
   console.log(DRY_RUN ? 'DRY RUN — will stage and validate, NEVER swap.\n' : 'Fetching real RSS...\n');
+
+  const sources = await fetchAllSourcesForIngestion(supabase);
+  console.log(`${sources.length} sources read from public.sources (production registry).\n`);
+
   if (!DRY_RUN) console.log('Fetching real RSS...\n');
-  const results = await Promise.all(RSS_SOURCES.map(fetchFeed));
+  const results = await Promise.all(sources.map(fetchFeed));
   const allItems = results.filter(r => r.ok).flatMap(r => r.items);
-  console.log(`${allItems.length} items from ${results.filter(r => r.ok).length}/${RSS_SOURCES.length} sources.\n`);
+  console.log(`${allItems.length} items from ${results.filter(r => r.ok).length}/${sources.length} sources.\n`);
 
   const labRankedQueue = buildRankedQueue(allItems);
   console.log(`Lab (in-memory ground truth): ${allItems.length} raw items -> ${labRankedQueue.length} clusters, top score ${labRankedQueue[0].editorialScore}.\n`);
@@ -101,7 +113,7 @@ async function main() {
   await new Promise(r => setTimeout(r, 1500));
 
   // --- 1. Sources -> staging ---
-  const sourceRows = RSS_SOURCES.map(s => ({
+  const sourceRows = sources.map(s => ({
     id: s.id, name: s.name, url: s.url, language: s.language, trust_score: s.trustScore,
   }));
   const { error: sourcesErr } = await supabase.from('sources_staging').insert(sourceRows);

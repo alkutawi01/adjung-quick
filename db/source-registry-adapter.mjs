@@ -113,3 +113,42 @@ export async function fetchActiveSources(supabase) {
   if (error) throw new Error(`fetchActiveSources: ${error.message}`);
   return data;
 }
+
+// Parses a stringified regex like '/tender/i' (produced by
+// String(regex) — the exact form the migration generator wrote into
+// exclude_patterns, db/generate-source-registry-production-migration.mjs)
+// back into a real RegExp. Fail-closed: an unparseable stored pattern
+// is a data-integrity bug, not something to silently skip.
+function parseExcludePattern(str) {
+  const m = /^\/(.*)\/([a-z]*)$/.exec(str);
+  if (!m) throw new Error(`parseExcludePattern: cannot parse stored pattern "${str}"`);
+  return new RegExp(m[1], m[2]);
+}
+
+// Production ingestion reader — Backend Control Plane Phase 1 cutover
+// (2026-08-17, per ChatGPT's explicit go-ahead). Reads the REAL
+// `sources` table (not sources_registry_staging), ALL rows regardless
+// of status — fetchFeed() itself already skips non-'active' sources
+// (lab/rss.js:191), so this must return the full set (including
+// rss-kpm/disabled) for that existing skip-logic to still see it and
+// for the sources_staging mirror step to still record it. Maps DB
+// column names back to the exact camelCase shape lab/sources.js's
+// RSS_SOURCES entries have, since fetchFeed/parseRssXml read
+// source.trustScore, source.knownCategory, source.excludePatterns,
+// source.extraCa — not the DB's snake_case columns.
+export async function fetchAllSourcesForIngestion(supabase) {
+  const { data, error } = await supabase.from('sources').select('*');
+  if (error) throw new Error(`fetchAllSourcesForIngestion: ${error.message}`);
+  return data.map(r => ({
+    id: r.id,
+    name: r.name,
+    url: r.url,
+    language: r.language,
+    trustScore: r.trust_score,
+    status: r.status,
+    knownCategory: r.known_category ?? undefined,
+    sourceType: r.source_type ?? undefined,
+    excludePatterns: r.exclude_patterns ? r.exclude_patterns.map(parseExcludePattern) : undefined,
+    extraCa: r.extra_ca ?? undefined,
+  }));
+}
