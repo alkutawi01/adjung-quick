@@ -1,7 +1,14 @@
 # Editorial State Orphan Lifecycle — Implementation Plan v1 (2026-08-17)
 
-Status: `[x] Plan` `[ ] Approved` — **read-only. No migration executed,
-no FK dropped, no trigger created, no code deployed.**
+Status: `[x] Plan` `[ ] Approved` — **revised 2026-08-17 per ChatGPT's
+review: §0's version check PASSED (Izzat confirmed both
+`pg_advisory_xact_lock`/`_shared` exist on production), but §4's
+migration order was rejected — the original A/B split briefly left a
+window with neither the old FK nor the new advisory-lock mutex
+protecting the swap. §4/§7 revised: the swap-function's exclusive lock
+(Migration A) must be applied and verified BEFORE the FK removal
+(Migration B) — never the reverse. Still read-only. No migration
+executed, no FK dropped, no trigger created, no code deployed.**
 
 Follow-up to `docs/editorial-state-orphan-lifecycle-design-v1.md`
 (design, **APPROVED** by ChatGPT 2026-08-17, Option D — advisory
@@ -131,13 +138,41 @@ specifically from other DB errors (constraint violations, network
 issues) rather than showing the specialized message for unrelated
 failures.
 
-## 4. Migration order
+## 4. Migration order — REVISED per ChatGPT's second review (2026-08-17)
 
-1. Run §0's verification query — confirm `pg_advisory_xact_lock`/`_shared` exist.
+**The first draft's order had a real gap.** It proposed dropping the 3
+FKs and installing the SHARED-lock trigger first (Migration 1), then
+separately patching `swap_ingestion_staging()` to take the EXCLUSIVE
+lock (Migration 2). Between those two migrations — however briefly —
+the old FK is already gone but the swap function does not yet take the
+advisory lock. In that window, a concurrent ingestion swap and an
+editorial write have **no boundary between them at all**: not the old
+FK (removed), not the new advisory-lock mutex (only half-installed).
+That's a real regression to the exact class of problem this design
+exists to close, even if only open for the duration between two
+migrations. **Rejected — order reversed below.**
+
+**Migration A — patch `swap_ingestion_staging()` first, FK still in place**:
+1. Run §0's verification query — confirm `pg_advisory_xact_lock`/`_shared` exist (done — §0, passed).
 2. Compute and record the lock key constant (§2) — one literal `bigint`, documented.
-3. `BEGIN` a single transaction (matching every prior schema migration's
-   own pattern in this project):
-   a. Create the shared trigger function.
+3. `CREATE OR REPLACE FUNCTION swap_ingestion_staging()` — add
+   `PERFORM pg_advisory_xact_lock(EDITORIAL_INGESTION_LOCK_KEY);` as
+   its first statement, otherwise unchanged.
+4. **Verify Migration A** (§7) before proceeding to B. At this point:
+   the 3 old FKs are STILL IN PLACE (unchanged), and the swap now ALSO
+   takes the exclusive advisory lock. Both a hard-FK safety net and the
+   new mutex exist simultaneously — strictly safer than either the old
+   or the new design alone, never less safe.
+5. **No production ingestion run is treated as a "test" during this
+   window** — any real ingestion that happens to run after Migration A
+   is production traffic, not a deliberate experiment, and needs no
+   special handling since Migration A alone is already safe per step 4.
+
+**Migration B — remove the 3 FKs, install the shared-lock trigger — ONLY after Migration A is verified**:
+6. `BEGIN` a single transaction:
+   a. Create the shared trigger function (takes
+      `pg_advisory_xact_lock_shared(EDITORIAL_INGESTION_LOCK_KEY)`
+      first, per §1).
    b. Attach it as `BEFORE INSERT OR UPDATE OF story_id` on
       `story_overrides`, `saved_stories`, `history_entries`.
    c. Discover each table's actual FK constraint name (via
@@ -145,20 +180,22 @@ failures.
       already uses — never a guessed default name) and `DROP
       CONSTRAINT` it, for all three tables.
    d. `COMMIT`.
-4. Separately (not in the same migration file/transaction, since it
-   touches a different, already-existing function): patch
-   `swap_ingestion_staging()` to add the `pg_advisory_xact_lock(...)`
-   call as its first statement, via `CREATE OR REPLACE FUNCTION` —
-   same low-risk pattern already used twice this session for this
-   exact function (the FK-cycle-drop fix and, before that, no changes
-   to swap itself for the Source Registry cutover).
-5. Verification (§7) — read-only, run before declaring done.
+7. **Verify Migration B** (§7) — including the NEW check in §7 that
+   confirms both sides of the boundary exist together before the old
+   FK is considered retired (see §7's addition below).
 
-**Why separate migrations for step 3 and step 4**: the trigger/FK
-change (step 3) and the swap-function change (step 4) are independently
-useful and independently revertable — landing them as one giant
-migration would make a partial failure harder to diagnose (which half
-broke?) and a partial rollback impossible to reason about cleanly.
+**Hard dependency, stated explicitly per ChatGPT's instruction**:
+**Migration B must never be applied before Migration A is applied AND
+verified.** Applying B first (or applying B without A having
+succeeded) recreates exactly the gap this revision exists to close.
+This is not a preference — it is the one ordering constraint this
+whole plan revision was written to enforce.
+
+**Why still two separate migrations, not one**: per the first draft's
+original reasoning — independently diagnosable, independently
+revertable — but now with an explicit, enforced order between them
+rather than an implied "either order is fine" the first draft
+accidentally suggested by using neutral language ("separately").
 
 ## 5. What happens to existing orphaned rows (per ChatGPT's explicit instruction — do NOT clean them up)
 
@@ -176,33 +213,65 @@ migration does not query for them, count them, or act on them in any
 way. Retention/cleanup of already-orphaned rows remains the explicitly
 separate, undecided question §10 of the design doc named.
 
-## 6. Rollback plan
+## 6. Rollback plan — reordered to match §4's revised A→B dependency
 
-**If the migration (step 3) needs to be reverted**: re-add the three
-FK constraints (`ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY
+**If Migration A needs to be reverted** (before B was ever applied,
+or independent of B): `CREATE OR REPLACE FUNCTION
+swap_ingestion_staging()` back to its current committed body (commit
+`9b6984a`, the FK-cycle-drop fix, is the last known-good version) — a
+single-statement revert, no data migration involved either direction.
+**This is safe at any time** — Migration A only adds a lock acquisition
+to a function; it never removes a safety mechanism, so reverting it
+never re-opens the gap this design closes (the old FK, if still present
+because B hasn't run yet, keeps protecting editorial writes regardless
+of A's state).
+
+**If Migration B needs to be reverted** (only relevant once B has been
+applied — per §4, B is never applied before A succeeds): re-add the
+three FK constraints (`ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY
 (story_id) REFERENCES story_clusters(id)`, exact `ON DELETE` behavior
 matching what each table had before — none of the three currently
 specify one, per the design doc's own schema reading) and drop the
 trigger + trigger function. This is safe ONLY if no row that would
 violate the FK was inserted while the trigger (not the FK) was the
-only guard — which is exactly what the trigger's `FOR KEY SHARE`-free,
-advisory-lock-gated existence check is designed to prevent in the first
-place (§8d of the design). If rollback is ever needed while orphaned
-rows exist that predate this migration (§5), re-adding the hard FK
-would fail against them — the same failure mode this whole design
-exists to avoid. **Practical rollback approach**: revert only step 4
-(the swap-function's advisory lock call) if the swap itself is
-misbehaving; the trigger/FK change (step 3) is the safer one to leave
-in place even during an investigation, since it does not affect
-ingestion at all — only future editorial writes.
+only guard — which is exactly what the shared-lock-gated existence
+check is designed to prevent (§8d of the design). If rollback is ever
+needed while orphaned rows exist that predate Migration B (§5),
+re-adding the hard FK would fail against them — the same failure mode
+this whole design exists to avoid; in that case, do not force the FK
+back — leave Migration B in place and treat it as a forward-only change
+instead, since Migration A's exclusive lock on the swap side means the
+system is never left unprotected either way.
 
-**If the migration (step 4) needs to be reverted**: `CREATE OR REPLACE
-FUNCTION swap_ingestion_staging()` back to its current committed body
-(commit `9b6984a`, the FK-cycle-drop fix, is the last known-good
-version of this function) — a single-statement revert, no data
-migration involved either direction.
+**Practical implication of the new order (§4)**: Migration A is the
+"cheap, always-safe-to-revert" half; Migration B is the "one-way door"
+half, precisely because it's only ever applied once A has already
+established the safety net that lets B's FK removal be sound. Rolling
+back A alone is always fine. Rolling back B alone should be treated as
+the more consequential decision, not the routine one.
 
-## 7. Verification queries (read-only, run after migration, before declaring done)
+## 7. Verification queries (read-only, run after each migration, before declaring done)
+
+**After Migration A** (per §4's revised order — run BEFORE Migration B is ever applied):
+
+```sql
+-- 0a. Confirm swap_ingestion_staging() now takes the exclusive advisory
+--     lock as its first statement — source-level check, not just "it compiled"
+SELECT prosrc FROM pg_proc WHERE proname = 'swap_ingestion_staging';
+-- expected: prosrc's text contains 'pg_advisory_xact_lock(' before any ALTER TABLE statement
+
+-- 0b. Confirm the 3 old FKs are STILL PRESENT — Migration A must not have touched them
+SELECT conname, conrelid::regclass FROM pg_constraint
+  WHERE conrelid IN ('story_overrides'::regclass, 'saved_stories'::regclass, 'history_entries'::regclass)
+    AND contype = 'f' AND confrelid = 'story_clusters'::regclass;
+-- expected: 3 rows (unchanged from before Migration A — this is the
+-- explicit "both sides of the boundary exist together" check ChatGPT
+-- required: the OLD FK safety net and the NEW advisory-lock mutex are
+-- both active at the same time here, never neither)
+```
+
+**Only after Migration A's checks above both pass** does Migration B
+proceed. **After Migration B**:
 
 ```sql
 -- 1. Confirm the 3 FKs are actually gone
@@ -222,10 +291,21 @@ SELECT event_object_table, trigger_name FROM information_schema.triggers
   WHERE event_object_table IN ('story_overrides', 'saved_stories', 'history_entries');
 -- expected: 3 rows (one per table), same function name
 
+-- 3b. Confirm swap_ingestion_staging() STILL has its exclusive lock
+--     (re-run 0a's check) — Migration B must not have reverted it
+SELECT prosrc FROM pg_proc WHERE proname = 'swap_ingestion_staging';
+-- expected: still contains 'pg_advisory_xact_lock(' as before
+
 -- 4. Functional test — write-time validation actually rejects a garbage story_id
 --    (run as a role that can INSERT, e.g. via a real editor session; a
 --    fabricated non-existent id should raise, not insert)
 ```
+
+**The old FK is only considered fully retired once Migration B's query
+1 shows 0 rows AND query 3b confirms the swap's exclusive lock is
+still in place** — i.e., the moment the hard constraint is gone, the
+advisory-lock mutex has already been protecting the swap side for the
+entire duration since Migration A, per §4's ordering.
 
 Also required per §8d's proof: an ACTUAL execution-order test isn't
 possible without triggering a real concurrent swap, which this plan
