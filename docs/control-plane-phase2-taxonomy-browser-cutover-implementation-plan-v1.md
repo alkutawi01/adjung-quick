@@ -1,6 +1,13 @@
 # Backend Control Plane — Phase 2: Browser Consumer Cutover, Implementation Plan v1 (2026-08-17)
 
-Status: `[x] Plan` `[ ] Approved` — no code written.
+Status: `[x] Plan` `[ ] Approved` — **revised 2026-08-17 per ChatGPT's
+review: closed a real first-render stale-taxonomy gap (§2a — sequencing
+the `await`s alone doesn't stop React from rendering with the fallback
+on the very first paint; `isLoading` must gate the whole reader render,
+reusing the existing early-return pattern, not a new component),
+`display_order` now explicitly selected (§1), and `taxonomyError` now
+gates `AdminApp.jsx`'s render alongside `taxonomyReady`.** No code
+written.
 
 Follow-up to `docs/control-plane-phase2-taxonomy-browser-consumer-design-v1.md`
 (mini-design, **APPROVED** by ChatGPT 2026-08-17, Approach A —
@@ -33,13 +40,25 @@ export let EDITIONS = buildEditionsFromRegistry(FALLBACK_TAXONOMY_REGISTRY);
 export async function loadEditionsFromDB(supabase) {
   const { data, error } = await supabase
     .from('taxonomy_fields')
-    .select('edition_id, field_code, label, wheel_visible')
+    // display_order explicitly selected (per ChatGPT's correction) —
+    // it's part of the data this query is actually about (building the
+    // Wheel's order), not just an ORDER BY clause detail to discard.
+    // .order() below already sorts the returned rows correctly even
+    // without selecting the column, but selecting it keeps the fetched
+    // shape self-describing and makes the ordering verifiable/debuggable
+    // from the result itself, not just trusted implicitly.
+    .select('edition_id, field_code, label, wheel_visible, display_order')
     .eq('status', 'active')
     .order('display_order');
   if (error) throw new Error(`loadEditionsFromDB: ${error.message}`);
   if (data.length === 0) {
     throw new Error('loadEditionsFromDB: taxonomy_fields returned 0 active rows — refusing to load an empty taxonomy.');
   }
+  // Grouping below preserves the DB's own .order('display_order')
+  // sequence — Array.prototype.push() within a single forward pass
+  // over an already-sorted `data` array never reorders entries, so
+  // each edition's group stays in display_order sequence without a
+  // second explicit sort.
   const grouped = {};
   for (const row of data) {
     if (!grouped[row.edition_id]) grouped[row.edition_id] = [];
@@ -97,6 +116,52 @@ useEffect(() => {
 }, [state.editionContext.activeEdition]);
 ```
 
+### 2a. Closing the first-render stale-taxonomy gap (per ChatGPT's explicit correction)
+
+**The real gap identified**: `isLoading` already exists in `App.jsx`
+(`useState(true)`, confirmed) but per direct read of the component's
+render output (`App.jsx:197-224`), it is currently only ever PASSED AS
+A PROP to `<ActiveSetList isLoading={isLoading} .../>` — it does not
+gate the `<TopicWheel topics={topics} .../>` render at all. `topics`
+(a `useMemo` derived from `getEdition(...).taxonomy`/`taxonomyFieldCodes`)
+renders on the very first paint, before the bootstrap `useEffect` has
+even started running — using whatever `EDITIONS` is at that instant,
+which is the `FALLBACK_TAXONOMY_REGISTRY`-derived placeholder (§1).
+Sequencing the `await`s inside the effect (§2's original diff) only
+prevents `EDITIONS` from being READ with a stale value; it does
+nothing to prevent React from RENDERING with the pre-effect value on
+that first paint.
+
+**Fix — reuse the existing early-return pattern, no new component.**
+`App.jsx` already has this exact shape twice (`App.jsx:178-195`,
+confirmed): `if (loadError) return <div className="app-error">...`
+and `if (state.brief.open) return <main>...<Brief /></main>`. Add one
+more, using the `isLoading` state that already exists:
+
+```js
+// Illustrative — not written yet. Placed alongside the existing
+// loadError/brief.open early returns, same pattern, same file.
+if (isLoading) {
+  return <main className="app app--loading">{/* existing loading UI/spinner, whatever App.jsx already shows via ActiveSetList's isLoading path today — reused, not redesigned */}</main>;
+}
+```
+
+This guarantees the `TopicWheel`/`ActiveSetList`/masthead render
+(which reads `topics`/`currentEdition`, both `EDITIONS`-derived) never
+happens until the bootstrap effect's `finally { setIsLoading(false) }`
+runs — which, per §2's sequencing, only happens after
+`loadEditionsFromDB()` has already resolved and reassigned `EDITIONS`.
+**No flash of stale/fallback taxonomy is possible once this early
+return exists**, because nothing that reads `EDITIONS` renders before
+`isLoading` becomes `false`.
+
+Applies identically on edition switch: the effect already sets
+`isLoading = true` at its start (`App.jsx:49`, confirmed) and `false`
+in its `finally` block — the early return means an edition switch
+correctly re-shows the loading state and re-hides the reader content
+until the switch's own taxonomy+queue reload completes, per ChatGPT's
+diagram exactly.
+
 **Why re-run on every edition switch, not just once**: the existing
 effect already re-runs on `state.editionContext.activeEdition` change
 (to re-fetch the ranked queue). `loadEditionsFromDB()` re-running on
@@ -142,6 +207,16 @@ gates on `taxonomyReady` the same way the component already gates on
 `roleChecked`/`session` today — exact gating placement is a normal
 implementation detail (likely combined into the same top-level
 loading check `AdminApp.jsx` already has for auth), not a new pattern.
+
+**`taxonomyError` also gates, not just `taxonomyReady` (per ChatGPT's
+explicit correction)**: the top-level check must be
+`if (!taxonomyReady || taxonomyError) return <LoadingOrErrorState />`
+— a taxonomy load failure must stop the gate exactly like a missing
+session already does, never allowing a "half-ready" Admin page to
+render with `EDITIONS` still on its fallback value. Same principle as
+§2a's reader-side fix: no code path may render real content using
+stale/fallback taxonomy, whether the cause is "still loading" or
+"failed to load."
 
 **Which Supabase client**: `adminSupabase`, not the reader's
 `supabase` from `productionAdapter.js` — `AdminApp.jsx` already uses
