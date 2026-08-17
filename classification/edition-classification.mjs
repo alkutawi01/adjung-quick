@@ -15,6 +15,7 @@ import { resolveDefaultPlacement, EDITION_GEOGRAPHY_RESIDUAL_LABEL } from './lib
 import { evaluateEditionRules } from './lib/edition-rules.mjs';
 import { checkConfidenceGate } from './lib/confidence-policy.mjs';
 import { getFieldEntryByLabel } from './lib/taxonomy-registry.mjs';
+import { resolveClassificationRule } from './lib/classification-rules-resolver.mjs';
 
 // Taxonomy Stable Field-ID V1 (2026-08-16): field_code is derived from
 // whichever label a code path already resolved — every branch below
@@ -39,9 +40,49 @@ export const RULESET_VERSION = 'v1.3.0'; // bumped: Confidence Gate (Sesi 3B.2C-
 // thresholdOverride: benchmark-only escape hatch (classification/
 // benchmark-confidence-threshold.mjs) to test multiple min_subject_confidence
 // values without mutating the policy module's shared state. Omit in normal use.
-export function classifyForEdition(understanding, edition, thresholdOverride) {
+//
+// item / activeRules (Backend Control Plane Phase 3, both optional,
+// default to undefined/[]): ONLY used by the new Classification Rules
+// prefix step immediately below. Every existing caller that omits these
+// two arguments gets activeRules=[] here, which makes
+// resolveClassificationRule() return null unconditionally (zero rules to
+// match against) — so this is a structural no-op for any call site that
+// hasn't been updated to pass real rules, not just an empirically-tested
+// one. The 4-step resolver beneath this prefix (edition rules ->
+// confidence gate -> default placement -> geography fallback) is
+// byte-for-byte the same code that existed before Phase 3.
+export function classifyForEdition(understanding, edition, thresholdOverride, item, activeRules = []) {
   const subjectCandidates = understanding.subject_candidates ?? [];
   const geographyCandidates = understanding.geography_candidates ?? [];
+
+  // Backend Control Plane Phase 3: Classification Rules. An explicit,
+  // admin-authored rule short-circuits everything below it — including
+  // Edition Rules — when it matches and its target resolves for this
+  // edition (Design V1 §5b: an explicit admin fact is a stronger signal
+  // than an automatic heuristic). No match, a rejected tie, or an
+  // unresolved global rule all return null here, in which case nothing
+  // below this block is any different from before Phase 3 existed.
+  if (item) {
+    const ruleMatch = resolveClassificationRule(item, edition, activeRules);
+    if (ruleMatch) {
+      return {
+        edition_id: edition,
+        field: ruleMatch.label,
+        field_code: ruleMatch.field_code,
+        subject_code: ruleMatch.subject_code,
+        sub_field: null,
+        classification_status: 'classified',
+        classification_method: 'admin_rule',
+        classification_rule: ruleMatch.rule_id,
+        confidence: 1,
+        ruleset_version: RULESET_VERSION,
+        alternatives: subjectCandidates.slice(0, 3).map(c => ({
+          universal_subject: c.value, confidence: c.confidence,
+          display_field: resolveDefaultPlacement(edition, c.value),
+        })),
+      };
+    }
+  }
 
   // Tiers 1-2: Edition Rule Registry (dynamic, context-aware — checked first)
   const ruleMatch = evaluateEditionRules(edition, understanding);
@@ -179,10 +220,15 @@ export function classifyForEdition(understanding, edition, thresholdOverride) {
   };
 }
 
-export function classifyForAllEditions(understanding, thresholdOverride) {
+// allActiveRules: every active classification_rules row (any edition_id),
+// scoped down per edition here before being handed to
+// resolveClassificationRule() — a global rule (edition_id NULL) applies
+// to every edition, an edition-specific rule only to its own.
+export function classifyForAllEditions(understanding, thresholdOverride, item, allActiveRules = []) {
+  const rulesFor = edition => allActiveRules.filter(r => r.edition_id === null || r.edition_id === edition);
   return {
-    'ms-MY': classifyForEdition(understanding, 'ms-MY', thresholdOverride),
-    'en-global': classifyForEdition(understanding, 'en-global', thresholdOverride),
-    'ar-global': classifyForEdition(understanding, 'ar-global', thresholdOverride),
+    'ms-MY': classifyForEdition(understanding, 'ms-MY', thresholdOverride, item, rulesFor('ms-MY')),
+    'en-global': classifyForEdition(understanding, 'en-global', thresholdOverride, item, rulesFor('en-global')),
+    'ar-global': classifyForEdition(understanding, 'ar-global', thresholdOverride, item, rulesFor('ar-global')),
   };
 }
