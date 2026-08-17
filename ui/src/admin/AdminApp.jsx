@@ -8,6 +8,7 @@ import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID, loadEditionsFromDB } from 
 import ReviewQueueCard from './ReviewQueueCard.jsx';
 import FilterRulesManager from './FilterRulesManager.jsx';
 import ClassificationFlow from './ClassificationFlow.jsx';
+import ClassificationRulesList from './ClassificationRulesList.jsx';
 
 // Editorial Desk shell — per docs/editorial-desk-shell-implementation-plan-v1.md.
 // 'aliran' added 2026-08-16, direct response to Izzat's complaint that raw
@@ -17,6 +18,7 @@ const DESK_SECTIONS = [
   { id: 'semakan', label: 'Semakan' },
   { id: 'aliran', label: 'Aliran RSS' },
   { id: 'keputusan', label: 'Keputusan Editorial' },
+  { id: 'peraturan', label: 'Peraturan Klasifikasi' },
   { id: 'rekod', label: 'Rekod' },
 ];
 
@@ -337,6 +339,17 @@ function ReviewQueue({ userId, role }) {
               akan dipindahkan ke bahagian ini apabila permukaan sebenar dibina.
             </p>
           </article>
+        </section>
+      )}
+
+      {activeSection === 'peraturan' && (
+        <section className="editorial-desk__section">
+          {/* Backend Control Plane Phase 3, Admin Read-Only V1. Mounted
+              only when this section is active — the component's own
+              useEffect fetches on mount, matching the lazy-load
+              convention "keputusan" already uses for filterRules (there
+              via a load-once flag, here via mount/unmount — same effect). */}
+          <ClassificationRulesList supabase={adminSupabase} />
         </section>
       )}
 

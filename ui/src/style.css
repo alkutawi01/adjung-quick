@@ -859,3 +859,37 @@ body {
   padding: 6px 8px;
   resize: vertical;
 }
+
+/* classification-rules — Backend Control Plane Phase 3, Admin Read-Only
+   V1. Reuses activity-timeline's list shape and filter-rules' inactive/
+   archived row treatment rather than inventing new visual language. */
+.classification-rules { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rule, #ddd); }
+.classification-rules__title { font-size: 0.95rem; color: var(--accent); margin: 0 0 10px; font-weight: normal; }
+.classification-rules__error { font-size: 0.82rem; color: #a00; margin: 0; }
+.classification-rules__empty { font-size: 0.82rem; color: var(--ink-muted); margin: 0; }
+.classification-rules__filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.classification-rules__filters select {
+  font-size: 0.8rem; color: var(--ink); background: var(--paper);
+  border: 1px solid var(--hairline); border-radius: 4px; padding: 4px 6px;
+}
+.classification-rules__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.classification-rules__row {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid var(--hairline);
+}
+.classification-rules__row--archived { color: var(--ink-faint); }
+.classification-rules__type { color: var(--ink-muted); flex-shrink: 0; min-width: 70px; }
+.classification-rules__pattern { font-variant-numeric: tabular-nums; }
+.classification-rules__source-name { color: var(--ink-faint); font-style: italic; }
+.classification-rules__arrow { color: var(--ink-faint); }
+.classification-rules__target { font-weight: 500; }
+.classification-rules__scope { color: var(--ink-muted); font-size: 0.78rem; }
+.classification-rules__priority { color: var(--ink-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.classification-rules__status { font-size: 0.78rem; }
+.classification-rules__created { color: var(--ink-faint); font-size: 0.78rem; margin-left: auto; }
+
+.classification-provenance {
+  font-size: 0.8rem; margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
+}
+.classification-provenance__detail { color: var(--ink-muted); }
+.classification-provenance--missing { color: var(--ink-faint); }
