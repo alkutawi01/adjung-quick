@@ -33,8 +33,9 @@ BEGIN;
 --
 --   EDITORIAL_INGESTION_LOCK_KEY = 71827364501
 --
--- (16 digits leaves headroom below bigint's max and is distinctive
--- enough to be very unlikely to collide with any other advisory lock
+-- (11 digits leaves plenty of headroom below bigint's max (19 digits)
+-- and is distinctive enough to be very unlikely to collide with any
+-- other advisory lock
 -- this project — or Supabase's own internals — might independently
 -- choose. Any other fixed bigint would work equally well; the only
 -- requirement is that it is written ONCE and referenced identically

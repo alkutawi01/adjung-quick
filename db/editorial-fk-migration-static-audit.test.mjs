@@ -111,5 +111,61 @@ check('Neither migration touches expires_at', !/expires_at\s*=/.test(a) && !/exp
 check('Migration B\'s trigger raises a message starting with "story_id" and containing "does not exist"',
   /RAISE EXCEPTION 'story_id % does not exist/.test(b));
 
+// --- Exact-equivalence check (per ChatGPT's explicit follow-up,
+// 2026-08-17): the earlier checks above confirmed several individual
+// features of Migration A's body survived (renames, repoint call,
+// no editorial-table references) but never proved the WHOLE body is
+// identical to the last committed version of swap_ingestion_staging()
+// plus exactly one new statement. This proves that directly, by
+// extracting both function bodies, normalizing whitespace, and
+// diffing them as strings.
+function extractFunctionBody(sql, fnName) {
+  const re = new RegExp(
+    `CREATE OR REPLACE FUNCTION ${fnName}\\(\\)[\\s\\S]*?AS \\$\\$([\\s\\S]*?)\\$\\$;`
+  );
+  const m = re.exec(sql);
+  if (!m) throw new Error(`could not find function body for ${fnName}`);
+  return m[1];
+}
+function normalize(body) {
+  return body
+    .split('\n')
+    .map(line => line.replace(/--.*$/, '').trim())   // strip comments, trim each line
+    .filter(line => line.length > 0)                  // drop now-empty lines
+    .join('\n');
+}
+
+const originalSchema = readFileSync('db/schema-ingestion-staging-functions-v1.sql', 'utf8');
+const originalBody = normalize(extractFunctionBody(originalSchema, 'swap_ingestion_staging'));
+const migrationABody = normalize(extractFunctionBody(aRaw, 'swap_ingestion_staging'));
+
+const lockLine = 'PERFORM pg_advisory_xact_lock(71827364501);';
+// The body's structure is DECLARE ... BEGIN <statements> END — the new
+// lock line must be the very first statement immediately after BEGIN,
+// not the first line of the body overall (which is DECLARE).
+const afterBegin = migrationABody.slice(migrationABody.indexOf('BEGIN') + 'BEGIN'.length).replace(/^\n+/, '');
+check('the new lock line is the first statement immediately after BEGIN in Migration A', afterBegin.startsWith(lockLine));
+
+const migrationABodyMinusLockLine = (
+  migrationABody.slice(0, migrationABody.indexOf('BEGIN') + 'BEGIN'.length) +
+  '\n' +
+  afterBegin.slice(lockLine.length).replace(/^\n+/, '')
+);
+check(
+  'Migration A\'s body, minus the new lock line, is byte-for-byte identical to the last committed swap_ingestion_staging() (db/schema-ingestion-staging-functions-v1.sql)',
+  migrationABodyMinusLockLine === originalBody
+);
+if (migrationABodyMinusLockLine !== originalBody) {
+  // Print a minimal diff hint if this ever fails, rather than a bare false.
+  const linesA = migrationABodyMinusLockLine.split('\n');
+  const linesB = originalBody.split('\n');
+  for (let i = 0; i < Math.max(linesA.length, linesB.length); i++) {
+    if (linesA[i] !== linesB[i]) {
+      console.log(`    first diff at line ${i}: migration="${linesA[i]}" vs original="${linesB[i]}"`);
+      break;
+    }
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed.\n`);
 if (failed > 0) process.exit(1);
