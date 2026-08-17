@@ -35,6 +35,16 @@ export default function AdminApp() {
   const [roleChecked, setRoleChecked] = useState(false);
   const [taxonomyReady, setTaxonomyReady] = useState(false);
   const [taxonomyError, setTaxonomyError] = useState(null);
+  // TEMPORARY DEBUG — REMOVE. Backend Control Plane Phase 3 (2026-08-17):
+  // getEditorRole() fails closed and swallows the real Supabase
+  // error/response (see db/editor-auth.mjs's own comment on why — a
+  // correct, permanent design decision). This state exists ONLY to
+  // surface that already-discarded info on the no-access screen for one
+  // live debugging session (a real admin account got "Tiada akses admin"
+  // despite a verified-correct DB record), since DevTools isn't available
+  // on the reporting device. Never sanitizes/logs tokens or full
+  // credentials — status/error code/message and row count only.
+  const [debugInfo, setDebugInfo] = useState(null);
 
   // Backend Control Plane Phase 2 (2026-08-17): independent of the
   // auth-session effect below — Admin can be the only page loaded in a
@@ -79,6 +89,21 @@ export default function AdminApp() {
         setRole(r);
         setRoleChecked(true);
       });
+      // TEMPORARY DEBUG — REMOVE. Same query getEditorRole() runs
+      // internally, but captured here WITHOUT the fail-closed swallow, so
+      // the real status/error/row-count can be shown on-screen. Does not
+      // feed into `role`/`isEditor()` — the actual access decision above
+      // is completely unaffected by this block.
+      adminSupabase.from('editors').select('role').eq('user_id', userId).then(({ data, error, status }) => {
+        if (cancelled) return;
+        setDebugInfo({
+          status,
+          errorCode: error?.code ?? null,
+          errorMessage: error?.message ?? null,
+          rowCount: data?.length ?? 0,
+          roleValue: data?.[0]?.role ?? null,
+        });
+      });
     }, 0);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [session === undefined, userId]);
@@ -107,6 +132,17 @@ export default function AdminApp() {
             Log keluar
           </button>
         </p>
+        {/* TEMPORARY DEBUG — REMOVE. See debugInfo state comment above. */}
+        {debugInfo && (
+          <pre style={{ fontSize: '11px', padding: '8px', background: '#eee', margin: '12px', whiteSpace: 'pre-wrap' }}>
+            {'[TEMPORARY DEBUG]\n'}
+            {`status: ${debugInfo.status}\n`}
+            {`errorCode: ${debugInfo.errorCode}\n`}
+            {`errorMessage: ${debugInfo.errorMessage}\n`}
+            {`rowCount: ${debugInfo.rowCount}\n`}
+            {`roleValue: ${debugInfo.roleValue}`}
+          </pre>
+        )}
       </main>
     );
   }
