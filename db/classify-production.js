@@ -26,6 +26,8 @@ import { classifyForAllEditions } from '../classification/edition-classification
 import { isEditionEligible } from './edition-representation-eligibility.mjs';
 import { EDITIONS } from '../state/editions.js';
 import { assertWriteAllowed } from './production-write-guard.mjs';
+import { loadTaxonomyRegistryFromDB } from '../classification/lib/taxonomy-registry.mjs';
+import { rebuildEditionTaxonomy } from '../classification/lib/edition-taxonomy.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,6 +47,16 @@ async function main() {
   if (WRITE) assertWriteAllowed();
 
   console.log(`\nPRODUCTION CLASSIFICATION WIRING — ${WRITE ? 'WRITE MODE' : 'DRY RUN (no writes)'}\n`);
+
+  // Backend Control Plane Phase 2 (2026-08-17): load taxonomy from
+  // taxonomy_fields ONCE here, before the classification loop below —
+  // per docs/control-plane-phase2-taxonomy-implementation-plan-v1.md §1.
+  // Every function this cache feeds (resolveDefaultPlacement(),
+  // getFieldEntry*()) stays fully synchronous; only this one startup
+  // step is async.
+  await loadTaxonomyRegistryFromDB(supabase);
+  rebuildEditionTaxonomy();
+  console.log('Taxonomy loaded from taxonomy_fields (backend source of truth).\n');
 
   // Pull clusters + their member items. The classifier needs the item's
   // own signals (link/categories/title), not the cluster's legacy topic.

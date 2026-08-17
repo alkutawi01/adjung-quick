@@ -27,14 +27,36 @@ import { TAXONOMY_REGISTRY, GEOGRAPHY_RESIDUAL_FIELD_CODE } from './taxonomy-reg
 // excluded here, matching this table's pre-migration behavior exactly:
 // default_mapping resolution never applied to those, only
 // EDITION_GEOGRAPHY_RESIDUAL_LABEL below did.
-export const EDITION_TAXONOMY = Object.fromEntries(
-  Object.entries(TAXONOMY_REGISTRY).map(([editionId, entries]) => [
-    editionId,
-    entries
-      .filter(e => e.subject_codes !== null)
-      .map(e => ({ label: e.label, default_mapping: e.subject_codes, field_code: e.field_code })),
-  ]),
-);
+// Backend Control Plane Phase 2 (2026-08-17): mutable, same reasoning
+// as TAXONOMY_REGISTRY itself — this is a DERIVED snapshot taken at
+// whatever moment `buildEditionTaxonomy()` last ran. Module load
+// computes an initial value from the hardcoded fallback (safe default
+// if nothing ever calls the DB loader); `loadTaxonomyRegistryFromDB()`
+// below re-derives it after TAXONOMY_REGISTRY is reloaded from
+// `taxonomy_fields`, so `resolveDefaultPlacement()` — unchanged, still
+// fully synchronous — reads whichever table is current.
+function buildEditionTaxonomy() {
+  return Object.fromEntries(
+    Object.entries(TAXONOMY_REGISTRY).map(([editionId, entries]) => [
+      editionId,
+      entries
+        .filter(e => e.subject_codes !== null)
+        .map(e => ({ label: e.label, default_mapping: e.subject_codes, field_code: e.field_code })),
+    ]),
+  );
+}
+
+export let EDITION_TAXONOMY = buildEditionTaxonomy();
+
+// Per docs/control-plane-phase2-taxonomy-implementation-plan-v1.md §1:
+// call once, at process startup, AFTER taxonomy-registry.mjs's
+// loadTaxonomyRegistryFromDB(supabase) has already reassigned
+// TAXONOMY_REGISTRY. Re-derives EDITION_TAXONOMY from the now-current
+// TAXONOMY_REGISTRY — no DB access of its own, purely a resync.
+export function rebuildEditionTaxonomy() {
+  EDITION_TAXONOMY = buildEditionTaxonomy();
+  return EDITION_TAXONOMY;
+}
 
 // EDITION POSITIONING (locked 2026-08-12, per Izzat + docs/edition-source-profile-model.md):
 //   ms-MY     — Malaysian local edition (Malaysian readers)

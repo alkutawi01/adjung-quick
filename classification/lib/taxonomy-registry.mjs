@@ -38,7 +38,19 @@
 //                    preserves that exact behavior rather than silently
 //                    fixing it (a real, separate gap, out of scope here).
 
-export const TAXONOMY_REGISTRY = {
+// Backend Control Plane Phase 2 (2026-08-17): TAXONOMY_REGISTRY is now
+// a MUTABLE binding — `loadTaxonomyRegistryFromDB()` below overwrites
+// it once, at process startup, with data read from the `taxonomy_fields`
+// table (the new backend source of truth). Every consumer function in
+// this file (getFieldEntry/getFieldEntryForSubject/getFieldEntryByLabel)
+// reads this same module-level variable, so none of their own logic
+// changes — only what populates the variable does. Kept as a literal
+// object here (never deleted) as the pre-Phase-2 fallback/reference,
+// same posture as lab/sources.js after Phase 1's ingestion cutover —
+// used only if loadTaxonomyRegistryFromDB() is never called (e.g. a
+// script that doesn't need DB-backed taxonomy) or as a documented
+// historical record of what was backfilled.
+export let TAXONOMY_REGISTRY = {
   'ms-MY': [
     { field_code: 'nasional', label: 'Nasional', subject_codes: null, wheel_visible: true },
     { field_code: 'dunia', label: 'Dunia', subject_codes: null, wheel_visible: true },
@@ -91,6 +103,38 @@ export const TAXONOMY_REGISTRY = {
     { field_code: 'world', label: 'العالم', subject_codes: null, wheel_visible: false }, // same pre-existing gap as en-global's World
   ],
 };
+
+// Fail-closed load from the taxonomy_fields table — per
+// docs/control-plane-phase2-taxonomy-implementation-plan-v1.md §1. Only
+// `status = 'active'` rows are included (archived fields must not
+// resolve new classifications), ordered by `display_order` to preserve
+// the exact curated Wheel ordering the hardcoded object above encodes.
+// This is the ONLY place TAXONOMY_REGISTRY is ever reassigned — call
+// once, at process startup, before any classification/reader logic runs.
+export async function loadTaxonomyRegistryFromDB(supabase) {
+  const { data, error } = await supabase
+    .from('taxonomy_fields')
+    .select('edition_id, field_code, label, subject_codes, wheel_visible')
+    .eq('status', 'active')
+    .order('display_order');
+  if (error) throw new Error(`loadTaxonomyRegistryFromDB: ${error.message}`);
+  if (data.length === 0) {
+    throw new Error('loadTaxonomyRegistryFromDB: taxonomy_fields returned 0 active rows — refusing to load an empty taxonomy (would silently unclassify everything).');
+  }
+
+  const registry = {};
+  for (const row of data) {
+    if (!registry[row.edition_id]) registry[row.edition_id] = [];
+    registry[row.edition_id].push({
+      field_code: row.field_code,
+      label: row.label,
+      subject_codes: row.subject_codes,
+      wheel_visible: row.wheel_visible,
+    });
+  }
+  TAXONOMY_REGISTRY = registry;
+  return TAXONOMY_REGISTRY;
+}
 
 // Geography-residual field codes — mirrors EDITION_GEOGRAPHY_RESIDUAL_LABEL's
 // existing shape exactly, since the residual-placement CODE PATH
