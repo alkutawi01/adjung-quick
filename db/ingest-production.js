@@ -123,6 +123,13 @@ async function main() {
   const sourceRows = sources.map(s => ({
     id: s.id, name: s.name, url: s.url, language: s.language, trust_score: s.trustScore,
     status: s.status ?? 'active',
+    // sources_staging.active DEFAULTs to TRUE (legacy column, kept for
+    // §4a's invariant) — must be set explicitly here, not left to the
+    // default, or a disabled source (status='disabled') would still
+    // land with active=true, violating the active<->status invariant
+    // the moment staging is rebuilt (found live via
+    // db/verify-staging-post-patch.mjs, 2026-08-17: rss-kpm exactly).
+    active: (s.status ?? 'active') === 'active',
     known_category: s.knownCategory ?? null,
     source_type: s.sourceType ?? null,
     exclude_patterns: s.excludePatterns ? s.excludePatterns.map(String) : null,
