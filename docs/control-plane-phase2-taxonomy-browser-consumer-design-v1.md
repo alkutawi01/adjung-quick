@@ -1,9 +1,14 @@
 # Backend Control Plane — Phase 2: Browser Consumer Mini-Design v1 (2026-08-17)
 
-Status: `[x] Mini-design` `[ ] Approved` — no code written. Answers
-ChatGPT's question before any cutover: how does `state/editions.js`'s
-taxonomy come from `taxonomy_fields` without a sync-vs-async mismatch
-in the browser, and without new infrastructure.
+Status: `[x] Mini-design` `[ ] Approved` — **revised 2026-08-17 per
+ChatGPT's review: closed a real gap in the first draft (`let EDITIONS`
+alone does not cause React to re-render — §4a now explains the fix is
+sequencing existing state updates, not new React state), locked
+taxonomy-vs-ranked-queue bootstrap order (§4b), and made `AdminApp.jsx`'s
+own independent bootstrap call explicit (§4c) instead of assumed.**
+No code written. Answers: how does `state/editions.js`'s taxonomy come
+from `taxonomy_fields` without a sync-vs-async mismatch in the browser,
+and without new infrastructure.
 
 ## 1. Current behaviour, precisely
 
@@ -114,10 +119,98 @@ export async function loadEditionsFromDB(supabase) {
 }
 ```
 
-`App.jsx` gains one more `useEffect`-driven call
-(`loadEditionsFromDB(supabase)`) alongside its existing
-`fetchRankedQueue()` call, awaited before the app renders its real
-content — same loading-state pattern already in place.
+### 4a. The React re-render gap — closed by sequencing, not new state (per ChatGPT's explicit correction)
+
+**The first draft's real bug**: `let EDITIONS` being reassigned does
+NOT, by itself, cause React to re-render anything that already rendered
+using the old value. ES module live bindings are visible to the NEXT
+read, but nothing tells React a "next read" should happen.
+
+**The fix requires no new React primitive** — it requires
+`loadEditionsFromDB()` to complete and reassign `EDITIONS` **before**
+the existing state updates that already trigger a render run. Read
+directly from `App.jsx`'s current bootstrap effect (`App.jsx:47-108`):
+the two calls that already cause React to re-render on mount are
+`setRankedQueue(queue)` (line 61) and the `setState(s => reduce(...))`
+call (line 92) — and critically, `getEdition(...)` is already called
+at line 89, **before** that `setState`, to compute `firstTopic` for
+the cold-start topic selection. Any component that reads `EDITIONS`/
+`getEdition()` only does so **during a render caused by one of these
+existing state updates** — never independently, never before them.
+
+So the fix is exclusively about **order of `await`s inside the
+existing effect**, not new state:
+
+```
+App.jsx's existing bootstrap useEffect (App.jsx:47-108) — REVISED ORDER
+  ↓
+  await loadEditionsFromDB(supabase)     -- NEW, must complete FIRST
+  ↓
+  (only after taxonomy succeeds)
+  await Promise.all([fetchRankedQueue(...), fetchSourceNames()])  -- existing
+  ↓
+  setRankedQueue(queue)                  -- existing, ALREADY triggers render
+  ↓
+  getEdition(...) computes firstTopic    -- existing, now reads DB-backed EDITIONS
+  ↓
+  setState(s => reduce(...))             -- existing, ALREADY triggers render
+  ↓
+  React re-renders using the NOW-current EDITIONS — no new setState needed,
+  because the render was always going to happen from setRankedQueue/setState;
+  EDITIONS just needs to already be correct by the time it does.
+```
+
+**`EDITIONS` is a cache, not reactive state — explicitly, per ChatGPT's
+4th correction.** It is read fresh every render (JS module-level
+variable reads are never stale/memoized across renders — every
+`getEdition()` call literally re-reads the current binding) but React
+has no subscription to it and none is added. The only guarantee this
+design relies on is ordering: **by the time any state update that
+causes a render has fired, `EDITIONS` is already the DB-backed value.**
+If a future component ever needs to react to taxonomy changing
+mid-session (it doesn't today — nothing does), that would need real
+state at that point, not this cache; not needed for this phase's scope.
+
+### 4b. Ranked-queue vs taxonomy bootstrap ordering — locked
+
+Per ChatGPT's explicit requirement: taxonomy load and ranked-queue
+fetch must NOT race, because `getEdition(...).taxonomyFieldCodes[0]`
+(line 91, used for cold-start topic selection) needs the FINAL
+taxonomy, not whichever of the two fetches happened to resolve first.
+
+**Locked sequence** (not parallel):
+```
+App bootstrap effect starts
+  ↓
+await loadEditionsFromDB(supabase)   -- must fully resolve first
+  ↓
+(taxonomy now correct — proceed)
+  ↓
+await Promise.all([fetchRankedQueue(...), fetchSourceNames()])  -- existing, unchanged, still parallel with each other
+  ↓
+setRankedQueue / setState (existing) — render happens, reads correct EDITIONS
+```
+This is a small, deliberate change from the current effect's shape
+(taxonomy gate added before the existing `Promise.all`), not a
+rewrite of the bootstrap flow.
+
+### 4c. `AdminApp.jsx` bootstrap — explicit, not assumed (per ChatGPT's 3rd correction)
+
+`AdminApp.jsx` imports `EDITION_IDS`/`getEdition`/`DEFAULT_EDITION_ID`
+from the same `state/editions.js` (confirmed, `AdminApp.jsx:7`) but has
+its own, entirely separate bootstrap — an auth-session effect
+(`AdminApp.jsx:35-41`), independent of `App.jsx`'s effect. **Admin can
+be the only page loaded in a browser tab** (a direct admin URL, no
+prior visit to the public reader) — nothing guarantees `App.jsx`'s
+effect has run first, or ever runs at all in that tab.
+
+**`AdminApp.jsx` must call `loadEditionsFromDB(supabase)` itself**,
+independently, early in its own bootstrap — before any child component
+that reads `getEdition()` (`ReviewQueueCard.jsx`, `ClassificationFlow.jsx`,
+etc.) renders with real data. Exact placement (alongside the session
+effect, or gating the role-check effect) is an implementation-time
+decision, not fixed here — but the requirement itself (Admin has its
+own independent call, not a shared assumption) is locked.
 
 ## 5. Not rendering with empty/stale taxonomy silently
 
