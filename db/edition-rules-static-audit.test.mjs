@@ -78,5 +78,27 @@ check('archive_edition_rule requires a reason (raises exception if null/empty)',
   check('add_edition_rule has defense-in-depth geography XOR validation', /p_condition_geography_type IS NULL AND p_condition_geography_value IS NULL/.test(addFnBody));
 }
 
+// --- Authenticated-access patch (schema-edition-rules-rpc-authenticated-
+// patch-v1.sql): fixes the browser-admin-UI-can't-call-service_role-only-
+// RPCs blocker found before building the Admin UI. Proves the fix adds
+// an is_admin() check to EVERY function (not just some), passes
+// auth.uid() (never a client-supplied user id — no privilege escalation
+// surface), and grants authenticated without ever granting anon. ---
+const patchRaw = readFileSync('db/schema-edition-rules-rpc-authenticated-patch-v1.sql', 'utf8');
+const patch = stripSqlComments(patchRaw);
+
+for (const fn of ['add_edition_rule', 'archive_edition_rule', 'restore_edition_rule']) {
+  const fnBody = patch.slice(patch.indexOf(`FUNCTION ${fn}`), patch.indexOf('$$;', patch.indexOf(`FUNCTION ${fn}`)));
+  check(`${fn}: calls is_admin(auth.uid()) — never a client-supplied user id`, /IF NOT is_admin\(auth\.uid\(\)\) THEN/.test(fnBody));
+  check(`${fn}: raises an exception (does not silently no-op) when not admin`, /RAISE EXCEPTION[\s\S]*?memerlukan peranan admin/.test(fnBody));
+}
+check('patch grants EXECUTE to authenticated (alongside service_role, not instead of it)',
+  /GRANT EXECUTE ON FUNCTION add_edition_rule\([^)]*\) TO service_role, authenticated/.test(patch) &&
+  /GRANT EXECUTE ON FUNCTION archive_edition_rule\([^)]*\) TO service_role, authenticated/.test(patch) &&
+  /GRANT EXECUTE ON FUNCTION restore_edition_rule\([^)]*\) TO service_role, authenticated/.test(patch));
+check('patch never grants anything to anon', !/TO anon/i.test(patch));
+check('patch keeps REVOKE FROM PUBLIC for all 3 functions (grant is narrowed to specific roles, not opened to everyone)',
+  (patch.match(/REVOKE EXECUTE ON FUNCTION/g) || []).length === 3);
+
 console.log(`\n${passed} passed, ${failed} failed.\n`);
 if (failed > 0) process.exit(1);
