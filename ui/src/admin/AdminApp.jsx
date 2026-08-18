@@ -8,26 +8,34 @@ import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID, loadEditionsFromDB } from 
 import ReviewQueueCard from './ReviewQueueCard.jsx';
 import FilterRulesManager from './FilterRulesManager.jsx';
 import ClassificationFlow from './ClassificationFlow.jsx';
-import ClassificationRulesList from './ClassificationRulesList.jsx';
-import EditionRulesManager from './EditionRulesManager.jsx';
 import { fetchEditionRules, addEditionRule, archiveEditionRule, restoreEditionRule } from './editionRulesAdapter.js';
+import SourceRegistryPanel from './SourceRegistryPanel.jsx';
+import BidangPanel from './BidangPanel.jsx';
+import ValueRankingPanel from './ValueRankingPanel.jsx';
 
-// Editorial Desk shell — per docs/editorial-desk-shell-implementation-plan-v1.md.
+// Berita sub-sections — per docs/editorial-desk-shell-implementation-plan-v1.md.
 // 'aliran' added 2026-08-16, direct response to Izzat's complaint that raw
 // RSS-to-Bidang routing was invisible — a live table, not a report.
-const DESK_SECTIONS = [
-  { id: 'hari-ini', label: 'Hari Ini' },
-  { id: 'semakan', label: 'Semakan' },
-  { id: 'aliran', label: 'Aliran RSS' },
-  { id: 'keputusan', label: 'Keputusan Editorial' },
-  { id: 'peraturan', label: 'Peraturan Klasifikasi' },
-  // Backend Control Plane Fasa 4 (2026-08-18): ms-MY only, per Izzat's
-  // locked scope — en-global/ar-global deliberately show a "belum
-  // tersedia" placeholder rather than a working form, matching this
-  // project's own honesty convention (docs/editorial-desk-shell-
-  // implementation-plan-v1.md §4).
-  { id: 'susunan-edisi', label: 'Susunan Edisi' },
+const BERITA_SECTIONS = [
+  { id: 'hari-ini', label: 'Ringkasan' },
+  { id: 'semakan', label: 'Perlu Semakan' },
+  { id: 'aliran', label: 'Semua Berita' },
   { id: 'rekod', label: 'Rekod' },
+];
+
+// Admin Console V2 — 6 menu berasaskan kerja editor, bukan nama modul
+// backend (docs/prototypes/admin-console-overnight-handoff-20260819.md).
+// classification_rules/edition_rules/filter_rules kekal berasingan di
+// backend; UI menyatukannya di sini. Setiap group's `sections` (jika ada)
+// ialah id activeSection sedia ada yang dikumpul di bawahnya — logik/fetch
+// sedia ada TIDAK diubah, hanya lapisan navigasi.
+const GROUPS = [
+  { id: 'berita', label: 'Berita', sections: ['hari-ini', 'semakan', 'aliran', 'rekod'] },
+  { id: 'sumber', label: 'Sumber', sections: [] },
+  { id: 'tapisan', label: 'Tapisan', sections: ['keputusan'] },
+  { id: 'bidang', label: 'Bidang', sections: ['peraturan', 'susunan-edisi'] },
+  { id: 'nilai', label: 'Nilai & Susunan', sections: [] },
+  { id: 'tetapan', label: 'Tetapan', sections: [] },
 ];
 
 // AdminApp.jsx — Fasa 3.6.2 Review Queue. Per
@@ -168,6 +176,16 @@ function ReviewQueue({ userId, role }) {
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState(null);
   const [activeSection, setActiveSection] = useState('hari-ini');
+  const [activeGroup, setActiveGroup] = useState('berita');
+
+  // Switching group resets activeSection to that group's first
+  // sub-section (only 'berita' has real sub-sections today) -- keeps the
+  // existing activeSection-keyed effects below working unchanged.
+  const selectGroup = groupId => {
+    setActiveGroup(groupId);
+    const group = GROUPS.find(g => g.id === groupId);
+    if (group?.sections.length) setActiveSection(group.sections[0]);
+  };
   const [filterRules, setFilterRules] = useState(null); // null = not loaded yet
   const [filterRulesError, setFilterRulesError] = useState(null);
   const [filterRulesBusy, setFilterRulesBusy] = useState(false);
@@ -186,8 +204,8 @@ function ReviewQueue({ userId, role }) {
   // Editorial" — not edition-scoped (V1 is global-only), so no need to
   // re-fetch on editionId changes, unlike the queue/digest above.
   useEffect(() => {
-    if (activeSection === 'keputusan' && filterRules === null) loadFilterRules();
-  }, [activeSection, filterRules, loadFilterRules]);
+    if (activeGroup === 'tapisan' && filterRules === null) loadFilterRules();
+  }, [activeGroup, filterRules, loadFilterRules]);
 
   const runFilterRuleAction = async action => {
     setFilterRulesBusy(true);
@@ -211,8 +229,8 @@ function ReviewQueue({ userId, role }) {
   // Edition-scoped (unlike filterRules) — reloads whenever the admin
   // switches edition while this section is open, not just on first open.
   useEffect(() => {
-    if (activeSection === 'susunan-edisi' && editionId === 'ms-MY') loadEditionRules();
-  }, [activeSection, editionId, loadEditionRules]);
+    if (activeGroup === 'bidang' && editionId === 'ms-MY') loadEditionRules();
+  }, [activeGroup, editionId, loadEditionRules]);
 
   const runEditionRuleAction = async action => {
     setEditionRulesBusy(true);
@@ -281,60 +299,89 @@ function ReviewQueue({ userId, role }) {
       </div>
 
       <nav className="editorial-desk__nav">
-        {DESK_SECTIONS.map(section => (
+        {GROUPS.map(group => (
           <button
-            key={section.id}
+            key={group.id}
             type="button"
-            className={`editorial-desk__nav-item${section.id === activeSection ? ' editorial-desk__nav-item--active' : ''}`}
-            onClick={() => setActiveSection(section.id)}
+            className={`editorial-desk__nav-item${group.id === activeGroup ? ' editorial-desk__nav-item--active' : ''}`}
+            onClick={() => selectGroup(group.id)}
           >
-            {section.label}
+            {group.label}
           </button>
         ))}
       </nav>
 
-      {activeSection === 'hari-ini' && (
-        <section className="editorial-desk__section">
-          <AdminDigest
-            digest={digest}
-            error={digestError}
-            onOpenQueue={() => setActiveSection('semakan')}
-          />
-        </section>
-      )}
+      {activeGroup === 'berita' && (
+        <>
+          <nav className="editorial-desk__subnav">
+            {BERITA_SECTIONS.map(section => (
+              <button
+                key={section.id}
+                type="button"
+                className={`editorial-desk__nav-item${section.id === activeSection ? ' editorial-desk__nav-item--active' : ''}`}
+                onClick={() => setActiveSection(section.id)}
+              >
+                {section.label}
+              </button>
+            ))}
+          </nav>
 
-      {activeSection === 'semakan' && (
-        <section className="editorial-desk__section">
-          {loadError && <p className="review-queue__error">{loadError}</p>}
-          {entries === null && !loadError && <p className="admin-app__status">Memuatkan...</p>}
-          {entries !== null && entries.length === 0 && (
-            <p className="review-queue__empty">Tiada berita perlu semakan buat masa ini.</p>
+          {activeSection === 'hari-ini' && (
+            <section className="editorial-desk__section">
+              <AdminDigest
+                digest={digest}
+                error={digestError}
+                onOpenQueue={() => setActiveSection('semakan')}
+              />
+            </section>
           )}
 
-          <div className="review-queue__list">
-            {entries?.map(entry => (
-              <ReviewQueueCard
-                key={entry.storyId}
-                entry={entry}
-                taxonomy={taxonomy}
-                busy={busyStoryId === entry.storyId}
-                onHide={reason => resolve(entry.storyId, () =>
-                  submitHideOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
-                onReclassify={(newField, reason) => resolve(entry.storyId, () =>
-                  submitReclassifyOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
-              />
-            ))}
-          </div>
-        </section>
+          {activeSection === 'semakan' && (
+            <section className="editorial-desk__section">
+              {loadError && <p className="review-queue__error">{loadError}</p>}
+              {entries === null && !loadError && <p className="admin-app__status">Memuatkan...</p>}
+              {entries !== null && entries.length === 0 && (
+                <p className="review-queue__empty">Tiada berita perlu semakan buat masa ini.</p>
+              )}
+
+              <div className="review-queue__list">
+                {entries?.map(entry => (
+                  <ReviewQueueCard
+                    key={entry.storyId}
+                    entry={entry}
+                    taxonomy={taxonomy}
+                    busy={busyStoryId === entry.storyId}
+                    onHide={reason => resolve(entry.storyId, () =>
+                      submitHideOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
+                    onReclassify={(newField, reason) => resolve(entry.storyId, () =>
+                      submitReclassifyOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {activeSection === 'aliran' && (
+            <section className="editorial-desk__section">
+              <ClassificationFlow supabase={adminSupabase} editionId={editionId} />
+            </section>
+          )}
+
+          {activeSection === 'rekod' && (
+            <section className="editorial-desk__section">
+              <EditorialActivityTimeline editionId={editionId} />
+            </section>
+          )}
+        </>
       )}
 
-      {activeSection === 'aliran' && (
+      {activeGroup === 'sumber' && (
         <section className="editorial-desk__section">
-          <ClassificationFlow supabase={adminSupabase} editionId={editionId} />
+          <SourceRegistryPanel supabase={adminSupabase} />
         </section>
       )}
 
-      {activeSection === 'keputusan' && (
+      {activeGroup === 'tapisan' && (
         <section className="editorial-desk__section editorial-desk__keputusan">
           {/* Editorial Filter Rules V1 — the one REAL, wired-up card here,
               per docs/editorial-filter-rules-design-v1.md and ChatGPT's
@@ -378,56 +425,42 @@ function ReviewQueue({ userId, role }) {
         </section>
       )}
 
-      {activeSection === 'peraturan' && (
+      {activeGroup === 'bidang' && (
         <section className="editorial-desk__section">
-          {/* Backend Control Plane Phase 3, Admin Read-Only V1. Mounted
-              only when this section is active — the component's own
-              useEffect fetches on mount, matching the lazy-load
-              convention "keputusan" already uses for filterRules (there
-              via a load-once flag, here via mount/unmount — same effect). */}
-          <ClassificationRulesList supabase={adminSupabase} />
+          {/* Backend Control Plane Phase 3, Admin Read-Only V1 (Peraturan
+              Klasifikasi) + Fasa 4 (Susunan Edisi) grouped under one human
+              menu, per docs/prototypes/source-feed-type-audit-v2-correction.md. */}
+          <BidangPanel
+            supabase={adminSupabase}
+            editionId={editionId}
+            editionLabel={getEdition(editionId).label}
+            taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
+            taxonomyFieldLabels={getEdition(editionId).taxonomy}
+            editionRules={editionRules}
+            editionRulesError={editionRulesError}
+            editionRulesBusy={editionRulesBusy}
+            onAddEditionRule={({ conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority }) =>
+              runEditionRuleAction(() => addEditionRule(adminSupabase, {
+                editionId, conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority, createdBy: userId,
+              }))}
+            onArchiveEditionRule={(id, reason) => runEditionRuleAction(() => archiveEditionRule(adminSupabase, id, reason))}
+            onRestoreEditionRule={id => runEditionRuleAction(() => restoreEditionRule(adminSupabase, id))}
+          />
         </section>
       )}
 
-      {activeSection === 'susunan-edisi' && (
+      {activeGroup === 'nilai' && (
         <section className="editorial-desk__section">
-          {editionId === 'ms-MY' ? (
-            <>
-              {editionRulesError && <p className="review-queue__error">{editionRulesError}</p>}
-              {editionRules === null && !editionRulesError && (
-                <p className="admin-app__status">Memuatkan...</p>
-              )}
-              {editionRules !== null && (
-                <EditionRulesManager
-                  editionLabel={getEdition(editionId).label}
-                  taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
-                  taxonomyFieldLabels={getEdition(editionId).taxonomy}
-                  rules={editionRules}
-                  busy={editionRulesBusy}
-                  onAdd={({ conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority }) =>
-                    runEditionRuleAction(() => addEditionRule(adminSupabase, {
-                      editionId, conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority, createdBy: userId,
-                    }))}
-                  onArchive={(id, reason) => runEditionRuleAction(() => archiveEditionRule(adminSupabase, id, reason))}
-                  onRestore={id => runEditionRuleAction(() => restoreEditionRule(adminSupabase, id))}
-                />
-              )}
-            </>
-          ) : (
-            <article className="editorial-desk__placeholder-card">
-              <h3 className="editorial-desk__placeholder-title">Susunan Edisi</h3>
-              <p className="editorial-desk__placeholder-desc">
-                Belum tersedia untuk edisi ini. Fasa 4 bermula dengan
-                edisi Malaysia (ms-MY) sahaja.
-              </p>
-            </article>
-          )}
+          <ValueRankingPanel />
         </section>
       )}
 
-      {activeSection === 'rekod' && (
+      {activeGroup === 'tetapan' && (
         <section className="editorial-desk__section">
-          <EditorialActivityTimeline editionId={editionId} />
+          <p className="admin-app__status">
+            Tetapan am akan ditambah di sini apabila diperlukan. Penukar edisi dan log keluar
+            sedia ada di bahagian atas halaman ini.
+          </p>
         </section>
       )}
     </div>

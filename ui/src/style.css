@@ -983,3 +983,35 @@ body {
 }
 .classification-provenance__detail { color: var(--ink-muted); }
 .classification-provenance--missing { color: var(--ink-faint); }
+
+/* Admin Console V2 (2026-08-19) -- Berita sub-nav, Sumber/Bidang/Nilai
+   panels. Reuses the same tokens/shapes as classification-rules above
+   rather than inventing new visual language. */
+.editorial-desk__subnav {
+  display: flex; gap: 4px; margin: 4px 0 12px; flex-wrap: wrap;
+}
+.editorial-desk__subnav .editorial-desk__nav-item { font-size: 0.78rem; padding: 6px 10px; }
+
+.source-registry__note, .bidang-panel__intro, .bidang-panel__section-desc {
+  font-size: 0.8rem; color: var(--ink-muted); margin: 0 0 12px; line-height: 1.5;
+}
+.source-registry__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.source-registry__row {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid var(--hairline);
+}
+.source-registry__row--inactive { color: var(--ink-faint); }
+.source-registry__name { font-weight: 500; }
+.source-registry__url { color: var(--ink-faint); font-size: 0.78rem; }
+.source-registry__meta { color: var(--ink-muted); font-size: 0.78rem; }
+.source-registry__status { font-size: 0.78rem; margin-left: auto; }
+
+.bidang-panel__section-title { font-size: 0.9rem; color: var(--accent); margin: 20px 0 4px; font-weight: normal; }
+.bidang-pemetaan__list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bidang-pemetaan__row { display: flex; gap: 8px; font-size: 0.82rem; padding: 4px 0; border-bottom: 1px solid var(--hairline); }
+.bidang-pemetaan__arrow { color: var(--ink-faint); }
+.bidang-pemetaan__field { font-weight: 500; }
+
+.value-ranking-panel__card { border: 1px solid var(--hairline); border-radius: 6px; padding: 14px; margin-bottom: 14px; }
+.value-ranking-panel__factors { margin: 0 0 10px; padding-left: 18px; font-size: 0.82rem; color: var(--ink); }
+.value-ranking-panel__factors li { margin-bottom: 4px; }
