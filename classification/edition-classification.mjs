@@ -16,6 +16,7 @@ import { evaluateEditionRules } from './lib/edition-rules.mjs';
 import { checkConfidenceGate } from './lib/confidence-policy.mjs';
 import { getFieldEntryByLabel } from './lib/taxonomy-registry.mjs';
 import { resolveClassificationRule } from './lib/classification-rules-resolver.mjs';
+import { resolveAdminEditionRule } from './lib/edition-rules-resolver.mjs';
 
 // Taxonomy Stable Field-ID V1 (2026-08-16): field_code is derived from
 // whichever label a code path already resolved — every branch below
@@ -51,7 +52,7 @@ export const RULESET_VERSION = 'v1.3.0'; // bumped: Confidence Gate (Sesi 3B.2C-
 // one. The 4-step resolver beneath this prefix (edition rules ->
 // confidence gate -> default placement -> geography fallback) is
 // byte-for-byte the same code that existed before Phase 3.
-export function classifyForEdition(understanding, edition, thresholdOverride, item, activeRules = []) {
+export function classifyForEdition(understanding, edition, thresholdOverride, item, activeRules = [], activeEditionRules = []) {
   const subjectCandidates = understanding.subject_candidates ?? [];
   const geographyCandidates = understanding.geography_candidates ?? [];
 
@@ -82,6 +83,35 @@ export function classifyForEdition(understanding, edition, thresholdOverride, it
         })),
       };
     }
+  }
+
+  // Backend Control Plane Fasa 4: Admin Edition Rules. Checked BEFORE the
+  // built-in Edition Rule Registry below — per the approved default+
+  // override model, an admin-authored rule is a stronger signal than the
+  // hardcoded default. No match (including a rejected tie) falls through
+  // to the built-in rule untouched, exactly as before this feature
+  // existed. classification_method stays 'edition_rule' either way
+  // (Decision 3) — this is NOT classification_rules' 'admin_rule'
+  // short-circuit; subject_code still comes from actual detection, never
+  // from the rule itself.
+  const adminEditionRuleMatch = resolveAdminEditionRule(understanding, edition, activeEditionRules);
+  if (adminEditionRuleMatch) {
+    return {
+      edition_id: edition,
+      field: adminEditionRuleMatch.label,
+      field_code: adminEditionRuleMatch.field_code,
+      subject_code: subjectCandidates[0]?.value ?? null,
+      sub_field: null,
+      classification_status: 'classified',
+      classification_method: 'edition_rule',
+      classification_rule: adminEditionRuleMatch.rule_id,
+      confidence: adminEditionRuleMatch.confidence,
+      ruleset_version: RULESET_VERSION,
+      alternatives: subjectCandidates.slice(1, 3).map(c => ({
+        universal_subject: c.value, confidence: c.confidence,
+        display_field: resolveDefaultPlacement(edition, c.value),
+      })),
+    };
   }
 
   // Tiers 1-2: Edition Rule Registry (dynamic, context-aware — checked first)
@@ -224,11 +254,18 @@ export function classifyForEdition(understanding, edition, thresholdOverride, it
 // scoped down per edition here before being handed to
 // resolveClassificationRule() — a global rule (edition_id NULL) applies
 // to every edition, an edition-specific rule only to its own.
-export function classifyForAllEditions(understanding, thresholdOverride, item, allActiveRules = []) {
+//
+// allActiveEditionRules (Backend Control Plane Fasa 4): every active
+// edition_rules row, any edition — unlike classification_rules, edition
+// rules are NEVER global (edition_id is always required, per the table's
+// NOT NULL constraint), so scoping here is a plain equality filter, no
+// NULL-means-global case to handle.
+export function classifyForAllEditions(understanding, thresholdOverride, item, allActiveRules = [], allActiveEditionRules = []) {
   const rulesFor = edition => allActiveRules.filter(r => r.edition_id === null || r.edition_id === edition);
+  const editionRulesFor = edition => allActiveEditionRules.filter(r => r.edition_id === edition);
   return {
-    'ms-MY': classifyForEdition(understanding, 'ms-MY', thresholdOverride, item, rulesFor('ms-MY')),
-    'en-global': classifyForEdition(understanding, 'en-global', thresholdOverride, item, rulesFor('en-global')),
-    'ar-global': classifyForEdition(understanding, 'ar-global', thresholdOverride, item, rulesFor('ar-global')),
+    'ms-MY': classifyForEdition(understanding, 'ms-MY', thresholdOverride, item, rulesFor('ms-MY'), editionRulesFor('ms-MY')),
+    'en-global': classifyForEdition(understanding, 'en-global', thresholdOverride, item, rulesFor('en-global'), editionRulesFor('en-global')),
+    'ar-global': classifyForEdition(understanding, 'ar-global', thresholdOverride, item, rulesFor('ar-global'), editionRulesFor('ar-global')),
   };
 }

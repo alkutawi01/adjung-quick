@@ -81,6 +81,18 @@ async function main() {
   if (rErr) throw new Error(`classification_rules — ${rErr.message}`);
   console.log(`${activeRules.length} active classification rule(s) loaded.\n`);
 
+  // Backend Control Plane Fasa 4 (edition_rules): same one-time fetch
+  // pattern. Unlike classification_rules, edition_rules has no global
+  // case (edition_id is always required) — classifyForAllEditions()
+  // still does the per-edition equality filter itself, this script only
+  // supplies the flat active set.
+  const { data: activeEditionRules, error: erErr } = await supabase
+    .from('edition_rules')
+    .select('id, edition_id, condition_subject, condition_geography_type, condition_geography_value, action_field_code, priority')
+    .eq('status', 'active');
+  if (erErr) throw new Error(`edition_rules — ${erErr.message}`);
+  console.log(`${activeEditionRules.length} active edition rule(s) loaded.\n`);
+
   // Pull clusters + their member items. The classifier needs the item's
   // own signals (link/categories/title), not the cluster's legacy topic.
   const [{ data: clusters, error: cErr }, { data: items, error: iErr }] = await Promise.all([
@@ -126,6 +138,7 @@ async function main() {
       undefined, // thresholdOverride — unchanged, was never passed before this change
       buildRuleMatchItem(canonical),
       activeRules,
+      activeEditionRules,
     );
 
     for (const [editionId, result] of Object.entries(editions)) {
