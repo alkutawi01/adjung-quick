@@ -451,10 +451,12 @@
     <div id="berita-sub-rekod" class="berita-sub"></div>
   `;
 
-  // Real source fixtures (lab/sources.js) -- trust_score/URL/language/
-  // sourceType are all real production fields (db/source-registry-adapter.mjs).
-  // "Kemaskini terakhir" honestly marked belum tersedia -- no fetch-health/
-  // last-fetch-time field exists in the real schema, so no fake timestamp.
+  // CORRECTION (loop 2, per ChatGPT): lab/sources.js is fixture/reference
+  // ONLY, per the project's own locked Fasa 1 finding -- public.sources
+  // (Supabase, live) is the real production source of truth, and this
+  // mockup has no live DB connection. Shape (name/url/trust_score/type)
+  // is real (db/source-registry-adapter.mjs), but these ROWS are fixture
+  // examples, not a live read -- labelled honestly below, not claimed live.
   const SOURCES = [
     { name: 'Bernama (Malay)', url: 'bernama.com/bm/rssfeed.php', trust: 92, type: 'general', status: 'good' },
     { name: 'Utusan Malaysia', url: 'utusan.com.my/feed/', trust: 95, type: 'general', status: 'good' },
@@ -466,6 +468,7 @@
   views.sumber = `
     <h1 class="view-title">Sumber</h1>
     <p class="view-sub">RSS dan API yang dibaca Quick. Nyahaktifkan sumber yang tak boleh dipercayai lagi.</p>
+    <div class="section-note">Contoh/ilustrasi daripada fixture rujukan (lab/sources.js) &mdash; mockup ni tak sambung ke public.sources produksi sebenar. Bentuk medan (nama/URL/kepercayaan/jenis) sepadan schema sebenar; nilai baris ni bukan bacaan live.</div>
     <div class="card-list">
       ${SOURCES.map(sourceCard).join('')}
     </div>
@@ -475,7 +478,7 @@
   views.tapisan = `
     <h1 class="view-title">Tapisan</h1>
     <p class="view-sub">Berita yang tak mahu dipaparkan kepada pembaca &mdash; macam &ldquo;Find &amp; Replace&rdquo; di Word: cari pola, kecualikan sesetengah, lakukan tindakan.</p>
-    <div class="section-note">Pratonton sebelum simpan: 3 berita ditapis minggu ini &middot; 1 daripadanya dikecualikan dan tetap dipaparkan</div>
+    <div class="section-note">Pratonton contoh (ilustrasi) &mdash; pratonton sebenar (jalankan corak terhadap berita live) belum disambungkan dalam mockup ni: 3 berita ditapis minggu ini &middot; 1 daripadanya dikecualikan dan tetap dipaparkan</div>
     <div class="card-list">
       <div class="card">
         <div class="card__top"><span class="chip chip--good">Aktif</span></div>
@@ -501,6 +504,13 @@
     </div>
   `;
 
+  // Real dropdown vocab -- Malay labels mapped from
+  // classification/lib/desk-vocabulary.mjs's SUBJECT_VOCABULARY targets.
+  // Data Validation principle: Admin only ever picks from this list,
+  // never free-types a raw field_code.
+  const BIDANG_OPTIONS = ['Politik', 'Jenayah', 'Ekonomi', 'Bisnes', 'Sukan', 'Kesihatan', 'Pendidikan', 'Teknologi', 'Sains', 'Alam Sekitar', 'Budaya', 'Hiburan', 'Agama', 'Gaya Hidup'];
+  const PETUNJUK_OPTIONS = ['Sumber', 'Kategori/Desk RSS', 'URL', 'Tajuk/Huraian (kandungan)'];
+
   views.bidang = `
     <h1 class="view-title">Bidang &amp; Kategori</h1>
     <p class="view-sub">Bagaimana sistem tentukan bidang setiap berita &mdash; dan bila nak papar berbeza untuk edisi Malaysia.</p>
@@ -510,60 +520,88 @@
       dan pola tajuk yang diketahui. Jika tiada petunjuk yang mencukupi, Quick tidak meneka dan peraturan
       berasaskan lokasi tidak digunakan.
     </div>
-    <div class="card-list">
+
+    <p class="dash-feed-title">Lapisan 1 &mdash; petunjuk sumber/RSS (diguna dahulu)</p>
+    <div class="card-list" style="margin-bottom:20px;">
       <div class="card">
-        <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Petunjuk sumber (Tahap 1)</span></div>
-        <div class="rule-flow">Jika URL/kategori RSS ada <b>&ldquo;sukan&rdquo;</b> atau <b>&ldquo;arena&rdquo;</b> <span class="arrow">&rarr;</span> letak bawah <b>Sukan</b></div>
+        <div class="card__top"><span class="chip chip--good">Aktif</span></div>
+        <div class="rule-flow">JIKA <b>Kategori/Desk RSS</b> ada <b>&ldquo;sukan&rdquo;</b> atau <b>&ldquo;arena&rdquo;</b> <span class="arrow">&rarr;</span> MAKA Bidang = <b>Sukan</b></div>
       </div>
       <div class="card">
-        <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Petunjuk sumber (Tahap 1)</span></div>
-        <div class="rule-flow">Jika URL/kategori RSS ada <b>&ldquo;agama&rdquo;</b> atau <b>&ldquo;addin&rdquo;</b> <span class="arrow">&rarr;</span> letak bawah <b>Agama</b></div>
-      </div>
-      <div class="card">
-        <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Peraturan kandungan &mdash; hanya bila sumber tak cukup jelas</span></div>
-        <div class="rule-flow">Jika ada frasa <b>&ldquo;mahkamah&rdquo;, &ldquo;didakwa&rdquo;, &ldquo;waran tangkap&rdquo;</b> <span class="arrow">&rarr;</span> letak bawah <b>Jenayah</b></div>
+        <div class="card__top"><span class="chip chip--good">Aktif</span></div>
+        <div class="rule-flow">JIKA <b>Kategori/Desk RSS</b> ada <b>&ldquo;agama&rdquo;</b> atau <b>&ldquo;addin&rdquo;</b> <span class="arrow">&rarr;</span> MAKA Bidang = <b>Agama</b></div>
       </div>
       <div class="card">
         <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Edisi: Malaysia</span></div>
-        <div class="rule-flow">Bila cerita ini <b>Politik</b> dan bukan tentang Malaysia <span class="arrow">&rarr;</span> papar di bawah <b>Dunia</b></div>
+        <div class="rule-flow">JIKA Bidang = <b>Politik</b> DAN bukan tentang Malaysia <span class="arrow">&rarr;</span> MAKA papar bawah <b>Dunia</b></div>
       </div>
+    </div>
+
+    <p class="dash-feed-title">Lapisan 2 &mdash; kandungan/kata kunci (fallback, hanya bila Lapisan 1 tak cukup, cth. feed campuran)</p>
+    <div class="card-list" style="margin-bottom:20px;">
       <div class="card">
-        <div class="card__top"><p class="card__title">+ Tambah peraturan baharu</p></div>
+        <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Fallback sahaja</span></div>
+        <div class="rule-flow">JIKA Lapisan 1 tak cukup DAN <b>Tajuk/Huraian</b> ada <b>&ldquo;mahkamah&rdquo;, &ldquo;didakwa&rdquo;, &ldquo;waran tangkap&rdquo;</b> <span class="arrow">&rarr;</span> MAKA Bidang = <b>Jenayah</b></div>
       </div>
+    </div>
+
+    <p class="dash-feed-title">Tambah peraturan baharu</p>
+    <div class="card">
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:0.85rem;">
+        <span>JIKA</span>
+        <select><option value="">Jenis petunjuk&hellip;</option>${PETUNJUK_OPTIONS.map(o => `<option>${o}</option>`).join('')}</select>
+        <span>ada</span>
+        <input type="text" placeholder="cth. sukan, /arena/" style="font-size:0.85rem; padding:5px 8px; border:1px solid var(--hairline); border-radius:4px; background:var(--surface); color:var(--ink); flex:1; min-width:120px;">
+        <span>MAKA Bidang =</span>
+        <select><option value="">Pilih bidang&hellip;</option>${BIDANG_OPTIONS.map(o => `<option>${o}</option>`).join('')}</select>
+      </div>
+      <p class="section-note" style="margin:12px 0 0;">Data Validation: pilihan &ldquo;Jenis petunjuk&rdquo; dan &ldquo;Bidang&rdquo; terhad kepada apa yang sistem sebenar faham &mdash; tiada taip bebas kod skema.</p>
+      <div class="card__actions"><button class="btn btn--tiny btn--quiet">Uji pada berita contoh</button><button class="btn btn--tiny btn--solid">Simpan peraturan</button></div>
     </div>
   `;
 
   views.nilai = `
     <h1 class="view-title">Nilai &amp; Susunan</h1>
-    <p class="view-sub">Bagaimana Quick menilai kepentingan berita sekarang, dan susunan yang terhasil daripadanya.</p>
+    <p class="view-sub">Tiga modul berasingan &mdash; nilai berita tidak menyusun, pemilihan tidak menilai semula, susunan tidak memilih. Setiap satu buat SATU kerja sahaja.</p>
 
-    <p class="dash-feed-title">Kaedah semasa</p>
-    <div class="factor-list">
-      <div class="factor factor--up"><span class="factor__label">Kebaruan berita</span><span class="factor__weight">kesan besar</span></div>
-      <div class="factor factor--up"><span class="factor__label">Kualiti sumber</span><span class="factor__weight">kesan besar</span></div>
-      <div class="factor factor--up"><span class="factor__label">Keyakinan klasifikasi bidang</span><span class="factor__weight">kesan kecil</span></div>
-      <div class="factor factor--up"><span class="factor__label">Keutamaan editor (boost)</span><span class="factor__weight">+40 apabila digunakan</span></div>
-    </div>
-
-    <p class="dash-feed-title">Pelarasan Admin</p>
-    <div class="section-note">Belum tersedia. Nilai dan pemberat setiap faktor di atas masih tetapan asas sistem
-      buat masa ini &mdash; ini kaedah semasa Quick, bukan reka bentuk akhir, dan akan disediakan untuk
-      pelarasan Admin secara berperingkat.</div>
-
-    <p class="dash-feed-title">Contoh skor sebenar</p>
-    <div class="card" style="margin-bottom:20px;">
-      <p class="card__title" style="margin-bottom:10px;">NASA kesan planet baharu berpotensi mesra kehidupan</p>
-      <div class="reason-list" style="margin-bottom:10px;">
+    <div class="card" style="margin-bottom:16px;">
+      <p class="card__title">1. Nilai Berita</p>
+      <p class="section-note" style="margin:6px 0 12px;">Kaedah semasa &mdash; menghasilkan satu angka skor per berita.</p>
+      <div class="factor-list">
+        <div class="factor factor--up"><span class="factor__label">Kebaruan berita</span><span class="factor__weight">kesan besar</span></div>
+        <div class="factor factor--up"><span class="factor__label">Kualiti sumber</span><span class="factor__weight">kesan besar</span></div>
+        <div class="factor factor--up"><span class="factor__label">Keyakinan klasifikasi bidang</span><span class="factor__weight">kesan kecil</span></div>
+        <div class="factor factor--up"><span class="factor__label">Keutamaan editor (boost)</span><span class="factor__weight">+40 apabila digunakan</span></div>
+      </div>
+      <p class="dash-feed-title" style="margin-top:16px;">Apa Admin boleh laras</p>
+      <div class="section-note">Belum tersedia. Nilai/pemberat di atas masih tetapan asas sistem &mdash; akan
+        disediakan utk pelarasan Admin secara berperingkat, bukan reka bentuk akhir.</div>
+      <p class="dash-feed-title">Contoh skor sebenar</p>
+      <div class="reason-list" style="margin-bottom:8px;">
         <li>Kebaruan: 100 (dalam 6 jam)</li>
         <li>Kualiti sumber: 92 (Bernama)</li>
         <li>Keyakinan klasifikasi: +9 (94%)</li>
         <li>Keutamaan editor: tiada</li>
       </div>
-      <p style="font-size:0.85rem; margin:0;"><b>Jumlah skor: 201</b> &mdash; angka mentah, bukan peratus/100. Skor tak dinormalkan, jadi berita lain boleh melebihi atau kurang daripada 100.</p>
+      <p style="font-size:0.85rem; margin:0;"><b>Jumlah skor: 201</b> &mdash; angka mentah, bukan peratus/100. Berita lain boleh melebihi atau kurang daripada 100 &mdash; tak dinormalkan.</p>
     </div>
 
-    <p class="dash-feed-title">Pratonton susunan (contoh)</p>
-    <p class="view-sub" style="margin-bottom:10px;">Nilai berita menghasilkan skor. Pemilihan &amp; susunan menggunakan skor ini bersama peraturan pemilihan lain untuk tentukan berita yang masuk dan kedudukannya &mdash; dua langkah berasingan.</p>
+    <div class="card" style="margin-bottom:16px;">
+      <p class="card__title">2. Pemilihan 10 Berita</p>
+      <p class="section-note" style="margin:6px 0 12px;">Kaedah semasa &mdash; skor daripada Modul 1 ialah INPUT sahaja. Pemilihan ambil calon terbaik yang masih ada satu demi satu, tapi kurangkan keutamaan sesuatu berita kalau sumber/isu yang sama dah banyak dipilih &mdash; supaya satu sumber tak sapu semua 10 slot. Bukan kuota tegar (cth. &ldquo;Astro maks 6&rdquo;) &mdash; dikurangkan secara berkadar.</p>
+      <p class="dash-feed-title">Apa Admin boleh laras</p>
+      <div class="section-note">Belum tersedia. Tiada kawalan &ldquo;slot-band per bidang&rdquo; (cth. &ldquo;slot 1 skor 90+&rdquo;) &mdash; itu belum keputusan produk yang dikunci.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <p class="card__title">3. Susunan Akhir</p>
+      <p class="section-note" style="margin:6px 0 12px;">Kaedah semasa &mdash; ambil 10 berita yang Modul 2 dah pilih (susunan skor dikekalkan, TAK dinilai semula), semak sahaja: adakah satu sumber terlalu menguasai, dan adakah kualiti keseluruhan set cukup tinggi. Ini semakan akhir, bukan pusingan skor kedua.</p>
+      <p class="dash-feed-title">Apa Admin boleh laras</p>
+      <div class="section-note">Belum tersedia. Nilai ambang (threshold) semasa masih tahap kalibrasi, belum
+        keputusan editorial muktamad.</div>
+    </div>
+
+    <p class="dash-feed-title">Pratonton susunan (contoh daripada Modul 1)</p>
     <div class="rank-preview" id="rank-preview"></div>
   `;
 
