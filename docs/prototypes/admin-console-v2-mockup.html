@@ -1,0 +1,797 @@
+<title>Meja Kawalan Quick</title>
+<style>
+  :root {
+    --paper: #fdfdfb;
+    --surface: #ffffff;
+    --ink: #1c1c1a;
+    --ink-muted: #6b6b66;
+    --ink-faint: #a3a39c;
+    --hairline: #e4e2dc;
+    --accent: #7a3b2e;
+    --accent-wash: rgba(122, 59, 46, 0.06);
+    --good: #4b7a52;
+    --good-wash: rgba(75, 122, 82, 0.09);
+    --warn: #a67c2e;
+    --warn-wash: rgba(166, 124, 46, 0.1);
+    --crit: #a83a3a;
+    --crit-wash: rgba(168, 58, 58, 0.09);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #171513;
+      --surface: #1e1b18;
+      --ink: #ede9e3;
+      --ink-muted: #a49e93;
+      --ink-faint: #756f66;
+      --hairline: #332d28;
+      --accent: #cf8567;
+      --accent-wash: rgba(207, 133, 103, 0.1);
+      --good: #7cb686;
+      --good-wash: rgba(124, 182, 134, 0.1);
+      --warn: #d6ab5c;
+      --warn-wash: rgba(214, 171, 92, 0.12);
+      --crit: #d97a7a;
+      --crit-wash: rgba(217, 122, 122, 0.1);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #171513;
+    --surface: #1e1b18;
+    --ink: #ede9e3;
+    --ink-muted: #a49e93;
+    --ink-faint: #756f66;
+    --hairline: #332d28;
+    --accent: #cf8567;
+    --accent-wash: rgba(207, 133, 103, 0.1);
+    --good: #7cb686;
+    --good-wash: rgba(124, 182, 134, 0.1);
+    --warn: #d6ab5c;
+    --warn-wash: rgba(214, 171, 92, 0.12);
+    --crit: #d97a7a;
+    --crit-wash: rgba(217, 122, 122, 0.1);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, select, input, textarea { font-family: inherit; }
+  button { cursor: pointer; }
+
+  .shell {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ---- concept banner ---- */
+  .concept-banner {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--accent);
+    color: var(--paper);
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    text-align: center;
+    padding: 6px 12px;
+  }
+
+  /* ---- rail ---- */
+  .rail {
+    flex: 0 0 auto;
+    width: 208px;
+    border-right: 1px solid var(--hairline);
+    padding: 18px 10px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rail__brand {
+    font-size: 1.02rem;
+    color: var(--accent);
+    padding: 4px 10px 16px;
+    letter-spacing: 0.01em;
+  }
+  .rail__brand small {
+    display: block;
+    font-size: 0.66rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .rail__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    padding: 9px 10px;
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+  }
+  .rail__item:hover { background: var(--accent-wash); color: var(--ink); }
+  .rail__item--active { background: var(--accent-wash); color: var(--accent); font-weight: bold; }
+  .rail__icon { flex: 0 0 auto; width: 16px; height: 16px; opacity: 0.85; }
+  .rail__spacer { flex: 1; }
+  .rail__foot {
+    border-top: 1px solid var(--hairline);
+    padding-top: 12px;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    padding-left: 10px;
+  }
+
+  /* ---- mobile tab strip (replaces rail under 760px) ---- */
+  .tabstrip { display: none; }
+
+  /* Berita's internal sub-tabs (Ringkasan/Semua Berita/Perlu Semakan/Rekod)
+     -- distinct from .tabstrip (mobile-only top-nav replacement), always
+     visible at every width since it's content structure, not nav chrome. */
+  .berita-subnav {
+    display: flex; gap: 2px; border-bottom: 1px solid var(--hairline);
+    margin: 0 0 18px; flex-wrap: wrap;
+  }
+  .berita-subnav__item {
+    background: none; border: none; padding: 8px 12px;
+    font-size: 0.82rem; color: var(--ink-muted); border-bottom: 2px solid transparent;
+  }
+  .berita-subnav__item--active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
+  .berita-sub { display: none; }
+
+  main {
+    flex: 1;
+    min-width: 0;
+    padding: 22px 30px 60px;
+    max-width: 900px;
+  }
+  .view { display: none; }
+  .view--active { display: block; }
+
+  h1.view-title {
+    font-size: 1.3rem;
+    font-weight: normal;
+    margin: 0 0 4px;
+    text-wrap: balance;
+  }
+  p.view-sub {
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    margin: 0 0 22px;
+    max-width: 60ch;
+    line-height: 1.5;
+  }
+
+  /* ---- dashboard ---- */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .stat {
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 12px 14px;
+    background: var(--surface);
+  }
+  .stat--attention { border-color: var(--warn); background: var(--warn-wash); }
+  .stat__num {
+    font-size: 1.5rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .stat--attention .stat__num { color: var(--warn); }
+  .stat__label { font-size: 0.72rem; color: var(--ink-muted); margin-top: 5px; }
+
+  .cta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 26px; }
+  .btn {
+    font-size: 0.82rem;
+    padding: 8px 14px;
+    border-radius: 5px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+  }
+  .btn:hover { background: var(--accent); color: var(--paper); }
+  .btn--solid { background: var(--accent); color: var(--paper); }
+  .btn--solid:hover { opacity: 0.88; background: var(--accent); }
+  .btn--quiet { border-color: var(--hairline); color: var(--ink-muted); }
+  .btn--quiet:hover { background: var(--hairline); color: var(--ink); }
+  .btn--tiny { font-size: 0.72rem; padding: 4px 9px; }
+
+  .dash-feed-title { font-size: 0.85rem; color: var(--ink-muted); margin: 0 0 10px; }
+  .mini-list { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--hairline); }
+  .mini-row {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 0.82rem;
+  }
+  .mini-row__time { color: var(--ink-faint); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+  .mini-row__text { flex: 1; }
+
+  /* ---- chips ---- */
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.7rem; letter-spacing: 0.01em;
+    padding: 2px 8px; border-radius: 999px;
+    white-space: nowrap;
+  }
+  .chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+  .chip--good { background: var(--good-wash); color: var(--good); }
+  .chip--good::before { background: var(--good); }
+  .chip--warn { background: var(--warn-wash); color: var(--warn); }
+  .chip--warn::before { background: var(--warn); }
+  .chip--crit { background: var(--crit-wash); color: var(--crit); }
+  .chip--crit::before { background: var(--crit); }
+  .chip--neutral { background: var(--hairline); color: var(--ink-muted); }
+  .chip--neutral::before { display: none; }
+
+  /* ---- story cards (Himpunan Berita) ---- */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .toolbar select {
+    font-size: 0.78rem; padding: 5px 8px; border: 1px solid var(--hairline);
+    border-radius: 4px; background: var(--surface); color: var(--ink);
+  }
+  .story-list { display: flex; flex-direction: column; gap: 8px; }
+  .story {
+    border: 1px solid var(--hairline);
+    border-radius: 7px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .story__row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; text-align: left; width: 100%;
+    background: none; border: none; color: inherit;
+  }
+  .story__row:hover { background: var(--accent-wash); }
+  .story__main { flex: 1; min-width: 0; }
+  .story__title { font-size: 0.9rem; line-height: 1.3; margin: 0 0 4px; }
+  .story__meta { font-size: 0.74rem; color: var(--ink-muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .story__meta b { color: var(--ink); font-weight: 600; }
+  .story__score {
+    flex: 0 0 auto; font-variant-numeric: tabular-nums;
+    font-size: 0.95rem; color: var(--ink-muted); width: 34px; text-align: right;
+  }
+  .story__chevron { flex: 0 0 auto; width: 14px; height: 14px; color: var(--ink-faint); transition: transform 0.15s; }
+  .story--open .story__chevron { transform: rotate(90deg); }
+  .story__detail { display: none; padding: 4px 16px 16px; border-top: 1px solid var(--hairline); }
+  .story--open .story__detail { display: block; }
+  .story__detail-heading { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); margin: 12px 0 6px; }
+  .reason-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .reason-list li { font-size: 0.82rem; display: flex; gap: 7px; align-items: baseline; }
+  .reason-list li::before { content: '\2713'; color: var(--good); flex: 0 0 auto; }
+  .reason-list li.reason--flag::before { content: '\26A0'; color: var(--warn); }
+  .detail-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+  /* ---- generic card list (Sumber / Tapisan / Bidang) ---- */
+  .card-list { display: flex; flex-direction: column; gap: 8px; }
+  .card {
+    border: 1px solid var(--hairline);
+    border-radius: 7px;
+    background: var(--surface);
+    padding: 13px 15px;
+  }
+  .card__top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .card__title { font-size: 0.9rem; margin: 0; }
+  .card__meta { font-size: 0.78rem; color: var(--ink-muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .card__meta span b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .card__actions { display: flex; gap: 6px; margin-top: 10px; }
+  .card--dim { opacity: 0.55; }
+
+  .rule-flow { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; flex-wrap: wrap; }
+  .rule-flow b { color: var(--accent); }
+  .rule-flow .arrow { color: var(--ink-faint); }
+
+  .except-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.72rem; color: var(--ink-muted);
+    background: var(--hairline); padding: 2px 8px; border-radius: 999px;
+  }
+  .except-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+  .section-note {
+    font-size: 0.78rem; color: var(--ink-muted); background: var(--surface);
+    border: 1px dashed var(--hairline); border-radius: 6px; padding: 10px 12px; margin-bottom: 14px;
+  }
+
+  /* ---- nilai & susunan ---- */
+  .concept-flag {
+    display: inline-block; font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase;
+    background: var(--warn-wash); color: var(--warn); padding: 3px 9px; border-radius: 999px; margin-bottom: 16px;
+  }
+  .factor-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; }
+  .factor {
+    display: flex; align-items: center; gap: 10px; font-size: 0.85rem;
+    border-bottom: 1px solid var(--hairline); padding: 8px 0;
+  }
+  .factor__label { flex: 1; }
+  .factor__weight { font-variant-numeric: tabular-nums; color: var(--ink-muted); font-size: 0.8rem; }
+  .factor--up .factor__weight { color: var(--good); }
+  .factor--down .factor__weight { color: var(--crit); }
+
+  .rank-preview { display: flex; flex-direction: column; gap: 7px; }
+  .rank-item { display: flex; align-items: center; gap: 10px; font-size: 0.83rem; }
+  .rank-item__pos { flex: 0 0 auto; width: 18px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .rank-item__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-item__bar-wrap { flex: 0 0 120px; height: 6px; background: var(--hairline); border-radius: 999px; overflow: hidden; }
+  .rank-item__bar { height: 100%; background: var(--accent); border-radius: 999px; }
+  .rank-item__num { flex: 0 0 auto; width: 26px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+
+  /* ---- tetapan ---- */
+  .settings-group { margin-bottom: 26px; }
+  .settings-group h2 { font-size: 0.85rem; color: var(--ink-muted); font-weight: normal; margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; }
+  .edition-pick { display: flex; gap: 8px; flex-wrap: wrap; }
+  .edition-pick button {
+    font-size: 0.8rem; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--hairline);
+    background: var(--surface); color: var(--ink-muted);
+  }
+  .edition-pick button.on { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+  .edition-pick button:disabled { opacity: 0.45; cursor: default; }
+  .account-row { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--hairline); border-radius: 7px; padding: 12px 15px; background: var(--surface); }
+  .account-row__name { font-size: 0.88rem; }
+  .account-row__role { font-size: 0.74rem; color: var(--ink-muted); }
+
+  @media (max-width: 760px) {
+    .shell { flex-direction: column; }
+    .rail { display: none; }
+    .tabstrip {
+      display: flex; gap: 2px; overflow-x: auto;
+      border-bottom: 1px solid var(--hairline);
+      padding: 10px 10px 0;
+    }
+    .tabstrip__item {
+      flex: 0 0 auto; background: none; border: none; padding: 8px 10px;
+      font-size: 0.78rem; color: var(--ink-muted); border-bottom: 2px solid transparent; white-space: nowrap;
+    }
+    .tabstrip__item--active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
+    main { padding: 18px 16px 50px; }
+    .stat-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .rank-item__bar-wrap { flex-basis: 70px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="concept-banner">KONSEP SAHAJA — bukan sistem sebenar. Data contoh utk tunjuk arah reka bentuk. Tiada backend disentuh.</div>
+
+<div class="shell">
+  <nav class="rail" id="rail">
+    <div class="rail__brand">Adjung Quick<small>Meja Kawalan</small></div>
+    <!-- items injected by JS -->
+  </nav>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <div class="tabstrip" id="tabstrip"></div>
+    <main id="main"></main>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ICONS = {
+    dashboard: '<svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>',
+    berita: '<svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h13a2 2 0 0 1 2 2v13a1 1 0 0 1-1.6.8L14 17H6a2 2 0 0 1-2-2z"/><path d="M8 9h7M8 12.5h7M8 16h4"/></svg>',
+    sumber: '<svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 11a8 8 0 0 1 8-8"/><path d="M4 11a12 12 0 0 1 12-12" transform="translate(0,0)"/><circle cx="5" cy="19" r="2"/><path d="M5 11v6M4 4l1 1"/></svg>',
+    tapisan: '<svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16l-6 8v6l-4 2v-8z"/></svg>',
+    bidang: '<svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 3.2"/></svg>',
+    nilai: '<svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19V11M10 19V5M16 19v-7M4 19h16"/></svg>',
+    tetapan: '<svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1z"/></svg>'
+  };
+
+  // 6 menu sahaja per arahan malam ini -- tiada "Dashboard" berasingan,
+  // statistik harian dilipat masuk sbg sub-tab "Ringkasan" dlm Berita.
+  const NAV = [
+    { id: 'berita', label: 'Berita' },
+    { id: 'sumber', label: 'Sumber' },
+    { id: 'tapisan', label: 'Tapisan' },
+    { id: 'bidang', label: 'Bidang' },
+    { id: 'nilai', label: 'Nilai & Susunan' },
+    { id: 'tetapan', label: 'Tetapan' }
+  ];
+
+  const rail = document.getElementById('rail');
+  const tabstrip = document.getElementById('tabstrip');
+  const main = document.getElementById('main');
+
+  NAV.forEach(item => {
+    const b = document.createElement('button');
+    b.className = 'rail__item';
+    b.dataset.view = item.id;
+    b.innerHTML = ICONS[item.id] + '<span>' + item.label + '</span>';
+    b.addEventListener('click', () => setView(item.id));
+    rail.appendChild(b);
+  });
+  const spacer = document.createElement('div'); spacer.className = 'rail__spacer';
+  rail.appendChild(spacer);
+  const foot = document.createElement('div'); foot.className = 'rail__foot';
+  foot.textContent = 'Edisi: Malaysia (ms-MY)';
+  rail.appendChild(foot);
+
+  NAV.forEach(item => {
+    const b = document.createElement('button');
+    b.className = 'tabstrip__item';
+    b.dataset.view = item.id;
+    b.textContent = item.label;
+    b.addEventListener('click', () => setView(item.id));
+    tabstrip.appendChild(b);
+  });
+
+  function setView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('view--active', v.id === 'view-' + id));
+    document.querySelectorAll('.rail__item').forEach(b => b.classList.toggle('rail__item--active', b.dataset.view === id));
+    document.querySelectorAll('.tabstrip__item').forEach(b => b.classList.toggle('tabstrip__item--active', b.dataset.view === id));
+  }
+
+  // ---------- content ----------
+  const views = {};
+
+  // Berita gabung 4 fungsi lama (Hari Ini / Semakan / Aliran RSS / Rekod)
+  // jadi SATU modul dgn sub-tab, per arahan malam ini -- data sama, satu
+  // ruang kerja, bukan 4 destinasi berasingan.
+  views.berita = `
+    <h1 class="view-title">Berita</h1>
+    <div class="berita-subnav" id="berita-subnav">
+      <button class="berita-subnav__item" data-sub="ringkasan">Ringkasan</button>
+      <button class="berita-subnav__item" data-sub="semua">Semua Berita</button>
+      <button class="berita-subnav__item" data-sub="semakan">Perlu Semakan</button>
+      <button class="berita-subnav__item" data-sub="rekod">Rekod</button>
+    </div>
+    <div id="berita-sub-ringkasan" class="berita-sub"></div>
+    <div id="berita-sub-semua" class="berita-sub"></div>
+    <div id="berita-sub-semakan" class="berita-sub"></div>
+    <div id="berita-sub-rekod" class="berita-sub"></div>
+  `;
+
+  // Real source fixtures (lab/sources.js) -- trust_score/URL/language/
+  // sourceType are all real production fields (db/source-registry-adapter.mjs).
+  // "Kemaskini terakhir" honestly marked belum tersedia -- no fetch-health/
+  // last-fetch-time field exists in the real schema, so no fake timestamp.
+  const SOURCES = [
+    { name: 'Bernama (Malay)', url: 'bernama.com/bm/rssfeed.php', trust: 92, type: 'general', status: 'good' },
+    { name: 'Utusan Malaysia', url: 'utusan.com.my/feed/', trust: 95, type: 'general', status: 'good' },
+    { name: 'Astro Awani', url: 'astroawani.com/rss.xml', trust: 90, type: 'general', status: 'good' },
+    { name: 'Harian Metro — Arena', url: 'hmetro.com.my/arena.xml', trust: 90, type: 'khusus — Sukan', status: 'good' },
+    { name: 'Kosmo Digital', url: 'kosmo.com.my/feed/', trust: 90, type: 'general', status: 'neutral' }
+  ];
+
+  views.sumber = `
+    <h1 class="view-title">Sumber</h1>
+    <p class="view-sub">RSS dan API yang dibaca Quick. Nyahaktifkan sumber yang tak boleh dipercayai lagi.</p>
+    <div class="card-list">
+      ${SOURCES.map(sourceCard).join('')}
+    </div>
+    <div class="card"><p class="card__title">+ Tambah sumber baharu</p></div>
+  `;
+
+  views.tapisan = `
+    <h1 class="view-title">Tapisan</h1>
+    <p class="view-sub">Berita yang tak mahu dipaparkan kepada pembaca &mdash; macam &ldquo;Find &amp; Replace&rdquo; di Word: cari pola, kecualikan sesetengah, lakukan tindakan.</p>
+    <div class="section-note">Pratonton sebelum simpan: 3 berita ditapis minggu ini &middot; 1 daripadanya dikecualikan dan tetap dipaparkan</div>
+    <div class="card-list">
+      <div class="card">
+        <div class="card__top"><span class="chip chip--good">Aktif</span></div>
+        <div class="rule-flow">JIKA tajuk/huraian ada <b>&ldquo;skandal&rdquo;</b></div>
+        <div class="except-row">
+          <span class="except-tag">KECUALI ada &ldquo;haram&rdquo;</span>
+          <span class="except-tag">KECUALI ada &ldquo;bertaubat&rdquo;</span>
+        </div>
+        <div class="rule-flow" style="margin-top:8px;">MAKA <span class="arrow">&rarr;</span> <b>Tapis daripada pembaca</b></div>
+        <div class="card__actions">
+          <button class="btn btn--tiny btn--quiet">Tambah kecuali</button>
+          <button class="btn btn--tiny btn--quiet">Nyahaktifkan</button>
+        </div>
+      </div>
+      <div class="card card--dim">
+        <div class="card__top"><span class="chip chip--neutral">Tidak aktif</span></div>
+        <div class="rule-flow">JIKA URL ada <b>&ldquo;/hiburan/gosip/&rdquo;</b> <span class="arrow">&rarr;</span> MAKA <b>Tapis</b></div>
+        <div class="card__actions"><button class="btn btn--tiny btn--quiet">Aktifkan</button></div>
+      </div>
+      <div class="card">
+        <div class="card__top"><p class="card__title">+ Tambah tapisan baharu</p></div>
+      </div>
+    </div>
+  `;
+
+  views.bidang = `
+    <h1 class="view-title">Bidang &amp; Kategori</h1>
+    <p class="view-sub">Bagaimana sistem tentukan bidang setiap berita &mdash; dan bila nak papar berbeza untuk edisi Malaysia.</p>
+    <div class="section-note">
+      <b style="color:var(--ink)">Cara lokasi dikesan.</b> Quick tidak menggunakan AI/LLM untuk meneka lokasi.
+      Ia mencari petunjuk yang tersedia pada item berita seperti kategori/desk RSS, struktur URL, tag sumber
+      dan pola tajuk yang diketahui. Jika tiada petunjuk yang mencukupi, Quick tidak meneka dan peraturan
+      berasaskan lokasi tidak digunakan.
+    </div>
+    <div class="card-list">
+      <div class="card">
+        <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Petunjuk sumber (Tahap 1)</span></div>
+        <div class="rule-flow">Jika URL/kategori RSS ada <b>&ldquo;sukan&rdquo;</b> atau <b>&ldquo;arena&rdquo;</b> <span class="arrow">&rarr;</span> letak bawah <b>Sukan</b></div>
+      </div>
+      <div class="card">
+        <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Petunjuk sumber (Tahap 1)</span></div>
+        <div class="rule-flow">Jika URL/kategori RSS ada <b>&ldquo;agama&rdquo;</b> atau <b>&ldquo;addin&rdquo;</b> <span class="arrow">&rarr;</span> letak bawah <b>Agama</b></div>
+      </div>
+      <div class="card">
+        <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Peraturan kandungan &mdash; hanya bila sumber tak cukup jelas</span></div>
+        <div class="rule-flow">Jika ada frasa <b>&ldquo;mahkamah&rdquo;, &ldquo;didakwa&rdquo;, &ldquo;waran tangkap&rdquo;</b> <span class="arrow">&rarr;</span> letak bawah <b>Jenayah</b></div>
+      </div>
+      <div class="card">
+        <div class="card__top"><span class="chip chip--good">Aktif</span><span class="chip chip--neutral">Edisi: Malaysia</span></div>
+        <div class="rule-flow">Bila cerita ini <b>Politik</b> dan bukan tentang Malaysia <span class="arrow">&rarr;</span> papar di bawah <b>Dunia</b></div>
+      </div>
+      <div class="card">
+        <div class="card__top"><p class="card__title">+ Tambah peraturan baharu</p></div>
+      </div>
+    </div>
+  `;
+
+  views.nilai = `
+    <h1 class="view-title">Nilai &amp; Susunan</h1>
+    <p class="view-sub">Bagaimana Quick menilai kepentingan berita sekarang, dan susunan yang terhasil daripadanya.</p>
+
+    <p class="dash-feed-title">Kaedah semasa</p>
+    <div class="factor-list">
+      <div class="factor factor--up"><span class="factor__label">Kebaruan berita</span><span class="factor__weight">kesan besar</span></div>
+      <div class="factor factor--up"><span class="factor__label">Kualiti sumber</span><span class="factor__weight">kesan besar</span></div>
+      <div class="factor factor--up"><span class="factor__label">Keyakinan klasifikasi bidang</span><span class="factor__weight">kesan kecil</span></div>
+      <div class="factor factor--up"><span class="factor__label">Keutamaan editor (boost)</span><span class="factor__weight">+40 apabila digunakan</span></div>
+    </div>
+
+    <p class="dash-feed-title">Pelarasan Admin</p>
+    <div class="section-note">Belum tersedia. Nilai dan pemberat setiap faktor di atas masih tetapan asas sistem
+      buat masa ini &mdash; ini kaedah semasa Quick, bukan reka bentuk akhir, dan akan disediakan untuk
+      pelarasan Admin secara berperingkat.</div>
+
+    <p class="dash-feed-title">Contoh skor sebenar</p>
+    <div class="card" style="margin-bottom:20px;">
+      <p class="card__title" style="margin-bottom:10px;">NASA kesan planet baharu berpotensi mesra kehidupan</p>
+      <div class="reason-list" style="margin-bottom:10px;">
+        <li>Kebaruan: 100 (dalam 6 jam)</li>
+        <li>Kualiti sumber: 92 (Bernama)</li>
+        <li>Keyakinan klasifikasi: +9 (94%)</li>
+        <li>Keutamaan editor: tiada</li>
+      </div>
+      <p style="font-size:0.85rem; margin:0;"><b>Jumlah skor: 201</b> &mdash; angka mentah, bukan peratus/100. Skor tak dinormalkan, jadi berita lain boleh melebihi atau kurang daripada 100.</p>
+    </div>
+
+    <p class="dash-feed-title">Pratonton susunan (contoh)</p>
+    <p class="view-sub" style="margin-bottom:10px;">Nilai berita menghasilkan skor. Pemilihan &amp; susunan menggunakan skor ini bersama peraturan pemilihan lain untuk tentukan berita yang masuk dan kedudukannya &mdash; dua langkah berasingan.</p>
+    <div class="rank-preview" id="rank-preview"></div>
+  `;
+
+  views.tetapan = `
+    <h1 class="view-title">Tetapan</h1>
+    <div class="settings-group">
+      <h2>Edisi</h2>
+      <div class="edition-pick">
+        <button class="on">Malaysia (ms-MY)</button>
+        <button disabled>Global Inggeris &mdash; belum tersedia</button>
+        <button disabled>Global Arab &mdash; belum tersedia</button>
+      </div>
+    </div>
+    <div class="settings-group">
+      <h2>Akaun</h2>
+      <div class="account-row">
+        <div><div class="account-row__name">Izzat</div><div class="account-row__role">Ketua Editor</div></div>
+        <button class="btn btn--quiet btn--tiny">Log keluar</button>
+      </div>
+    </div>
+  `;
+
+  function sourceCard(s) {
+    const statusLabel = s.status === 'neutral' ? 'Tidak aktif' : 'Aktif';
+    return `
+      <div class="card">
+        <div class="card__top">
+          <p class="card__title">${s.name}</p>
+          <span class="chip chip--${s.status === 'neutral' ? 'neutral' : 'good'}">${statusLabel}</span>
+        </div>
+        <div class="card__meta">
+          <span>URL: <b style="font-weight:600;">${s.url}</b></span>
+          <span>Jenis: <b>${s.type}</b></span>
+          <span>Kepercayaan: <b>${s.trust}</b></span>
+          <span>Kemaskini terakhir: belum tersedia</span>
+        </div>
+        <div class="card__actions">
+          <button class="btn btn--tiny btn--quiet">${s.status === 'neutral' ? 'Aktifkan' : 'Nyahaktifkan'}</button>
+        </div>
+      </div>`;
+  }
+
+  function renderBeritaSubviews() {
+    const total = STORIES.length;
+    const attention = STORIES.filter(s => s.status === 'warn').length;
+    const ringkasanEl = document.getElementById('berita-sub-ringkasan');
+    if (ringkasanEl) ringkasanEl.innerHTML = `
+      <div class="stat-row">
+        <div class="stat"><div class="stat__num">${total}</div><div class="stat__label">Berita masuk (contoh)</div></div>
+        <div class="stat stat--attention"><div class="stat__num">${attention}</div><div class="stat__label">Perlu perhatian</div></div>
+        <div class="stat"><div class="stat__num">${SOURCES.length}</div><div class="stat__label">Sumber aktif</div></div>
+        <div class="stat"><div class="stat__num">1</div><div class="stat__label">Tapisan aktif</div></div>
+      </div>
+      <p class="dash-feed-title">Aktiviti terkini</p>
+      <div class="mini-list">
+        <div class="mini-row"><span class="mini-row__time">10:41</span><span class="mini-row__text">Berita &ldquo;Aduan kontraktor tipu&rdquo; kekal di <b>Politik</b> selepas semakan &mdash; oleh Aisyah (Editor)</span></div>
+        <div class="mini-row"><span class="mini-row__text">Berita hiburan disembunyikan &mdash; tapisan &ldquo;skandal&rdquo; (tiada kecuali sepadan)</span></div>
+      </div>`;
+
+    const semuaEl = document.getElementById('berita-sub-semua');
+    if (semuaEl) semuaEl.innerHTML = `
+      <div class="toolbar">
+        <select id="filter-status"><option value="">Semua status</option><option value="warn">Perlu semakan</option><option value="good">Aktif</option><option value="crit">Ditapis</option></select>
+        <select id="filter-bidang"><option value="">Semua bidang</option><option>Politik</option><option>Sukan</option><option>Sains</option><option>Agama</option><option>Hiburan</option></select>
+      </div>
+      <div class="story-list" id="story-list-semua"></div>`;
+
+    const semakanEl = document.getElementById('berita-sub-semakan');
+    if (semakanEl) semakanEl.innerHTML = `
+      <p class="view-sub">Berita yang sistem tidak yakin dengan bidangnya, dan perlu keputusan editor.</p>
+      <div class="story-list" id="story-list-semakan"></div>`;
+
+    const rekodEl = document.getElementById('berita-sub-rekod');
+    if (rekodEl) rekodEl.innerHTML = `
+      <div class="mini-list">
+        <div class="mini-row"><span class="mini-row__time">10:41</span><span class="mini-row__text">Bidang &ldquo;Aduan kontraktor tipu&rdquo; disahkan <b>Politik</b> &mdash; oleh Aisyah (Editor)</span></div>
+        <div class="mini-row"><span class="mini-row__time">09:58</span><span class="mini-row__text">Berita hiburan disembunyikan oleh tapisan &ldquo;skandal&rdquo;</span></div>
+        <div class="mini-row"><span class="mini-row__time">09:30</span><span class="mini-row__text">Peraturan bidang baharu ditambah oleh editor</span></div>
+      </div>`;
+
+    renderStoriesInto('story-list-semua', STORIES);
+    renderStoriesInto('story-list-semakan', STORIES.filter(s => s.status === 'warn'));
+
+    const subButtons = document.querySelectorAll('#berita-subnav .berita-subnav__item');
+    function setSub(id) {
+      document.querySelectorAll('.berita-sub').forEach(el => el.style.display = (el.id === 'berita-sub-' + id) ? 'block' : 'none');
+      subButtons.forEach(b => b.classList.toggle('berita-subnav__item--active', b.dataset.sub === id));
+    }
+    subButtons.forEach(b => b.addEventListener('click', () => setSub(b.dataset.sub)));
+    setSub('ringkasan');
+  }
+
+  function rankRow(pos, title, score, maxScore) {
+    // Bar width is RELATIVE to the highest score in this list, not a
+    // literal percent-of-100 -- the real formula sums uncapped (freshness
+    // + sourceTrust + confidenceModifier + editorialBoost), so a raw
+    // score can exceed 100. Never imply a fixed 100-point ceiling.
+    const pct = Math.round((score / maxScore) * 100);
+    return `
+      <div class="rank-item">
+        <span class="rank-item__pos">${pos}</span>
+        <span class="rank-item__title">${title}</span>
+        <span class="rank-item__bar-wrap"><span class="rank-item__bar" style="width:${pct}%"></span></span>
+        <span class="rank-item__num">${score}</span>
+      </div>`;
+  }
+
+  function renderRankPreview() {
+    const el = document.getElementById('rank-preview');
+    if (!el) return;
+    const sorted = [...STORIES].sort((a, b) => b.score - a.score);
+    const maxScore = sorted[0].score;
+    el.innerHTML = sorted.map((s, i) => rankRow(i + 1, s.title, s.score, maxScore)).join('');
+  }
+
+  // Reasons below are grounded in classification/lib/desk-vocabulary.mjs
+  // and classification/lib/content-rules.mjs's REAL evidence tokens/phrases
+  // (verified 2026-08-18, not invented). Scores follow the real additive
+  // formula in ranking/candidate-scoring.mjs: freshness + sourceTrust +
+  // confidenceModifier + editorialBoost -- uncapped, NOT out of 100.
+  const STORIES = [
+    {
+      title: 'Lebih 3,000 aduan kontraktor tipu diterima tahun ini',
+      source: 'Berita Harian', bidang: 'Politik', score: 165, status: 'warn', statusLabel: 'Perlu semakan',
+      reasons: [
+        { ok: false, text: 'URL/kategori RSS sumber tidak menunjukkan bidang yang jelas' },
+        { ok: false, text: 'Tiada frasa dikenali (cth. &ldquo;parlimen&rdquo;, &ldquo;menteri&rdquo;) dalam tajuk' },
+        { ok: false, text: 'Keyakinan bidang rendah &mdash; 52%' }
+      ],
+      note: 'Sistem tidak jumpa petunjuk yang cukup jelas &mdash; diletak sementara di Politik, perlu disahkan editor.'
+    },
+    {
+      title: 'Pasukan bola sepak kebangsaan ke separuh akhir AFCON',
+      source: 'RTM', bidang: 'Sukan', score: 187, status: 'good', statusLabel: 'Aktif',
+      reasons: [
+        { ok: true, text: 'Kategori RSS sumber: &ldquo;sukan&rdquo;' },
+        { ok: true, text: 'Keyakinan bidang 94%' },
+        { ok: true, text: 'Dinaikkan (boost) oleh editor' }
+      ],
+      note: 'Dipaparkan terus kepada pembaca, tiada semakan diperlukan.'
+    },
+    {
+      title: 'NASA kesan planet baharu berpotensi mesra kehidupan',
+      source: 'Bernama', bidang: 'Sains', score: 201, status: 'good', statusLabel: 'Aktif',
+      reasons: [
+        { ok: true, text: 'URL/kategori RSS sumber: &ldquo;sains&rdquo;' },
+        { ok: true, text: 'Keyakinan bidang 94%' },
+        { ok: true, text: 'Berita baharu &mdash; dalam 6 jam' }
+      ],
+      note: 'Dipaparkan terus kepada pembaca, tiada semakan diperlukan.'
+    },
+    {
+      title: 'Fatwa baharu berkaitan zakat digital diumumkan',
+      source: 'Utusan Malaysia', bidang: 'Agama', score: 170, status: 'good', statusLabel: 'Aktif',
+      reasons: [
+        { ok: true, text: 'URL/kategori RSS sumber: &ldquo;agama&rdquo;' },
+        { ok: true, text: 'Keyakinan bidang 87%' }
+      ],
+      note: 'Dipaparkan terus kepada pembaca, tiada semakan diperlukan.'
+    },
+    {
+      title: 'Bekas artis didakwa terlibat skandal, sudah bertaubat',
+      source: 'Harian Metro', bidang: 'Hiburan', score: 140, status: 'crit', statusLabel: 'Ditapis (dikecualikan)',
+      reasons: [
+        { ok: true, text: 'Tapisan &ldquo;skandal&rdquo; sepadan' },
+        { ok: true, text: 'Kecuali &ldquo;bertaubat&rdquo; turut sepadan &mdash; tapisan tidak dikenakan' }
+      ],
+      note: 'Berita ini terkena tapisan tetapi dikecualikan &mdash; masih dipaparkan.'
+    }
+  ];
+
+  function renderStoriesInto(elId, list) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!list.length) {
+      el.innerHTML = '<p class="view-sub">Tiada berita dalam senarai ini buat masa ini.</p>';
+      return;
+    }
+    el.innerHTML = list.map((s) => {
+      const i = STORIES.indexOf(s);
+      return `
+      <div class="story" data-idx="${i}">
+        <button class="story__row" data-toggle="${i}">
+          <div class="story__main">
+            <p class="story__title">${s.title}</p>
+            <div class="story__meta">Sumber: <b>${s.source}</b> &middot; Bidang: <b>${s.bidang}</b> &middot; <span class="chip chip--${s.status}">${s.statusLabel}</span></div>
+          </div>
+          <div class="story__score">${s.score}</div>
+          <svg class="story__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <div class="story__detail">
+          <p class="story__detail-heading">Keputusan sistem</p>
+          <ul class="reason-list">
+            ${s.reasons.map(r => `<li${r.ok ? '' : ' class="reason--flag"'}>${r.text}</li>`).join('')}
+          </ul>
+          <p class="story__detail-heading">Status</p>
+          <p style="font-size:0.85rem; margin:0;">${s.note}</p>
+          <div class="detail-actions">
+            <button class="btn btn--tiny">Ubah bidang</button>
+            <button class="btn btn--tiny btn--quiet">Sembunyikan</button>
+            <button class="btn btn--tiny btn--solid">Sahkan betul</button>
+          </div>
+        </div>
+      </div>
+    `;
+    }).join('');
+    el.querySelectorAll('[data-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.closest('.story').classList.toggle('story--open');
+      });
+    });
+  }
+
+  NAV.forEach(item => {
+    const v = document.createElement('div');
+    v.className = 'view';
+    v.id = 'view-' + item.id;
+    v.innerHTML = views[item.id];
+    main.appendChild(v);
+  });
+
+  main.addEventListener('click', e => {
+    const gotoBtn = e.target.closest('[data-goto]');
+    if (gotoBtn) setView(gotoBtn.dataset.goto);
+  });
+
+  renderBeritaSubviews();
+  renderRankPreview();
+  setView('berita');
+})();
+</script>
