@@ -20,6 +20,7 @@
 // Requires db/schema-edition-classification.sql to have been run first.
 
 import 'dotenv/config';
+import { pathToFileURL } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import { understandStory } from '../classification/story-understanding.mjs';
 import { classifyForAllEditions } from '../classification/edition-classification.mjs';
@@ -40,6 +41,15 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 const WRITE = process.argv.includes('--write');
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
+// Extracted per docs/control-plane-phase3-production-wiring-audit-plan-v1.md
+// so the wiring itself (not just resolveClassificationRule() in isolation)
+// is directly testable — this is the exact shape classification-rules-
+// resolver.mjs's matchesRule() needs (item.sourceId/link/title/description),
+// pulled from a canonical rss_items row. Pure mapping, no classifier logic.
+export function buildRuleMatchItem(canonical) {
+  return { sourceId: canonical.source_id, link: canonical.link, title: canonical.title, description: canonical.description };
+}
+
 async function main() {
   // Per docs/production-write-guard-v1.md: only --write mode is
   // destructive (it truncates edition_story_classifications) — a
@@ -57,6 +67,19 @@ async function main() {
   await loadTaxonomyRegistryFromDB(supabase);
   rebuildEditionTaxonomy();
   console.log('Taxonomy loaded from taxonomy_fields (backend source of truth).\n');
+
+  // Backend Control Plane Phase 3 production wiring (per docs/control-
+  // plane-phase3-production-wiring-audit-plan-v1.md): fetch active
+  // classification_rules ONCE here, before the loop — same pattern as
+  // the taxonomy load above. classifyForAllEditions() itself already
+  // scopes global-vs-edition-specific rules internally; this script only
+  // needs to supply the flat active set.
+  const { data: activeRules, error: rErr } = await supabase
+    .from('classification_rules')
+    .select('id, rule_type, edition_id, pattern, field_code, subject_code, priority')
+    .eq('status', 'active');
+  if (rErr) throw new Error(`classification_rules — ${rErr.message}`);
+  console.log(`${activeRules.length} active classification rule(s) loaded.\n`);
 
   // Pull clusters + their member items. The classifier needs the item's
   // own signals (link/categories/title), not the cluster's legacy topic.
@@ -98,7 +121,12 @@ async function main() {
       categories: canonical.categories ?? [],
       sourceKnownCategory: canonical.source_known_category ?? undefined,
     });
-    const editions = classifyForAllEditions(understanding);
+    const editions = classifyForAllEditions(
+      understanding,
+      undefined, // thresholdOverride — unchanged, was never passed before this change
+      buildRuleMatchItem(canonical),
+      activeRules,
+    );
 
     for (const [editionId, result] of Object.entries(editions)) {
       // Edition Representation Eligibility Gate (docs/edition-representation-eligibility-policy.md,
@@ -187,7 +215,14 @@ async function main() {
   console.log(`\nDone. ${written} rows written to edition_story_classifications.\n`);
 }
 
-main().catch(err => {
-  console.error('classify-production failed:', err.message);
-  process.exit(1);
-});
+// Guarded so importing this module for buildRuleMatchItem() (per the
+// wiring integration test) never triggers a real run against Supabase.
+// pathToFileURL() (not a raw `file://${argv[1]}` string) is required for
+// this comparison to work on Windows, where argv[1] uses backslashes and
+// import.meta.url is a proper file:// URL with forward slashes.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => {
+    console.error('classify-production failed:', err.message);
+    process.exit(1);
+  });
+}
