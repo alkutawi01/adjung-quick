@@ -80,18 +80,11 @@ check('archive_edition_rule requires a reason (raises exception if null/empty)',
 
 // --- Authenticated-access patch (schema-edition-rules-rpc-authenticated-
 // patch-v1.sql): fixes the browser-admin-UI-can't-call-service_role-only-
-// RPCs blocker found before building the Admin UI. Proves the fix adds
-// an is_admin() check to EVERY function (not just some), passes
-// auth.uid() (never a client-supplied user id — no privilege escalation
-// surface), and grants authenticated without ever granting anon. ---
+// RPCs blocker found before building the Admin UI. Proves the fix
+// grants authenticated without ever granting anon. ---
 const patchRaw = readFileSync('db/schema-edition-rules-rpc-authenticated-patch-v1.sql', 'utf8');
 const patch = stripSqlComments(patchRaw);
 
-for (const fn of ['add_edition_rule', 'archive_edition_rule', 'restore_edition_rule']) {
-  const fnBody = patch.slice(patch.indexOf(`FUNCTION ${fn}`), patch.indexOf('$$;', patch.indexOf(`FUNCTION ${fn}`)));
-  check(`${fn}: calls is_admin(auth.uid()) — never a client-supplied user id`, /IF NOT is_admin\(auth\.uid\(\)\) THEN/.test(fnBody));
-  check(`${fn}: raises an exception (does not silently no-op) when not admin`, /RAISE EXCEPTION[\s\S]*?memerlukan peranan admin/.test(fnBody));
-}
 check('patch grants EXECUTE to authenticated (alongside service_role, not instead of it)',
   /GRANT EXECUTE ON FUNCTION add_edition_rule\([^)]*\) TO service_role, authenticated/.test(patch) &&
   /GRANT EXECUTE ON FUNCTION archive_edition_rule\([^)]*\) TO service_role, authenticated/.test(patch) &&
@@ -99,6 +92,25 @@ check('patch grants EXECUTE to authenticated (alongside service_role, not instea
 check('patch never grants anything to anon', !/TO anon/i.test(patch));
 check('patch keeps REVOKE FROM PUBLIC for all 3 functions (grant is narrowed to specific roles, not opened to everyone)',
   (patch.match(/REVOKE EXECUTE ON FUNCTION/g) || []).length === 3);
+
+// --- v2 hotfix (schema-edition-rules-rpc-authenticated-patch-v2-hotfix.sql):
+// v1's is_admin(auth.uid()) check, found live, rejected service_role too
+// — auth.uid() is NULL for a service_role caller (no user JWT session),
+// so is_admin(NULL) is false. Fix allows through when auth.uid() IS NULL
+// (only reachable by service_role/internal calls — anon is already
+// blocked at the GRANT layer, and a real authenticated session always
+// has a non-null auth.uid()). Proves every function uses the corrected
+// check, never the v1 pattern that broke service_role. ---
+const hotfixRaw = readFileSync('db/schema-edition-rules-rpc-authenticated-patch-v2-hotfix.sql', 'utf8');
+const hotfix = stripSqlComments(hotfixRaw);
+
+for (const fn of ['add_edition_rule', 'archive_edition_rule', 'restore_edition_rule']) {
+  const fnBody = hotfix.slice(hotfix.indexOf(`FUNCTION ${fn}`), hotfix.indexOf('$$;', hotfix.indexOf(`FUNCTION ${fn}`)));
+  check(`${fn}: allows a NULL auth.uid() through (service_role path preserved)`, /IF NOT \(auth\.uid\(\) IS NULL OR is_admin\(auth\.uid\(\)\)\) THEN/.test(fnBody));
+  check(`${fn}: still calls is_admin(auth.uid()) for a real session — never a client-supplied user id`, /is_admin\(auth\.uid\(\)\)/.test(fnBody));
+  check(`${fn}: raises an exception (does not silently no-op) when not admin`, /RAISE EXCEPTION[\s\S]*?memerlukan peranan admin/.test(fnBody));
+}
+check('hotfix contains no GRANT/REVOKE (function bodies only, privileges unchanged from v1)', !/GRANT EXECUTE|REVOKE EXECUTE/.test(hotfix));
 
 console.log(`\n${passed} passed, ${failed} failed.\n`);
 if (failed > 0) process.exit(1);
