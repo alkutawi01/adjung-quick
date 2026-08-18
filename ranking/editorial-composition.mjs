@@ -2,7 +2,12 @@
 // Composition v0.1. Per docs/editorial-composition-policy-v1.md /
 // docs/editorial-composition-benchmark-v1.md.
 //
-// PROTOTYPE — isolated, not wired into production.
+// LIVE IN PRODUCTION for ms-MY.Politik (state/rankingFlags.js's
+// editorial_v1), via state/editorialRankingAdapter.js and
+// state/reducer.js. (Corrected 2026-08-18 — this comment previously
+// called it an isolated prototype "not wired into production," which
+// was already stale; candidate-scoring.mjs's own header was fixed for
+// the same mistake on 2026-08-13.)
 //
 // Composition is NOT a second ranking pass. It receives already-ranked,
 // already-diversity-selected candidates and asks one narrower question:

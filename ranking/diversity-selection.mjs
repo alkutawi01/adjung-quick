@@ -9,7 +9,12 @@
 // accumulate, never via a hardcoded cap ("Astro <= 6" is explicitly
 // rejected in docs/ranking-engine-contract-v1.md §3E/§3F).
 //
-// PROTOTYPE — isolated, not wired into production. See candidate-scoring.mjs.
+// LIVE IN PRODUCTION for ms-MY.Politik (state/rankingFlags.js's
+// editorial_v1), via state/editorialRankingAdapter.js and
+// state/reducer.js. (Corrected 2026-08-18 — this comment previously
+// called it an isolated prototype "not wired into production," which
+// was already stale; candidate-scoring.mjs's own header was fixed for
+// the same mistake on 2026-08-13.)
 
 // Cheap, deliberately simple near-duplicate signal: normalize a title
 // (lowercase, strip punctuation/whitespace-runs) and compare word-set
