@@ -18,6 +18,18 @@ No code or schema is proposed or changed by this document. Where evidence
 is incomplete, that is stated explicitly rather than filled with
 assumption.
 
+## Update (post-audit): headline finding since resolved
+
+The wiring gap below was found and reported by this audit. It has since
+been implemented and strongly verified — see
+`docs/control-plane-phase3-production-wiring-status-v1.md` for the full
+implementation, integration test, and dry-run parity evidence. Status is
+"implemented + strongly verified, live rule activation pending" (not
+CLOSED — live activation proof was explicitly deferred rather than
+proven via a disproportionate full-corpus write or a newly-built scoped
+mechanism). The finding below is left as originally written, as the
+historical record of what this audit found.
+
 ## Headline finding: `classification_rules` is not wired into production
 
 This is a new finding, independently verified (not just traced by the
@@ -67,10 +79,10 @@ and/or `classification/edition-classification.mjs` →
 | File | Step 1 (consumer) | Step 2 (authority vs machinery) | Step 3 (DB shape) |
 |---|---|---|---|
 | `desk-vocabulary.mjs` | Production, confirmed via `story-understanding.mjs` import | ~43+12 token→Subject/Geography mappings = editorial authority; matching loop = machinery | DB-worthy in principle. `schema-classification-rules-v1.sql`'s own header explicitly excludes this file from `classification_rules`' scope — it is a *different* shape (unconditional lookup table, not a condition/priority/action override). No documented minimal-shape decision exists; left as an open, unresolved design question rather than assumed. |
-| `content-rules.mjs` | Production, same chain | ~40+ keyword phrases across 6 subjects = editorial authority; HTML-strip/match loop = machinery | DB-worthy in principle, but **not a drop-in fit for `classification_rules`**: content-rules produces a *weighted candidate* subject to the confidence gate, while `classification_rules`' keyword type is an *unconditional short-circuit* per its own schema comment. Moving phrases as-is would silently change their semantics from "evidence" to "override" — a real design decision, not a data migration. |
-| `bernama-prefix.mjs` | Production, same chain | 5 token→Subject/Geography pairs (Bernama-specific) = editorial authority; parsing = machinery | DB-worthy in principle, low urgency — tiny, and (per in-file comment only — this project has no git history to independently verify churn) apparently stable since 2026-08-12. Same "excluded from classification_rules' scope" caveat as desk-vocabulary. |
+| `content-rules.mjs` | Production, same chain | ~40+ keyword phrases across 6 subjects = editorial authority; HTML-strip/match loop = machinery | DB-worthy in principle. **Structural similarity vs. semantic compatibility, kept distinct**: content-rules' keyword phrases are *structurally* similar to `classification_rules`' `rule_type: 'keyword'` (both are keyword→subject mappings) — but *semantically* incompatible: content-rules produces a weighted candidate subject to the confidence gate, while `classification_rules`' keyword type is an unconditional short-circuit per its own schema comment. Structural similarity here does NOT establish semantic compatibility. Moving phrases as-is would silently change their behavior from "evidence" to "override" — a real design decision, not a data migration. |
+| `bernama-prefix.mjs` | Production, same chain | 5 token→Subject/Geography pairs (Bernama-specific) = editorial authority; parsing = machinery | DB-worthy in principle, low urgency. **Stability: UNVERIFIED** — the file's own comment claims no change since 2026-08-12, but this project has no git history available to independently confirm edit frequency. That claim is not used as evidence for anything in this audit; it is flagged, not trusted. Same "excluded from classification_rules' scope" caveat as desk-vocabulary. |
 | `confidence-policy.mjs` | Production, confirmed via `edition-classification.mjs` import | Threshold values (0.6 global, 0.35 per-subject overrides) = editorial/calibration authority; `checkConfidenceGate()` comparison logic = machinery | Mixed, not a bare DB-worthy call: the file's own comments tie these numbers to a benchmark process (`classification/benchmark-confidence-threshold.mjs`) and flag the 0.35 overrides as an unvalidated manual unblock. A plain editable DB field would let an admin bypass that process. Needs a process design, not just storage. |
-| `edition-rules.mjs` | Production, confirmed via `edition-classification.mjs` import | 1 active rule (ms-MY foreign-politics→Dunia) = editorial authority; `evaluateEditionRules()` priority/match loop = machinery | Structurally the closest fit to `classification_rules`' condition/priority/action shape — but per the headline finding above, **that table isn't wired into production at all today**, so "extend classification_rules" requires closing the wiring gap first, not just a schema decision. The XOR field_code/subject_code shape plausibly fits a geography-condition rule type, but this is inference from reading schema comments, not a confirmed design decision. |
+| `edition-rules.mjs` | Production, confirmed via `edition-classification.mjs` import | 1 active rule (ms-MY foreign-politics→Dunia) = editorial authority; `evaluateEditionRules()` priority/match loop = machinery | **Structural similarity vs. semantic compatibility, kept distinct**: this file's condition/priority/action shape is structurally the closest match to `classification_rules` of anything audited — but structural resemblance is not, by itself, evidence that the two are semantically interchangeable. No design doc confirms edition-rules' geography-condition logic actually maps cleanly onto `classification_rules`' field_code/subject_code XOR — that fit is this audit's own inference from reading schema comments side-by-side, explicitly not a confirmed decision. Separately, per the headline finding above, `classification_rules` isn't wired into production at all today, which is a precondition, not a shape question. |
 
 ## `state/reducer.js::excludeEverReleased()`
 
