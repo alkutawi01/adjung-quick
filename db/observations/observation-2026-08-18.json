@@ -1,0 +1,90 @@
+{
+  "observedAt": "2026-08-18T01:28:19.049Z",
+  "counts": {
+    "sources": 43,
+    "sourcesContributing": 42,
+    "clusters": 691,
+    "items": 745,
+    "placements": 692,
+    "savedStories": 0,
+    "historyEntries": 0
+  },
+  "silentSources": [],
+  "knownBrokenSources": [
+    "rss-kpm"
+  ],
+  "sourceStatusById": {},
+  "editions": {
+    "ms-MY": {
+      "total": 551,
+      "classified": 534,
+      "unclassified": 17,
+      "fields": {
+        "Nasional": 61,
+        "Sukan": 102,
+        "Bencana": 14,
+        "Politik": 34,
+        "Bisnes": 86,
+        "Hiburan": 51,
+        "Jenayah": 35,
+        "Dunia": 42,
+        "Teknologi": 30,
+        "Alam Sekitar": 3,
+        "Agama": 44,
+        "Gaya Hidup": 25,
+        "Sains": 5,
+        "Kesihatan": 2
+      }
+    },
+    "en-global": {
+      "total": 93,
+      "classified": 55,
+      "unclassified": 38,
+      "fields": {
+        "World": 19,
+        "Environment": 4,
+        "Crime": 4,
+        "Politics": 8,
+        "Sports": 2,
+        "Economy": 1,
+        "Disaster": 10,
+        "Business": 2,
+        "Culture": 1,
+        "Health": 4
+      }
+    },
+    "ar-global": {
+      "total": 48,
+      "classified": 15,
+      "unclassified": 33,
+      "fields": {
+        "صحة وعلوم": 2,
+        "اقتصاد": 1,
+        "سياسة": 8,
+        "كوارث": 1,
+        "رياضة": 2,
+        "تكنولوجيا": 1
+      }
+    }
+  },
+  "rankingPilots": {
+    "ms-MY.politics": {
+      "version": "editorial_v1",
+      "candidatePoolSize": 34,
+      "selectedStoryIds": [
+        "www.utusan.com.my/nasional/politik/2026/08/ldp-mahu-anwar-terus-pimpin-negara-hingga-pru-akan-datang",
+        "www.hmetro.com.my/mutakhir/2026/08/1399078/mof-nafi-wujud-bantuan-emadani-rm1700-seperti-tular-di-media-sosial",
+        "www.pressdisplay.com/pressdisplay/viewer.aspx",
+        "www.astroawani.com/berita-politik/anwar-umum-tambahan-peruntukan-rm1-juta-bagi-setiap-parlimen",
+        "www.utusan.com.my/nasional/2026/08/dap-gesa-pm-tetapkan-garis-masa-laksanakan-reformasi-institusi",
+        "www.astroawani.com/berita-politik/bukan-setakat-auku-peluang-lanjut-pengajian-tinggi-perlu-adil-tanpa-kira-kaum-loke",
+        "www.utusan.com.my/nasional/2026/08/amanah-tawar-khidmat-guaman-percuma-penerima-lod-asyraf-wajdi",
+        "www.astroawani.com/berita-politik/terkini-dap-kekal-dalam-pentadbiran-kerajaan-perpaduan",
+        "www.utusan.com.my/nasional/2026/08/rafizi-perlu-hormati-keputusan-dap-perwakilan-kon-yeow",
+        "www.astroawani.com/berita-politik/akui-kelemahan-di-negeri-sembilan-aminuddin-serah-parti-tentukan-kedudukan"
+      ]
+    }
+  },
+  "reviewQueueCount": 46,
+  "activeOverrideCount": 0
+}
