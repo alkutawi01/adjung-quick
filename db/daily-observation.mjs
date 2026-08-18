@@ -25,7 +25,6 @@ import { createClient } from '@supabase/supabase-js';
 import { writeFileSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { RSS_SOURCES } from '../lab/sources.js';
 import { RANKING_FLAGS } from '../state/rankingFlags.js';
 import { assertWriteAllowed } from './production-write-guard.mjs';
 import { loadFieldCandidates, editorialSelect } from '../ranking/shadow-runner.mjs';
@@ -90,7 +89,7 @@ function countBy(rows, key) {
 
 async function gatherMetrics() {
   const [sources, clusters, items, placements, saved, history, activeOverrides] = await Promise.all([
-    selectAllChunked('sources', 'id, name'),
+    selectAllChunked('sources', 'id, name, status'),
     selectAllChunked('story_clusters', 'id'),
     selectAllChunked('rss_items', 'id, source_id, published_at'),
     // `classification_confidence` added for FASA 4.1's operational_snapshots
@@ -126,12 +125,12 @@ async function gatherMetrics() {
   // Source health: which sources actually contributed items. A source
   // registered but contributing nothing is the "source dying" signal
   // the monitoring plan asks about — BUT only if it was expected to
-  // work. Sources already marked broken in lab/sources.js (e.g. JAKIM's
+  // work. Sources already marked broken in public.sources (e.g. JAKIM's
   // known failed_tls certificate problem) are separated out: an alert
   // that fires daily for a problem already recorded in the registry is
   // noise, and noise is how real alerts get ignored.
   const itemsBySource = countBy(items, 'source_id');
-  const registryStatus = new Map(RSS_SOURCES.map(s => [s.id, s.status]));
+  const registryStatus = new Map(sources.map(s => [s.id, s.status]));
   const allSilent = sources.filter(s => !itemsBySource[s.id]).map(s => s.id);
   const silentSources = allSilent.filter(id => (registryStatus.get(id) ?? 'active') === 'active');
   const knownBrokenSources = allSilent.filter(id => (registryStatus.get(id) ?? 'active') !== 'active');
@@ -195,6 +194,11 @@ async function gatherMetrics() {
     },
     silentSources,
     knownBrokenSources,
+    // Carried through so report() can look up a known-broken source's
+    // status without a second query — public.sources is now the
+    // authority (Phase 1 cutover completion, Item 2), replacing the old
+    // RSS_SOURCES.find() lookup that read lab/sources.js directly.
+    sourceStatusById: registryStatus,
     editions,
     rankingPilots,
     // Carried separately from `counts` — these two exist ONLY to feed
@@ -282,7 +286,7 @@ export function evaluateAlerts(current, previous) {
   if (current.silentSources.length) {
     alerts.push(
       `${current.silentSources.length} ACTIVE source(s) contributed ZERO items: ${current.silentSources.join(', ')} — ` +
-      `these are not marked broken in lab/sources.js, so this is unexpected.`
+      `these are not marked broken in public.sources, so this is unexpected.`
     );
   }
 
@@ -291,7 +295,7 @@ export function evaluateAlerts(current, previous) {
   if (previous) {
     const recovered = (previous.knownBrokenSources ?? []).filter(id => !(current.knownBrokenSources ?? []).includes(id) && !current.silentSources.includes(id));
     if (recovered.length) {
-      alerts.push(`Source(s) previously marked broken are now producing items: ${recovered.join(', ')} — update their status in lab/sources.js.`);
+      alerts.push(`Source(s) previously marked broken are now producing items: ${recovered.join(', ')} — update their status via the admin Source Registry.`);
     }
   }
 
@@ -351,8 +355,7 @@ function report(current, previous) {
   if (current.knownBrokenSources?.length) {
     console.log(`\nKNOWN-BROKEN SOURCES (expected, not an alert)`);
     for (const id of current.knownBrokenSources) {
-      const src = RSS_SOURCES.find(s => s.id === id);
-      console.log(`  ${id} — ${src?.status ?? 'unknown'}${src?.statusReason ? `: ${src.statusReason}` : ''}`);
+      console.log(`  ${id} — ${current.sourceStatusById?.get(id) ?? 'unknown'}`);
     }
   }
 }

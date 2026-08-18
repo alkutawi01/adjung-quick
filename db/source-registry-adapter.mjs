@@ -7,14 +7,18 @@
 // admin-only enforcement at a single choke point, same discipline as
 // ui/src/admin/reviewQueueAdapter.js::writeOverride().
 //
-// STAGING ONLY (2026-08-16, per ChatGPT's explicit instruction): targets
-// `sources_registry_staging`, never the real `sources` table, until a
-// separately-approved production cutover. The table name is the ONLY
-// thing that changes at cutover — every function body stays identical.
+// CUTOVER COMPLETE (per docs/control-plane-phase1-cutover-completion-
+// implementation-plan-v1.md, Item 1): targets the real `sources` table.
+// Previously targeted `sources_registry_staging` as a proving ground
+// (2026-08-16 - this cutover). `active` is a legacy boolean column kept
+// in lockstep with `status` by setSourceStatus() below — db/verify-
+// source-registry-production-migration.mjs and db/verify-staging-post-
+// patch.mjs both enforce (status === 'active') === (active === true) as
+// a hard invariant, so any status-changing write must set both.
 
 import { isAdmin } from './editor-auth.mjs';
 
-const TABLE = 'sources_registry_staging';
+const TABLE = 'sources';
 
 // Source Registry actions compound across every future story from that
 // source, every edition — same Principle of Escalation class as
@@ -100,14 +104,17 @@ export async function setSourceStatus(supabase, { id, status, reason, role }) {
 
   const { error } = await supabase.from(TABLE).update({
     status,
+    active: status === 'active',
     updated_at: new Date().toISOString(),
   }).eq('id', id);
   if (error) throw new Error(`setSourceStatus: ${error.message}`);
 }
 
-// Read helper — what a (future, staging-only) ingestion reader would
-// call. Mirrors the exact filter ingest-production.js will need at
-// cutover: only 'active' sources are fetched.
+// Read helper — status-filtered view over the same TABLE, used by
+// db/source-registry-staging.test.mjs. ingest-production.js itself does
+// NOT call this — it uses fetchAllSourcesForIngestion() below, which
+// deliberately returns ALL rows regardless of status (see that
+// function's own comment for why).
 export async function fetchActiveSources(supabase) {
   const { data, error } = await supabase.from(TABLE).select('*').eq('status', 'active');
   if (error) throw new Error(`fetchActiveSources: ${error.message}`);

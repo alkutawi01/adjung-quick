@@ -14,18 +14,24 @@ import { createClient } from '@supabase/supabase-js';
 import { scoreCandidates } from './candidate-scoring.mjs';
 import { selectDiverseCandidates } from './diversity-selection.mjs';
 import { applyEditorialComposition } from './editorial-composition.mjs';
-import { RSS_SOURCES } from '../lab/sources.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-const trustById = new Map(RSS_SOURCES.map(s => [s.id, s.trustScore]));
 
 // Taxonomy Stable Field-ID V1 (2026-08-16): `field` here is now a
 // field_code ('politics'), not the mutable label — this function is fed
 // from RANKING_FLAGS via db/daily-observation.mjs, which is keyed on
 // field_code as of this migration.
 export async function loadFieldCandidates(edition, field) {
+  // Phase 1 cutover completion, Item 2: trustScore now comes from
+  // public.sources (production authority) instead of the static
+  // lab/sources.js import — same Map shape, same fallback (?? 0),
+  // only the data source changed.
+  const { data: sourceRows, error: sErr } = await supabase.from('sources').select('id, trust_score');
+  if (sErr) throw new Error(sErr.message);
+  const trustById = new Map(sourceRows.map(s => [s.id, s.trust_score]));
+
   const { data: placements, error: pErr } = await supabase
     .from('edition_story_classifications')
     .select('story_id, classification_confidence')
