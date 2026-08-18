@@ -9,6 +9,8 @@ import ReviewQueueCard from './ReviewQueueCard.jsx';
 import FilterRulesManager from './FilterRulesManager.jsx';
 import ClassificationFlow from './ClassificationFlow.jsx';
 import ClassificationRulesList from './ClassificationRulesList.jsx';
+import EditionRulesManager from './EditionRulesManager.jsx';
+import { fetchEditionRules, addEditionRule, archiveEditionRule, restoreEditionRule } from './editionRulesAdapter.js';
 
 // Editorial Desk shell — per docs/editorial-desk-shell-implementation-plan-v1.md.
 // 'aliran' added 2026-08-16, direct response to Izzat's complaint that raw
@@ -19,6 +21,12 @@ const DESK_SECTIONS = [
   { id: 'aliran', label: 'Aliran RSS' },
   { id: 'keputusan', label: 'Keputusan Editorial' },
   { id: 'peraturan', label: 'Peraturan Klasifikasi' },
+  // Backend Control Plane Fasa 4 (2026-08-18): ms-MY only, per Izzat's
+  // locked scope — en-global/ar-global deliberately show a "belum
+  // tersedia" placeholder rather than a working form, matching this
+  // project's own honesty convention (docs/editorial-desk-shell-
+  // implementation-plan-v1.md §4).
+  { id: 'susunan-edisi', label: 'Susunan Edisi' },
   { id: 'rekod', label: 'Rekod' },
 ];
 
@@ -163,6 +171,9 @@ function ReviewQueue({ userId, role }) {
   const [filterRules, setFilterRules] = useState(null); // null = not loaded yet
   const [filterRulesError, setFilterRulesError] = useState(null);
   const [filterRulesBusy, setFilterRulesBusy] = useState(false);
+  const [editionRules, setEditionRules] = useState(null); // null = not loaded yet
+  const [editionRulesError, setEditionRulesError] = useState(null);
+  const [editionRulesBusy, setEditionRulesBusy] = useState(false);
 
   const loadFilterRules = useCallback(() => {
     setFilterRulesError(null);
@@ -187,6 +198,31 @@ function ReviewQueue({ userId, role }) {
       setFilterRulesError(err.message);
     } finally {
       setFilterRulesBusy(false);
+    }
+  };
+
+  const loadEditionRules = useCallback(() => {
+    setEditionRulesError(null);
+    fetchEditionRules(adminSupabase, editionId)
+      .then(setEditionRules)
+      .catch(err => setEditionRulesError(err.message));
+  }, [editionId]);
+
+  // Edition-scoped (unlike filterRules) — reloads whenever the admin
+  // switches edition while this section is open, not just on first open.
+  useEffect(() => {
+    if (activeSection === 'susunan-edisi' && editionId === 'ms-MY') loadEditionRules();
+  }, [activeSection, editionId, loadEditionRules]);
+
+  const runEditionRuleAction = async action => {
+    setEditionRulesBusy(true);
+    try {
+      await action();
+      loadEditionRules();
+    } catch (err) {
+      setEditionRulesError(err.message);
+    } finally {
+      setEditionRulesBusy(false);
     }
   };
 
@@ -350,6 +386,42 @@ function ReviewQueue({ userId, role }) {
               convention "keputusan" already uses for filterRules (there
               via a load-once flag, here via mount/unmount — same effect). */}
           <ClassificationRulesList supabase={adminSupabase} />
+        </section>
+      )}
+
+      {activeSection === 'susunan-edisi' && (
+        <section className="editorial-desk__section">
+          {editionId === 'ms-MY' ? (
+            <>
+              {editionRulesError && <p className="review-queue__error">{editionRulesError}</p>}
+              {editionRules === null && !editionRulesError && (
+                <p className="admin-app__status">Memuatkan...</p>
+              )}
+              {editionRules !== null && (
+                <EditionRulesManager
+                  editionLabel={getEdition(editionId).label}
+                  taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
+                  taxonomyFieldLabels={getEdition(editionId).taxonomy}
+                  rules={editionRules}
+                  busy={editionRulesBusy}
+                  onAdd={({ conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority }) =>
+                    runEditionRuleAction(() => addEditionRule(adminSupabase, {
+                      editionId, conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority, createdBy: userId,
+                    }))}
+                  onArchive={(id, reason) => runEditionRuleAction(() => archiveEditionRule(adminSupabase, id, reason))}
+                  onRestore={id => runEditionRuleAction(() => restoreEditionRule(adminSupabase, id))}
+                />
+              )}
+            </>
+          ) : (
+            <article className="editorial-desk__placeholder-card">
+              <h3 className="editorial-desk__placeholder-title">Susunan Edisi</h3>
+              <p className="editorial-desk__placeholder-desc">
+                Belum tersedia untuk edisi ini. Fasa 4 bermula dengan
+                edisi Malaysia (ms-MY) sahaja.
+              </p>
+            </article>
+          )}
         </section>
       )}
 
