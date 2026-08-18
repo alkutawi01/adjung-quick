@@ -110,17 +110,6 @@ export async function setSourceStatus(supabase, { id, status, reason, role }) {
   if (error) throw new Error(`setSourceStatus: ${error.message}`);
 }
 
-// Read helper — status-filtered view over the same TABLE, used by
-// db/source-registry-staging.test.mjs. ingest-production.js itself does
-// NOT call this — it uses fetchAllSourcesForIngestion() below, which
-// deliberately returns ALL rows regardless of status (see that
-// function's own comment for why).
-export async function fetchActiveSources(supabase) {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('status', 'active');
-  if (error) throw new Error(`fetchActiveSources: ${error.message}`);
-  return data;
-}
-
 // Parses a stringified regex like '/tender/i' (produced by
 // String(regex) — the exact form the migration generator wrote into
 // exclude_patterns, db/generate-source-registry-production-migration.mjs)

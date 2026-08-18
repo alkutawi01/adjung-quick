@@ -12,6 +12,15 @@
 -- (§A of the design doc) — this table exists so the migration/RPC logic
 -- can be fully proven, then re-applied to the real `sources` table
 -- verbatim at cutover time.
+--
+-- STATUS (2026-08-18, per docs/control-plane-phase1-cutover-completion-
+-- implementation-plan-v1.md Item 3): cutover is complete —
+-- db/source-registry-adapter.mjs now targets `sources` directly. This
+-- table has no remaining production or test consumer as of commit
+-- 649c53b + the source-registry-staging.test.mjs retirement. Kept
+-- temporarily as a rollback reference only, pending a separate DROP
+-- TABLE migration after live verification passes. Do not build new
+-- functionality against this table.
 
 BEGIN;
 
