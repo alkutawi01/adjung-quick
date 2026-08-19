@@ -60,6 +60,29 @@ export default function ValueRankingPanel() {
           kalibrasi, belum keputusan editorial muktamad.
         </p>
       </div>
+
+      {/* Per docs/editorial-desk-shell-implementation-plan-v1.md §4: honest
+          "belum tersedia" cards, never a button that looks clickable but
+          fails. No interactive control here fires a real request. Moved
+          from Tapisan to here (Admin Console V2) -- Pin/Boost are ranking
+          signals, not content filters, so they belong beside the value
+          modules above, not the exclude/except rules. */}
+      <article className="editorial-desk__placeholder-card">
+        <h3 className="editorial-desk__placeholder-title">Pin</h3>
+        <p className="editorial-desk__placeholder-desc">
+          Belum tersedia. Pin akan membenarkan admin meletakkan berita
+          tertentu di kedudukan tetap, walaupun sistem pemilihan berjalan
+          seperti biasa.
+        </p>
+      </article>
+      <article className="editorial-desk__placeholder-card">
+        <h3 className="editorial-desk__placeholder-title">Boost</h3>
+        <p className="editorial-desk__placeholder-desc">
+          Belum tersedia di sini. Naikkan buat masa ini hanya beroperasi
+          untuk bidang yang menggunakan enjin pemarkahan editorial, dan
+          akan dipindahkan ke bahagian ini apabila permukaan sebenar dibina.
+        </p>
+      </article>
     </div>
   );
 }

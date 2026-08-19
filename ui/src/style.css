@@ -1015,3 +1015,14 @@ body {
 .value-ranking-panel__card { border: 1px solid var(--hairline); border-radius: 6px; padding: 14px; margin-bottom: 14px; }
 .value-ranking-panel__factors { margin: 0 0 10px; padding-left: 18px; font-size: 0.82rem; color: var(--ink); }
 .value-ranking-panel__factors li { margin-bottom: 4px; }
+
+.filter-effect__note { font-size: 0.78rem; color: var(--ink-faint); margin: 0 0 14px; font-style: italic; }
+.filter-effect__card { border: 1px solid var(--hairline); border-radius: 6px; padding: 12px 14px; margin-bottom: 10px; }
+.filter-effect__rule { font-size: 0.85rem; margin: 0 0 6px; }
+.filter-effect__summary { font-size: 0.82rem; color: var(--ink-muted); margin: 0 0 8px; font-variant-numeric: tabular-nums; }
+.filter-effect__list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.filter-effect__list li { font-size: 0.78rem; color: var(--ink-muted); }
+.filter-effect__meta { color: var(--ink-faint); }
+.filter-effect__tag { font-size: 0.68rem; padding: 1px 6px; border-radius: 999px; margin-right: 4px; }
+.filter-effect__tag--filtered { background: rgba(168, 58, 58, 0.12); color: #a83a3a; }
+.filter-effect__tag--excepted { background: rgba(75, 122, 82, 0.12); color: #4b7a52; }

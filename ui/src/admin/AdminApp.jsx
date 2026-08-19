@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
+import FilterRuleEffect from './FilterRuleEffect.jsx';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
 import { EDITION_IDS, getEdition, DEFAULT_EDITION_ID, loadEditionsFromDB } from '../../../state/editions.js';
@@ -189,6 +190,8 @@ function ReviewQueue({ userId, role }) {
   const [filterRules, setFilterRules] = useState(null); // null = not loaded yet
   const [filterRulesError, setFilterRulesError] = useState(null);
   const [filterRulesBusy, setFilterRulesBusy] = useState(false);
+  const [filterEffect, setFilterEffect] = useState(null); // null = not loaded yet
+  const [filterEffectError, setFilterEffectError] = useState(null);
   const [editionRules, setEditionRules] = useState(null); // null = not loaded yet
   const [editionRulesError, setEditionRulesError] = useState(null);
   const [editionRulesBusy, setEditionRulesBusy] = useState(false);
@@ -206,6 +209,18 @@ function ReviewQueue({ userId, role }) {
   useEffect(() => {
     if (activeGroup === 'tapisan' && filterRules === null) loadFilterRules();
   }, [activeGroup, filterRules, loadFilterRules]);
+
+  // Real filter impact (Admin Console V2) -- reload whenever filterRules
+  // itself reloads (e.g. after add/toggle/delete), so "Kesan semasa" never
+  // shows stale counts against the rule list just edited above it.
+  useEffect(() => {
+    if (activeGroup !== 'tapisan') return;
+    setFilterEffect(null);
+    setFilterEffectError(null);
+    fetchEditorialFilterEffect(adminSupabase)
+      .then(setFilterEffect)
+      .catch(err => setFilterEffectError(err.message));
+  }, [activeGroup, filterRules]);
 
   const runFilterRuleAction = async action => {
     setFilterRulesBusy(true);
@@ -403,25 +418,8 @@ function ReviewQueue({ userId, role }) {
             />
           )}
 
-          {/* Per docs/editorial-desk-shell-implementation-plan-v1.md §4: honest
-              "belum tersedia" cards, never a button that looks clickable but
-              fails. No interactive control here fires a real request. */}
-          <article className="editorial-desk__placeholder-card">
-            <h3 className="editorial-desk__placeholder-title">Pin</h3>
-            <p className="editorial-desk__placeholder-desc">
-              Belum tersedia. Pin akan membenarkan admin meletakkan berita
-              tertentu di kedudukan tetap, walaupun sistem pemilihan berjalan
-              seperti biasa.
-            </p>
-          </article>
-          <article className="editorial-desk__placeholder-card">
-            <h3 className="editorial-desk__placeholder-title">Boost</h3>
-            <p className="editorial-desk__placeholder-desc">
-              Belum tersedia di sini. Naikkan buat masa ini hanya beroperasi
-              untuk bidang yang menggunakan enjin pemarkahan editorial, dan
-              akan dipindahkan ke bahagian ini apabila permukaan sebenar dibina.
-            </p>
-          </article>
+          <h3 className="bidang-panel__section-title">Kesan sebenar</h3>
+          <FilterRuleEffect effects={filterEffect} error={filterEffectError} />
         </section>
       )}
 

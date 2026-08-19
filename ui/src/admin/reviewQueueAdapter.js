@@ -210,6 +210,89 @@ export async function fetchEditorialFilterMatches(supabase, editionId) {
   return matches.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 }
 
+// Per-rule real impact for the Tapisan admin screen (Admin Console V2),
+// per ChatGPT's Find & Replace mental model: an admin must see what a
+// rule actually DOES, not just that it exists. Reuses the same live-story
+// scan as fetchEditorialFilterMatches() above but aggregates PER EXCLUDE
+// RULE instead of returning a flat list, and separates "sepadan & ditapis"
+// from "sepadan tapi dikecualikan" -- state/editorialFilterResolver.mjs's
+// own doc comment is explicit that EXCEPT is GLOBAL (any active except
+// phrase can save a story from ANY active exclude phrase, first-match-wins
+// across the whole rule set) -- it is NOT scoped to one specific exclude
+// rule, even though the UI groups exclude/except into two visual lists.
+// This function's counts respect that real semantics rather than
+// pretending each exclude has its own private except list.
+export async function fetchEditorialFilterEffect(supabase) {
+  const [
+    { data: clusters, error: clustersErr },
+    { data: items, error: itemsErr },
+    { data: sources, error: sourcesErr },
+    { data: filterRules, error: filterRulesErr },
+  ] = await Promise.all([
+    supabase.from('story_clusters').select('id, workspace_state'),
+    supabase.from('rss_items').select('cluster_id, source_id, title, description, published_at'),
+    supabase.from('sources').select('id, name'),
+    supabase.from('editorial_filter_rules').select('id, rule_type, phrase').eq('active', true),
+  ]);
+  if (clustersErr) throw new Error(`fetchEditorialFilterEffect: story_clusters — ${clustersErr.message}`);
+  if (itemsErr) throw new Error(`fetchEditorialFilterEffect: rss_items — ${itemsErr.message}`);
+  if (sourcesErr) throw new Error(`fetchEditorialFilterEffect: sources — ${sourcesErr.message}`);
+  if (filterRulesErr) { console.warn(`fetchEditorialFilterEffect: editorial_filter_rules unavailable — ${filterRulesErr.message}`); return []; }
+
+  const excludeRules = filterRules.filter(r => r.rule_type === 'exclude');
+  if (excludeRules.length === 0) return [];
+
+  const liveClusterIds = new Set(
+    clusters.filter(c => c.workspace_state !== 'expired' && c.workspace_state !== 'released').map(c => c.id),
+  );
+  const sourceNameById = new Map(sources.map(s => [s.id, s.name]));
+  const itemsByCluster = new Map();
+  for (const row of items) {
+    if (!itemsByCluster.has(row.cluster_id)) itemsByCluster.set(row.cluster_id, []);
+    itemsByCluster.get(row.cluster_id).push(row);
+  }
+
+  const canonicalStories = [];
+  for (const clusterId of liveClusterIds) {
+    const members = itemsByCluster.get(clusterId) || [];
+    const canonical = [...members].sort((a, b) => new Date(a.published_at) - new Date(b.published_at))[0];
+    if (canonical) canonicalStories.push({ clusterId, ...canonical });
+  }
+
+  return excludeRules.map(rule => {
+    const phraseLower = rule.phrase.toLowerCase();
+    const filtered = [];
+    const excepted = [];
+    for (const story of canonicalStories) {
+      const text = `${story.title ?? ''} ${story.description ?? ''}`.toLowerCase();
+      if (!text.includes(phraseLower)) continue; // this exclude rule doesn't apply to this story at all
+      const result = resolveEditorialFilterForStory({ title: story.title, description: story.description }, filterRules);
+      const row = {
+        storyId: story.clusterId,
+        title: story.title,
+        sourceName: sourceNameById.get(story.source_id) ?? story.source_id,
+        publishedAt: story.published_at,
+      };
+      // result.reason === 'exclude' && result.ruleId === rule.id: THIS rule
+      // is what actually removed it (no except elsewhere saved it, and no
+      // higher-priority... V1 has no priority, so this is just "no except
+      // matched first"). Anything else matching this exclude's phrase but
+      // NOT excluded by it was saved by an except.
+      if (result.keep) excepted.push({ ...row, savedByPhrase: result.phrase });
+      else filtered.push(row);
+    }
+    return {
+      ruleId: rule.id,
+      phrase: rule.phrase,
+      matchedCount: filtered.length + excepted.length,
+      filteredCount: filtered.length,
+      exceptedCount: excepted.length,
+      sampleFiltered: filtered.slice(0, 5),
+      sampleExcepted: excepted.slice(0, 5),
+    };
+  });
+}
+
 // Editorial Filter Rules V1 management (Editorial Desk > Keputusan
 // Editorial), per docs/editorial-filter-rules-design-v1.md and ChatGPT's
 // 2026-08-16 instruction to build this before dropping any *_old table.
