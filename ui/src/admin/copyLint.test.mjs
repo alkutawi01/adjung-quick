@@ -54,6 +54,24 @@ function extractStringLiterals(src) {
   return out;
 }
 
+// Teks JSX MENTAH (bukan dalam string literal) -- corak
+// `>teks di sini<` antara tag. Ditambah selepas dijumpai bug sebenar
+// (KaedahNilaiPanel.jsx, Polish 4A): "production -- ubah berat..."
+// ditulis terus sebagai anak JSX <p>, bukan string literal, jadi
+// extractStringLiterals() di atas TIDAK PERNAH melihatnya. Heuristik
+// sahaja (bukan parser JSX) -- {ekspresi} & atribut tag boleh sisip teks
+// tak berkaitan, jadi corak dilonggarkan (baris 80 ke bawah tetap sama).
+function extractJsxTextNodes(src) {
+  const out = [];
+  const re = />([^<>{}]+)</g;
+  let m;
+  while ((m = re.exec(src))) {
+    const text = m[1].replace(/\s+/g, ' ').trim();
+    if (text) out.push(text);
+  }
+  return out;
+}
+
 // Corak "kelas CSS/BEM" -- token dipisah ruang, setiap token huruf kecil/
 // nombor/underscore/hyphen sahaja (contoh "digest__row digest__row--
 // attention"). Ini BUKAN teks paparan, jadi dikecualikan supaya senarai
@@ -68,9 +86,9 @@ function looksLikeClassNameList(text) {
 function findViolations(filePath, src) {
   const violations = [];
   const clean = stripComments(src);
-  const literals = extractStringLiterals(clean);
+  const candidates = [...extractStringLiterals(clean), ...extractJsxTextNodes(clean)];
 
-  for (const rawText of literals) {
+  for (const rawText of candidates) {
     // Buang ${...} interpolasi template literal dahulu -- selalunya nilai
     // status/kelas dinamik (contoh "foo--${bar}"), bukan sebahagian teks
     // Melayu yang perlu diperiksa tanda baca/singkatannya.
@@ -80,6 +98,11 @@ function findViolations(filePath, src) {
     if (!text.includes(' ')) continue; // teks paparan sebenar sentiasa >1 perkataan
     if (looksLikeClassNameList(text)) continue;
     if (/^[./]/.test(text)) continue; // laluan modul yang terlepas dari strip import
+    // Kod JS tersasar antara dua "<"/">" tak berkaitan (extractJsxTextNodes
+    // ialah heuristik, bukan parser JSX sebenar -- boleh salah anggap
+    // ungkapan boolean/operator sebagai teks paparan). Bukan teks Melayu
+    // sebenar kalau ada corak operator JS macam ni.
+    if (/===|!==|&&|\|\||=>|\?\?/.test(text)) continue;
 
     if (/[^-]--[^-]|^--|--$/.test(text) && !text.includes('http')) {
       violations.push({ file: filePath, text, rule: 'ASCII "--" (guna em/en dash sebenar)' });
