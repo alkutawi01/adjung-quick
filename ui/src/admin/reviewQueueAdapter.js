@@ -59,6 +59,7 @@ export async function fetchReviewQueue(supabase, editionId) {
     { data: items, error: itemsErr },
     { data: overrides, error: overridesErr },
     { data: sources, error: sourcesErr },
+    { data: promotionalOverrides, error: promotionalErr },
   ] = await Promise.all([
     supabase.from('story_clusters').select('id, workspace_state').in('id', storyIds),
     supabase.from('rss_items').select('cluster_id, source_id, title, published_at').in('cluster_id', storyIds),
@@ -93,11 +94,31 @@ export async function fetchReviewQueue(supabase, editionId) {
       .gt('expires_at', new Date().toISOString())
       .in('story_id', storyIds),
     supabase.from('sources').select('id, name'),
+    // Boost/Pin are promotional, not corrective (see the long comment
+    // above) -- deliberately queried SEPARATELY from the resolved-exclusion
+    // query, so fetching their current state can never accidentally start
+    // excluding stories from the queue the way merging them in did before
+    // the 2026-08-13 fix. Read-state only; existence of a row here has no
+    // bearing on whether a story appears above.
+    supabase.from('story_overrides').select('id, story_id, override_type, new_field')
+      .eq('edition_id', editionId)
+      .eq('active', true)
+      .in('override_type', ['boost', 'pin'])
+      .gt('expires_at', new Date().toISOString())
+      .in('story_id', storyIds),
   ]);
   if (clustersErr) throw new Error(`fetchReviewQueue: story_clusters — ${clustersErr.message}`);
   if (itemsErr) throw new Error(`fetchReviewQueue: rss_items — ${itemsErr.message}`);
   if (overridesErr) throw new Error(`fetchReviewQueue: story_overrides — ${overridesErr.message}`);
   if (sourcesErr) throw new Error(`fetchReviewQueue: sources — ${sourcesErr.message}`);
+  if (promotionalErr) throw new Error(`fetchReviewQueue: story_overrides (boost/pin) — ${promotionalErr.message}`);
+
+  const boostByStoryId = new Map();
+  const pinByStoryId = new Map();
+  for (const row of promotionalOverrides) {
+    if (row.override_type === 'boost') boostByStoryId.set(row.story_id, row.id);
+    else if (row.override_type === 'pin') pinByStoryId.set(row.story_id, { overrideId: row.id, field: row.new_field });
+  }
 
   // Batch-resolve classification_rule ids -> full rule detail, per
   // classificationRulesAdapter.js's own N+1-avoidance contract (one query
@@ -142,6 +163,8 @@ export async function fetchReviewQueue(supabase, editionId) {
         displayReason: REASON_DISPLAY[reasonCode],
         classificationMethod: c.classification_method,
         resolvedRule: c.classification_method === 'admin_rule' ? (ruleById.get(c.classification_rule) ?? null) : null,
+        boostOverrideId: boostByStoryId.get(c.story_id) ?? null,
+        pin: pinByStoryId.get(c.story_id) ?? null,
       };
     })
     .filter(Boolean)

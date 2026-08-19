@@ -4,9 +4,14 @@
 // backend, no invented settings. Describes the REAL 3-stage pipeline
 // (ranking/candidate-scoring.mjs -> diversity-selection.mjs ->
 // editorial-composition.mjs), verified against those files' own doc
-// comments during the mockup pass -- not guessed. Every "Apa Admin boleh
-// laras" line is honestly "Belum tersedia" since no admin control exists
-// yet for any of these three stages.
+// comments during the mockup pass -- not guessed.
+//
+// Round 2/15 (2026-08-19): Boost/Pin were wired for real into
+// ReviewQueueCard (Semakan) this round -- reviewQueueAdapter.js's
+// submitBoostOverride/submitPinOverride/deactivateOverride, already-live
+// backend, just never exposed to an admin before. "Apa Admin boleh laras"
+// below reflects that; the rest of each module (the underlying weights/
+// selection/composition logic itself) is still honestly "Belum tersedia".
 
 export default function ValueRankingPanel() {
   return (
@@ -29,8 +34,8 @@ export default function ValueRankingPanel() {
           <li>Keutamaan editor (boost) &mdash; +40 apabila digunakan</li>
         </ul>
         <p className="bidang-panel__section-desc">
-          <b>Apa Admin boleh laras:</b> Belum tersedia. Nilai/pemberat di atas masih tetapan
-          asas sistem.
+          <b>Apa Admin boleh laras:</b> Keutamaan editor (boost) -- naikkan berita tertentu
+          +40 mata dari kad Semakan. Baki nilai/pemberat masih tetapan asas sistem.
         </p>
       </div>
 
@@ -43,8 +48,10 @@ export default function ValueRankingPanel() {
           slot. Bukan kuota tegar, dikurangkan secara berkadar.
         </p>
         <p className="bidang-panel__section-desc">
-          <b>Apa Admin boleh laras:</b> Belum tersedia. Tiada kawalan &ldquo;slot-band per
-          bidang&rdquo; &mdash; itu belum keputusan produk yang dikunci.
+          <b>Apa Admin boleh laras:</b> Kekalkan dalam pemilihan (pin) -- dari kad Semakan,
+          hadkan maksimum 2 berita dikekalkan serentak setiap bidang (dikuatkuasakan
+          pelayan). Tiada kawalan &ldquo;slot-band per bidang&rdquo; &mdash; itu belum
+          keputusan produk yang dikunci.
         </p>
       </div>
 
@@ -61,28 +68,10 @@ export default function ValueRankingPanel() {
         </p>
       </div>
 
-      {/* Per docs/editorial-desk-shell-implementation-plan-v1.md §4: honest
-          "belum tersedia" cards, never a button that looks clickable but
-          fails. No interactive control here fires a real request. Moved
-          from Tapisan to here (Admin Console V2) -- Pin/Boost are ranking
-          signals, not content filters, so they belong beside the value
-          modules above, not the exclude/except rules. */}
-      <article className="editorial-desk__placeholder-card">
-        <h3 className="editorial-desk__placeholder-title">Pin</h3>
-        <p className="editorial-desk__placeholder-desc">
-          Belum tersedia. Pin akan membenarkan admin meletakkan berita
-          tertentu di kedudukan tetap, walaupun sistem pemilihan berjalan
-          seperti biasa.
-        </p>
-      </article>
-      <article className="editorial-desk__placeholder-card">
-        <h3 className="editorial-desk__placeholder-title">Boost</h3>
-        <p className="editorial-desk__placeholder-desc">
-          Belum tersedia di sini. Naikkan buat masa ini hanya beroperasi
-          untuk bidang yang menggunakan enjin pemarkahan editorial, dan
-          akan dipindahkan ke bahagian ini apabila permukaan sebenar dibina.
-        </p>
-      </article>
+      <div className="section-note">
+        Naikkan keutamaan dan Kekalkan dalam pemilihan kini boleh digunakan terus dari kad
+        berita dalam Berita &rarr; Perlu Semakan.
+      </div>
     </div>
   );
 }

@@ -890,6 +890,36 @@ body {
   color: var(--ink);
   font-weight: bold;
 }
+.review-card__promo-status {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  background: rgba(122, 59, 46, 0.05);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.review-card__promo-tag {
+  font-size: 0.72rem;
+  font-weight: bold;
+  color: var(--accent);
+  background: rgba(122, 59, 46, 0.1);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.review-card__promo-undo {
+  margin-left: auto;
+  font-size: 0.72rem;
+  background: none;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.review-card__promo-undo:hover { background: var(--accent); color: var(--paper); border-color: var(--accent); }
 .review-card__actions {
   display: flex;
   gap: 8px;

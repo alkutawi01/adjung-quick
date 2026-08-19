@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, submitBoostOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
 import FilterRuleEffect from './FilterRuleEffect.jsx';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
@@ -289,6 +289,25 @@ function ReviewQueue({ userId, role }) {
     }
   };
 
+  // Boost/Pin are promotional, not corrective (same distinction
+  // reviewQueueAdapter.js's fetchReviewQueue draws) -- the story stays in
+  // Semakan afterwards, so unlike resolve() above this re-fetches the
+  // queue to pick up the new/removed override id rather than filtering
+  // the entry out. Simpler than hand-patching entry.boostOverrideId/pin
+  // locally, and guarantees the card reflects what the database actually
+  // has (e.g. the 2-pin-per-field governance limit enforced server-side).
+  const applyPromo = async (storyId, action) => {
+    setBusyStoryId(storyId);
+    try {
+      await action();
+      load();
+    } catch (err) {
+      setLoadError(err.message);
+    } finally {
+      setBusyStoryId(null);
+    }
+  };
+
   const taxonomy = getEdition(editionId).taxonomy;
 
   return (
@@ -370,6 +389,12 @@ function ReviewQueue({ userId, role }) {
                       submitHideOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
                     onReclassify={(newField, reason) => resolve(entry.storyId, () =>
                       submitReclassifyOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
+                    onBoost={reason => applyPromo(entry.storyId, () =>
+                      submitBoostOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
+                    onUnboost={overrideId => applyPromo(entry.storyId, () => deactivateOverride(adminSupabase, overrideId))}
+                    onPin={(newField, reason) => applyPromo(entry.storyId, () =>
+                      submitPinOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
+                    onUnpin={overrideId => applyPromo(entry.storyId, () => deactivateOverride(adminSupabase, overrideId))}
                   />
                 ))}
               </div>

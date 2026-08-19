@@ -11,8 +11,8 @@ import ClassificationProvenance from './ClassificationProvenance.jsx';
 // Every action requires a reason (docs/review-queue-spec-v1.md — a hard
 // requirement carried down from story_overrides.reason NOT NULL, not a UI
 // nicety) — the Confirm button stays disabled until reason text is present.
-export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onReclassify }) {
-  const [composing, setComposing] = useState(null); // null | 'hide' | 'reclassify'
+export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onReclassify, onBoost, onUnboost, onPin, onUnpin }) {
+  const [composing, setComposing] = useState(null); // null | 'hide' | 'reclassify' | 'boost' | 'pin'
   const [reason, setReason] = useState('');
   const [newField, setNewField] = useState(taxonomy[0] ?? '');
 
@@ -21,6 +21,8 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
   const confirm = () => {
     if (!reason.trim()) return;
     if (composing === 'hide') onHide(reason.trim());
+    else if (composing === 'boost') onBoost(reason.trim());
+    else if (composing === 'pin') onPin(newField, reason.trim());
     else onReclassify(newField, reason.trim());
   };
 
@@ -37,6 +39,24 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
         resolvedRule={entry.resolvedRule}
       />
 
+      {/* Real current state, per FASA 3.6.5/6 -- never an illustration.
+          Boost affects Nilai Berita (+40 pada skor, ranking/candidate-scoring.mjs);
+          Pin affects Pemilihan, not score (state/editorialRankingAdapter.js). */}
+      {entry.boostOverrideId && (
+        <p className="review-card__promo-status">
+          <span className="review-card__promo-tag">Keutamaan dinaikkan</span>
+          Menambah +40 pada nilai berita ini.
+          <button type="button" className="review-card__promo-undo" onClick={() => onUnboost(entry.boostOverrideId)} disabled={busy}>Nyahaktifkan</button>
+        </p>
+      )}
+      {entry.pin && (
+        <p className="review-card__promo-status">
+          <span className="review-card__promo-tag">Dikekalkan dalam pemilihan</span>
+          Bidang: {entry.pin.field}. Tidak mengubah nilai berita; mempengaruhi pemilihan akhir.
+          <button type="button" className="review-card__promo-undo" onClick={() => onUnpin(entry.pin.overrideId)} disabled={busy}>Nyahaktifkan</button>
+        </p>
+      )}
+
       {composing === null && (
         <div className="review-card__actions">
           <button type="button" onClick={() => setComposing('reclassify')} disabled={busy}>
@@ -45,6 +65,16 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
           <button type="button" onClick={() => setComposing('hide')} disabled={busy}>
             Sembunyikan
           </button>
+          {!entry.boostOverrideId && (
+            <button type="button" onClick={() => setComposing('boost')} disabled={busy}>
+              Naikkan keutamaan
+            </button>
+          )}
+          {!entry.pin && (
+            <button type="button" onClick={() => setComposing('pin')} disabled={busy}>
+              Kekalkan dalam pemilihan
+            </button>
+          )}
         </div>
       )}
 
@@ -71,6 +101,22 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
             // consequence stated plainly before the admin commits.
             <p className="review-card__confirm">Berita ini tidak akan muncul kepada pembaca.</p>
           )}
+          {composing === 'boost' && (
+            <p className="review-card__confirm">Menambah +40 pada nilai berita ini -- meningkatkan peluang ia dipilih, tidak menjamin.</p>
+          )}
+          {composing === 'pin' && (
+            <>
+              <label className="review-card__field">
+                Bidang
+                <select value={newField} onChange={e => setNewField(e.target.value)}>
+                  {taxonomy.map(field => (
+                    <option key={field} value={field}>{field}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="review-card__confirm">Tidak mengubah nilai berita; mempengaruhi pemilihan akhir dalam bidang ini. Had maksimum 2 berita dikekalkan serentak setiap bidang.</p>
+            </>
+          )}
           <label className="review-card__field">
             Sebab (wajib)
             <textarea
@@ -78,6 +124,8 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
               onChange={e => setReason(e.target.value)}
               placeholder={
                 composing === 'hide' ? 'Kenapa berita ini disembunyikan?'
+                : composing === 'boost' ? 'Kenapa berita ini perlu dinaikkan keutamaan?'
+                : composing === 'pin' ? 'Kenapa berita ini perlu dikekalkan?'
                 : 'Kenapa bidang ini lebih sesuai?'
               }
               rows={2}
