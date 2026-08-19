@@ -11,7 +11,7 @@ import FilterRulesManager from './FilterRulesManager.jsx';
 import ClassificationFlow from './ClassificationFlow.jsx';
 import { fetchEditionRules, addEditionRule, archiveEditionRule, restoreEditionRule } from './editionRulesAdapter.js';
 import SourceRegistryPanel from './SourceRegistryPanel.jsx';
-import BidangPanel from './BidangPanel.jsx';
+import { PemetaanSumberPage, PetunjukRssUrlPage, FeedCampuranPage, SemuaPelarasanPage, PenempatanBeritaPage } from './BidangPanel.jsx';
 import ValueRankingPanel from './ValueRankingPanel.jsx';
 import KaedahNilaiPanel from './KaedahNilaiPanel.jsx';
 import PemilihanPanel from './PemilihanPanel.jsx';
@@ -20,38 +20,8 @@ import { fetchScoringCorpus } from './kaedahNilaiAdapter.js';
 import { DEFAULT_SCORING_V1_WEIGHTS } from '../../../ranking/scoring-v1-simulation.mjs';
 import AllStoriesPanel from './AllStoriesPanel.jsx';
 import TapisanPanel from './TapisanPanel.jsx';
-
-// Berita sub-sections — per docs/editorial-desk-shell-implementation-plan-v1.md.
-// 'aliran' added 2026-08-16, direct response to Izzat's complaint that raw
-// RSS-to-Kategori routing was invisible — a live table, not a report. Its
-// label was originally "Semua Berita" — renamed to "Aliran Klasifikasi"
-// (matching the component's own doc header) in Pusingan 7/15, when
-// 'semua-berita' below took over that name for the real daily workbench
-// (title/sumber/masa/kategori/status/nilai, allStoriesAdapter.js) --
-// ClassificationFlow.jsx is a routing audit, not the corpus an editor
-// scans day to day, so the two needed to stop sharing one label.
-const BERITA_SECTIONS = [
-  { id: 'hari-ini', label: 'Ringkasan' },
-  { id: 'semakan', label: 'Perlu Semakan' },
-  { id: 'semua-berita', label: 'Semua Berita' },
-  { id: 'aliran', label: 'Aliran Klasifikasi' },
-  { id: 'rekod', label: 'Rekod' },
-];
-
-// Admin Console V2 — 6 menu berasaskan kerja editor, bukan nama modul
-// backend (docs/prototypes/admin-console-overnight-handoff-20260819.md).
-// classification_rules/edition_rules/filter_rules kekal berasingan di
-// backend; UI menyatukannya di sini. Setiap group's `sections` (jika ada)
-// ialah id activeSection sedia ada yang dikumpul di bawahnya — logik/fetch
-// sedia ada TIDAK diubah, hanya lapisan navigasi.
-const GROUPS = [
-  { id: 'berita', label: 'Berita', sections: ['hari-ini', 'semakan', 'semua-berita', 'aliran', 'rekod'] },
-  { id: 'sumber', label: 'Sumber', sections: [] },
-  { id: 'tapisan', label: 'Tapisan', sections: ['keputusan'] },
-  { id: 'bidang', label: 'Kategori', sections: ['peraturan', 'susunan-edisi'] },
-  { id: 'nilai', label: 'Nilai & Susunan', sections: [] },
-  { id: 'tetapan', label: 'Tetapan', sections: [] },
-];
+import AdminShell from './AdminShell.jsx';
+import { DEFAULT_PATH, resolvePage, navigate as routerNavigate } from './adminRouter.js';
 
 // AdminApp.jsx — Fasa 3.6.2 Review Queue. Per
 // docs/review-queue-ui-implementation-plan-v1.md §5: reuses Supabase Auth
@@ -190,9 +160,38 @@ function ReviewQueue({ userId, role }) {
   const [busyStoryId, setBusyStoryId] = useState(null);
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState(null);
-  const [activeSection, setActiveSection] = useState('hari-ini');
-  const [activeGroup, setActiveGroup] = useState('berita');
-  const [nilaiTab, setNilaiTab] = useState('data'); // 'data' | 'kaedah' | 'pemilihan' | 'susunan' — Pusingan 13-15/15
+  // Polish 4A (2026-08-19): navigasi kini berasaskan URL sebenar (History
+  // API, ui/src/admin/adminRouter.js) -- bukan lagi activeGroup/
+  // activeSection/nilaiTab tiga lapisan berasingan. `pathname` diselaraskan
+  // dengan window.location melalui popstate (juga menangkap Back/Forward
+  // pelayar); activePage diselesaikan daripada PAGES, jatuh balik ke
+  // DEFAULT_PATH (redirect senyap, replaceState) bila laluan tak dikenali.
+  const [pathname, setPathname] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const onPopState = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const activePage = resolvePage(pathname);
+
+  useEffect(() => {
+    if (!activePage) {
+      window.history.replaceState({}, '', DEFAULT_PATH);
+      setPathname(DEFAULT_PATH);
+    }
+  }, [pathname, activePage]);
+
+  const goTo = path => {
+    routerNavigate(path);
+    setPathname(path);
+  };
+
+  const activeGroup = activePage?.group ?? 'berita';
+  const activeSection = activePage?.id;
+  const nilaiTab = activePage?.id; // 'data-sebenar' | 'kaedah' | 'pemilihan' | 'susunan-akhir'
+
   // Pusingan 14/15: dikongsi antara KaedahNilaiPanel dan PemilihanPanel --
   // satu fetch, satu set berat simulasi, bukan dua salinan berasingan.
   const [scoringCorpus, setScoringCorpus] = useState(null);
@@ -200,19 +199,11 @@ function ReviewQueue({ userId, role }) {
   const [scoringWeights, setScoringWeights] = useState(DEFAULT_SCORING_V1_WEIGHTS);
 
   useEffect(() => {
-    if ((nilaiTab === 'kaedah' || nilaiTab === 'pemilihan' || nilaiTab === 'susunan') && scoringCorpus === null && !scoringCorpusError) {
+    if (activeGroup === 'nilai' && nilaiTab !== 'data-sebenar' && scoringCorpus === null && !scoringCorpusError) {
       fetchScoringCorpus(adminSupabase).then(setScoringCorpus).catch(err => setScoringCorpusError(err.message));
     }
-  }, [nilaiTab, scoringCorpus, scoringCorpusError]);
+  }, [activeGroup, nilaiTab, scoringCorpus, scoringCorpusError]);
 
-  // Switching group resets activeSection to that group's first
-  // sub-section (only 'berita' has real sub-sections today) -- keeps the
-  // existing activeSection-keyed effects below working unchanged.
-  const selectGroup = groupId => {
-    setActiveGroup(groupId);
-    const group = GROUPS.find(g => g.id === groupId);
-    if (group?.sections.length) setActiveSection(group.sections[0]);
-  };
   const [filterRules, setFilterRules] = useState(null); // null = not loaded yet
   const [filterRulesError, setFilterRulesError] = useState(null);
   const [filterRulesBusy, setFilterRulesBusy] = useState(false);
@@ -269,9 +260,12 @@ function ReviewQueue({ userId, role }) {
 
   // Edition-scoped (unlike filterRules) — reloads whenever the admin
   // switches edition while this section is open, not just on first open.
+  // Scoped to the one page that actually needs it (Penempatan Berita),
+  // not the whole 'kategori' group -- Polish 4A split what used to be one
+  // combined "bidang" section into 5 separate pages.
   useEffect(() => {
-    if (activeGroup === 'bidang' && editionId === 'ms-MY') loadEditionRules();
-  }, [activeGroup, editionId, loadEditionRules]);
+    if (activeSection === 'penempatan' && editionId === 'ms-MY') loadEditionRules();
+  }, [activeSection, editionId, loadEditionRules]);
 
   const runEditionRuleAction = async action => {
     setEditionRulesBusy(true);
@@ -336,64 +330,36 @@ function ReviewQueue({ userId, role }) {
 
   const taxonomy = getEdition(editionId).taxonomy;
 
-  return (
-    <div className="review-queue">
-      <div className="admin-app__masthead">
-        <span className="admin-app__masthead-title">Adjung Quick</span>
-        <button type="button" className="admin-app__signout" onClick={() => adminSupabase.auth.signOut()}>
-          Log keluar
+  const editionSwitcher = (
+    <div className="edition-switcher">
+      {EDITION_IDS.map(id => (
+        <button
+          key={id}
+          type="button"
+          className={`edition-switcher__option${id === editionId ? ' edition-switcher__option--active' : ''}`}
+          onClick={() => setEditionId(id)}
+        >
+          {getEdition(id).label}
         </button>
-      </div>
+      ))}
+    </div>
+  );
 
-      <div className="edition-switcher">
-        {EDITION_IDS.map(id => (
-          <button
-            key={id}
-            type="button"
-            className={`edition-switcher__option${id === editionId ? ' edition-switcher__option--active' : ''}`}
-            onClick={() => setEditionId(id)}
-          >
-            {getEdition(id).label}
-          </button>
-        ))}
-      </div>
-
-      <nav className="editorial-desk__nav">
-        {GROUPS.map(group => (
-          <button
-            key={group.id}
-            type="button"
-            className={`editorial-desk__nav-item${group.id === activeGroup ? ' editorial-desk__nav-item--active' : ''}`}
-            onClick={() => selectGroup(group.id)}
-          >
-            {group.label}
-          </button>
-        ))}
-      </nav>
-
+  return (
+    <AdminShell
+      activePage={activePage}
+      onNavigate={goTo}
+      editionSwitcher={editionSwitcher}
+      onSignOut={() => adminSupabase.auth.signOut()}
+    >
       {activeGroup === 'berita' && (
         <>
-          <nav className="editorial-desk__subnav">
-            {BERITA_SECTIONS.map(section => (
-              <button
-                key={section.id}
-                type="button"
-                className={`editorial-desk__nav-item${section.id === activeSection ? ' editorial-desk__nav-item--active' : ''}`}
-                onClick={() => setActiveSection(section.id)}
-              >
-                {section.label}
-              </button>
-            ))}
-          </nav>
-
-          {activeSection === 'hari-ini' && (
-            <section className="editorial-desk__section">
-              <AdminDigest
-                digest={digest}
-                error={digestError}
-                onOpenQueue={() => setActiveSection('semakan')}
-              />
-            </section>
+          {activeSection === 'ringkasan' && (
+            <AdminDigest
+              digest={digest}
+              error={digestError}
+              onOpenQueue={() => goTo('/admin/berita/semakan')}
+            />
           )}
 
           {/* Pusingan 8/15: Perlu Semakan is no longer a separate card
@@ -406,39 +372,29 @@ function ReviewQueue({ userId, role }) {
               call, and AdminDigest (Ringkasan tab) still depends on that
               digest fetch, so this callback is left exactly as-is. */}
           {activeSection === 'semakan' && (
-            <section className="editorial-desk__section">
-              <AllStoriesPanel supabase={adminSupabase} editionId={editionId} role={role} userId={userId} taxonomy={taxonomy} presetStatusFilter="Perlu semakan" />
-            </section>
+            <AllStoriesPanel supabase={adminSupabase} editionId={editionId} role={role} userId={userId} taxonomy={taxonomy} presetStatusFilter="Perlu semakan" />
           )}
 
           {activeSection === 'semua-berita' && (
-            <section className="editorial-desk__section">
-              <AllStoriesPanel supabase={adminSupabase} editionId={editionId} role={role} userId={userId} taxonomy={taxonomy} presetStatusFilter="all" />
-            </section>
+            <AllStoriesPanel supabase={adminSupabase} editionId={editionId} role={role} userId={userId} taxonomy={taxonomy} presetStatusFilter="all" />
           )}
 
           {activeSection === 'aliran' && (
-            <section className="editorial-desk__section">
-              <ClassificationFlow supabase={adminSupabase} editionId={editionId} />
-            </section>
+            <ClassificationFlow supabase={adminSupabase} editionId={editionId} />
           )}
 
           {activeSection === 'rekod' && (
-            <section className="editorial-desk__section">
-              <EditorialActivityTimeline editionId={editionId} />
-            </section>
+            <EditorialActivityTimeline editionId={editionId} />
           )}
         </>
       )}
 
       {activeGroup === 'sumber' && (
-        <section className="editorial-desk__section">
-          <SourceRegistryPanel supabase={adminSupabase} role={role} userId={userId} />
-        </section>
+        <SourceRegistryPanel supabase={adminSupabase} role={role} userId={userId} />
       )}
 
       {activeGroup === 'tapisan' && (
-        <section className="editorial-desk__section editorial-desk__keputusan">
+        <div className="editorial-desk__keputusan">
           {/* Pusingan 9/15: TapisanPanel replaces the old side-by-side
               FilterRulesManager + FilterRuleEffect layout with two dense
               tables (peraturan tapisan / pengecualian global), effect
@@ -463,92 +419,74 @@ function ReviewQueue({ userId, role }) {
                 setFilterRuleActive(adminSupabase, id, active, role))}
             />
           )}
-        </section>
+        </div>
       )}
 
-      {activeGroup === 'bidang' && (
-        <section className="editorial-desk__section">
-          {/* Backend Control Plane Phase 3, Admin Read-Only V1 (Peraturan
-              Klasifikasi) + Fasa 4 (Susunan Edisi) grouped under one human
-              menu, per docs/prototypes/source-feed-type-audit-v2-correction.md. */}
-          <BidangPanel
-            supabase={adminSupabase}
-            editionId={editionId}
-            editionLabel={getEdition(editionId).label}
-            taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
-            taxonomyFieldLabels={getEdition(editionId).taxonomy}
-            userId={userId}
-            editionRules={editionRules}
-            editionRulesError={editionRulesError}
-            editionRulesBusy={editionRulesBusy}
-            onAddEditionRule={({ conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority }) =>
-              runEditionRuleAction(() => addEditionRule(adminSupabase, {
-                editionId, conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority, createdBy: userId,
-              }))}
-            onArchiveEditionRule={(id, reason) => runEditionRuleAction(() => archiveEditionRule(adminSupabase, id, reason))}
-            onRestoreEditionRule={id => runEditionRuleAction(() => restoreEditionRule(adminSupabase, id))}
-          />
-        </section>
+      {/* Polish 4A (2026-08-19): "Kategori" (dahulu "bidang") kini 5 page
+          berasingan (BidangPanel.jsx eksport 5 komponen laman, bukan satu
+          panel gulung) -- setiap satu mount SATU sahaja ikut activeSection,
+          bukan kelima-lima serentak dalam satu scroll seperti sebelum ini. */}
+      {activeGroup === 'kategori' && activeSection === 'pemetaan-sumber' && (
+        <PemetaanSumberPage
+          supabase={adminSupabase}
+          editionId={editionId}
+          taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
+          taxonomyFieldLabels={getEdition(editionId).taxonomy}
+          userId={userId}
+        />
+      )}
+      {activeGroup === 'kategori' && activeSection === 'petunjuk-rss-url' && (
+        <PetunjukRssUrlPage
+          supabase={adminSupabase}
+          editionId={editionId}
+          taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
+          taxonomyFieldLabels={getEdition(editionId).taxonomy}
+          userId={userId}
+        />
+      )}
+      {activeGroup === 'kategori' && activeSection === 'feed-campuran' && (
+        <FeedCampuranPage
+          supabase={adminSupabase}
+          editionId={editionId}
+          taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
+          taxonomyFieldLabels={getEdition(editionId).taxonomy}
+          userId={userId}
+        />
+      )}
+      {activeGroup === 'kategori' && activeSection === 'pelarasan' && (
+        <SemuaPelarasanPage supabase={adminSupabase} />
+      )}
+      {activeGroup === 'kategori' && activeSection === 'penempatan' && (
+        <PenempatanBeritaPage
+          supabase={adminSupabase}
+          editionId={editionId}
+          editionLabel={getEdition(editionId).label}
+          taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
+          taxonomyFieldLabels={getEdition(editionId).taxonomy}
+          editionRules={editionRules}
+          editionRulesError={editionRulesError}
+          editionRulesBusy={editionRulesBusy}
+          onAddEditionRule={({ conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority }) =>
+            runEditionRuleAction(() => addEditionRule(adminSupabase, {
+              editionId, conditionSubject, conditionGeographyType, conditionGeographyValue, actionFieldCode, priority, createdBy: userId,
+            }))}
+          onArchiveEditionRule={(id, reason) => runEditionRuleAction(() => archiveEditionRule(adminSupabase, id, reason))}
+          onRestoreEditionRule={id => runEditionRuleAction(() => restoreEditionRule(adminSupabase, id))}
+        />
       )}
 
-      {activeGroup === 'nilai' && (
-        <section className="editorial-desk__section">
-          {/* Pusingan 13/15: tab ringkas dalam-seksyen (bukan subnav
-              BERITA_SECTIONS — itu khusus 'berita', bukan corak umum
-              serata AdminApp) — Data Sebenar (paparan ranking production,
-              Pusingan 11) vs Kaedah Nilai (simulasi Skor V1 boleh laras,
-              Pusingan 13). */}
-          <nav className="editorial-desk__subnav">
-            <button
-              type="button"
-              className={`editorial-desk__nav-item${nilaiTab === 'data' ? ' editorial-desk__nav-item--active' : ''}`}
-              onClick={() => setNilaiTab('data')}
-            >
-              Data Sebenar
-            </button>
-            <button
-              type="button"
-              className={`editorial-desk__nav-item${nilaiTab === 'kaedah' ? ' editorial-desk__nav-item--active' : ''}`}
-              onClick={() => setNilaiTab('kaedah')}
-            >
-              Kaedah Nilai
-            </button>
-            <button
-              type="button"
-              className={`editorial-desk__nav-item${nilaiTab === 'pemilihan' ? ' editorial-desk__nav-item--active' : ''}`}
-              onClick={() => setNilaiTab('pemilihan')}
-            >
-              Pemilihan 10
-            </button>
-            <button
-              type="button"
-              className={`editorial-desk__nav-item${nilaiTab === 'susunan' ? ' editorial-desk__nav-item--active' : ''}`}
-              onClick={() => setNilaiTab('susunan')}
-            >
-              Susunan Akhir
-            </button>
-          </nav>
-          {nilaiTab === 'data' && <ValueRankingPanel supabase={adminSupabase} role={role} userId={userId} />}
-          {nilaiTab === 'kaedah' && (
-            <KaedahNilaiPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} setWeights={setScoringWeights} />
-          )}
-          {nilaiTab === 'pemilihan' && (
-            <PemilihanPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} />
-          )}
-          {nilaiTab === 'susunan' && (
-            <SusunanAkhirPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} />
-          )}
-        </section>
+      {activeGroup === 'nilai' && nilaiTab === 'data-sebenar' && (
+        <ValueRankingPanel supabase={adminSupabase} role={role} userId={userId} />
       )}
-
-      {activeGroup === 'tetapan' && (
-        <section className="editorial-desk__section">
-          <p className="admin-app__status">
-            Tetapan am akan ditambah di sini apabila diperlukan. Penukar edisi dan log keluar
-            sedia ada di bahagian atas halaman ini.
-          </p>
-        </section>
+      {activeGroup === 'nilai' && nilaiTab === 'kaedah' && (
+        <KaedahNilaiPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} setWeights={setScoringWeights} />
       )}
-    </div>
+      {activeGroup === 'nilai' && nilaiTab === 'pemilihan' && (
+        <PemilihanPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} />
+      )}
+      {activeGroup === 'nilai' && nilaiTab === 'susunan-akhir' && (
+        <SusunanAkhirPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} />
+      )}
+    </AdminShell>
   );
 }

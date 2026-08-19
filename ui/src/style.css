@@ -628,6 +628,142 @@ body {
   .digest__action { margin-left: 0; }
 }
 
+/* --- AdminShell (Polish 4A, 2026-08-19) — sidebar-left layout replacing
+   the old single top nav + subnav + one long scrolling section. Desktop:
+   sidebar stays visible at a fixed width beside the content. Narrow
+   viewport: sidebar becomes an off-canvas drawer (toggle button in the
+   header) — per ChatGPT's explicit instruction, never force the sidebar
+   to occupy fixed space on a phone screen. --- */
+.admin-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.admin-shell__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.admin-shell__header .admin-app__signout { margin-left: auto; }
+.admin-shell__drawer-toggle {
+  display: none;
+  background: none;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.admin-shell__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 24px;
+  margin-top: 16px;
+}
+.admin-shell__sidebar {
+  flex: 0 0 200px;
+  border-right: 1px solid var(--hairline);
+  padding-right: 16px;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+}
+.admin-shell__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-shell__nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 10px;
+}
+.admin-shell__nav-group-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  padding: 8px 8px 2px;
+}
+.admin-shell__nav-item {
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.admin-shell__nav-item:hover { background: rgba(122, 59, 46, 0.06); color: var(--ink); }
+.admin-shell__nav-item--active {
+  color: var(--accent);
+  background: rgba(122, 59, 46, 0.08);
+  font-weight: bold;
+}
+.admin-shell__nav-item--top {
+  font-weight: bold;
+  color: var(--ink);
+  padding: 8px;
+}
+.admin-shell__nav-item--top.admin-shell__nav-item--active { color: var(--accent); }
+.admin-shell__drawer-backdrop { display: none; }
+.admin-shell__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+}
+.admin-shell__breadcrumb {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+}
+.admin-shell__page-title {
+  font-size: 1.05rem;
+  color: var(--accent);
+  font-weight: normal;
+  margin: 0 0 12px;
+}
+
+@media (max-width: 720px) {
+  .admin-shell__drawer-toggle { display: inline-block; }
+  .admin-shell__body { position: relative; }
+  .admin-shell__sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: 240px;
+    background: var(--paper);
+    border-right: 1px solid var(--hairline);
+    padding: 16px;
+    overflow-y: auto;
+    transform: translateX(-100%);
+    transition: transform 0.18s ease;
+    z-index: 20;
+  }
+  .admin-shell__sidebar--open { transform: translateX(0); }
+  .admin-shell__drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 19;
+  }
+}
+
 .editorial-desk__nav {
   display: flex;
   gap: 4px;

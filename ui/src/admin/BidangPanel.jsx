@@ -803,17 +803,18 @@ function FeedCampuran({ supabase, editionId, taxonomyFieldCodes, taxonomyFieldLa
   );
 }
 
-export default function BidangPanel({ supabase, editionId, editionLabel, editionRules, editionRulesError, editionRulesBusy, onAddEditionRule, onArchiveEditionRule, onRestoreEditionRule, taxonomyFieldCodes, taxonomyFieldLabels, userId }) {
+// Polish 4A (2026-08-19) -- BidangPanel dipecah kepada 5 komponen laman
+// berasingan (arahan ChatGPT, disahkan Izzat) supaya AdminShell.jsx boleh
+// mount SATU sahaja setiap URL, bukan gulung kelima-lima dalam satu
+// scroll seperti sebelum ini. Komponen dalaman (PemetaanSumber,
+// PetunjukRssUrl, FeedCampuran) TIDAK ditulis semula -- hanya dibungkus
+// dengan tajuk+intro masing-masing yang dahulunya tinggal di sini.
+// "Susunan Edisi" -> "Penempatan Berita" (nama baharu, arahan Izzat --
+// "Susunan" disalah anggap sebagai kedudukan/ranking, padahal fungsi ini
+// menentukan berita diletakkan di kategori mana).
+export function PemetaanSumberPage({ supabase, editionId, taxonomyFieldCodes, taxonomyFieldLabels, userId }) {
   return (
     <div className="bidang-panel">
-      <p className="bidang-panel__intro">
-        Quick tidak menggunakan AI untuk meneka kategori. Ia bergantung dahulu pada petunjuk yang
-        sumber sendiri sudah beri (sumber/URL/tag RSS); kata kunci kandungan hanya
-        digunakan sebagai jalan terakhir apabila petunjuk itu tidak mencukupi (contoh feed
-        campuran seperti Metro Mutakhir).
-      </p>
-
-      <h2 className="bidang-panel__section-title">Pemetaan Sumber</h2>
       <p className="bidang-panel__section-desc">
         Sumber yang feednya sudah didedikasikan kepada satu kategori — tiada peraturan diperlukan.
       </p>
@@ -824,8 +825,13 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
         taxonomyFieldLabels={taxonomyFieldLabels}
         userId={userId}
       />
+    </div>
+  );
+}
 
-      <h2 className="bidang-panel__section-title">Petunjuk RSS/URL</h2>
+export function PetunjukRssUrlPage({ supabase, editionId, taxonomyFieldCodes, taxonomyFieldLabels, userId }) {
+  return (
+    <div className="bidang-panel">
       <p className="bidang-panel__section-desc">
         Bila tag RSS, segmen URL atau prefix tajuk sudah cukup jelas — tiada kata kunci
         kandungan terlibat di sini.
@@ -837,11 +843,16 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
         taxonomyFieldLabels={taxonomyFieldLabels}
         userId={userId}
       />
+    </div>
+  );
+}
 
-      <h2 className="bidang-panel__section-title">Feed Campuran</h2>
+export function FeedCampuranPage({ supabase, editionId, taxonomyFieldCodes, taxonomyFieldLabels, userId }) {
+  return (
+    <div className="bidang-panel">
       <p className="bidang-panel__section-desc">
-        Bila petunjuk sumber/RSS/URL di atas tidak mencukupi — kandungan diperiksa sebagai
-        jalan terakhir (contoh Metro Mutakhir).
+        Bila petunjuk sumber/RSS/URL tidak mencukupi — kandungan diperiksa sebagai jalan
+        terakhir (contoh Metro Mutakhir).
       </p>
       <FeedCampuran
         supabase={supabase}
@@ -850,15 +861,25 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
         taxonomyFieldLabels={taxonomyFieldLabels}
         userId={userId}
       />
+    </div>
+  );
+}
 
-      <h2 className="bidang-panel__section-title">Semua Pelarasan Kategori (pandangan penuh)</h2>
+export function SemuaPelarasanPage({ supabase }) {
+  return (
+    <div className="bidang-panel">
       <p className="bidang-panel__section-desc">
-        Termasuk pelarasan jenis Kata kunci (Feed Campuran) — tapis &ldquo;Jenis&rdquo; di
-        bawah untuk fokus kepada satu jenis.
+        Semua pelarasan Kategori dalam satu pandangan — termasuk jenis Kata kunci (Feed
+        Campuran). Tapis &ldquo;Jenis&rdquo; di bawah untuk fokus kepada satu jenis.
       </p>
       <ClassificationRulesList supabase={supabase} />
+    </div>
+  );
+}
 
-      <h2 className="bidang-panel__section-title">Susunan Edisi</h2>
+export function PenempatanBeritaPage({ supabase, editionId, editionLabel, editionRules, editionRulesError, editionRulesBusy, onAddEditionRule, onArchiveEditionRule, onRestoreEditionRule, taxonomyFieldCodes, taxonomyFieldLabels }) {
+  return (
+    <div className="bidang-panel">
       <p className="bidang-panel__section-desc">
         Bila sesuatu kategori patut papar berbeza untuk edisi ini (contoh Politik luar negara &rarr; Dunia).
       </p>
@@ -883,7 +904,7 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
         </>
       ) : (
         <article className="editorial-desk__placeholder-card">
-          <h3 className="editorial-desk__placeholder-title">Susunan Edisi</h3>
+          <h3 className="editorial-desk__placeholder-title">Penempatan Berita</h3>
           <p className="editorial-desk__placeholder-desc">
             Belum tersedia untuk edisi ini. Fasa 4 bermula dengan edisi Malaysia (ms-MY) sahaja.
           </p>
