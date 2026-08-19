@@ -64,7 +64,7 @@ export default function ClassificationRulesList({ supabase }) {
 
       {rules !== null && rules.length === 0 && (
         <p className="classification-rules__empty">
-          Tiada pelarasan admin lagi -- sistem tentukan bidang setiap berita sendiri berdasarkan
+          Tiada pelarasan admin lagi -- sistem tentukan kategori setiap berita sendiri berdasarkan
           petunjuk sumber/RSS/kandungan (lihat Pemetaan Sumber, Petunjuk RSS/URL, Feed Campuran di atas).
         </p>
       )}

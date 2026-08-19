@@ -57,7 +57,7 @@ export default function ValueRankingPanel({ supabase, role, userId }) {
       <p className="bidang-panel__intro">
         Tiga modul berasingan &mdash; nilai berita tidak menyusun, pemilihan tidak menilai
         semula, susunan tidak memilih. Setiap satu buat SATU kerja sahaja. Data di bawah cuma
-        untuk <b>ms-MY &middot; Politik</b> -- satu-satunya bidang yang menggunakan enjin
+        untuk <b>ms-MY &middot; Politik</b> -- satu-satunya kategori yang menggunakan enjin
         ranking boleh terang ini buat masa ini (lihat nota di bawah).
       </p>
 
@@ -69,12 +69,12 @@ export default function ValueRankingPanel({ supabase, role, userId }) {
         <>
           <h2 className="bidang-panel__section-title">1. Nilai Berita</h2>
           <p className="bidang-panel__section-desc">
-            Skor tersimpan sebenar bagi setiap berita layak dalam bidang ini (jumlah mentah, bukan
+            Skor tersimpan sebenar bagi setiap berita layak dalam kategori ini (jumlah mentah, bukan
             peratus/100) -- kebaruan + kualiti sumber + keyakinan klasifikasi + keutamaan editor.
           </p>
           <RankTable
             rows={data.scoredCandidates}
-            columns={['Berita', 'Sumber', 'Bidang', 'Nilai', 'Boost', 'Tindakan']}
+            columns={['Berita', 'Sumber', 'Kategori', 'Nilai', 'Boost', 'Tindakan']}
             renderRow={r => (
               <tr key={r.storyId}>
                 <td className="source-table__name">{r.title}</td>
@@ -143,9 +143,9 @@ export default function ValueRankingPanel({ supabase, role, userId }) {
       )}
 
       <div className="section-note">
-        Bidang/edisi lain (semua selain ms-MY &middot; Politik) guna skor nilai tersimpan tanpa enjin
+        Kategori/edisi lain (semua selain ms-MY &middot; Politik) guna skor nilai tersimpan tanpa enjin
         ranking boleh terang ini -- lihat lajur Nilai dalam Berita &rarr; Semua Berita untuk skor am
-        semua bidang. Menambah bidang baharu ke enjin ini ialah perubahan konfigurasi backend, bukan
+        semua kategori. Menambah kategori baharu ke enjin ini ialah perubahan konfigurasi backend, bukan
         sesuatu yang boleh dilakukan dari Admin Console setakat ini.
       </div>
     </div>
@@ -158,7 +158,7 @@ function formatScore(score) {
 
 function RankTable({ rows, columns, renderRow }) {
   if (rows.length === 0) {
-    return <p className="review-queue__empty">Tiada berita layak dalam bidang ini buat masa ini.</p>;
+    return <p className="review-queue__empty">Tiada berita layak dalam kategori ini buat masa ini.</p>;
   }
   return (
     <div className="source-table-wrap">

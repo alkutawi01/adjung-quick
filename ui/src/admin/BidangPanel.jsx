@@ -1,4 +1,4 @@
-// BidangPanel.jsx — Admin Console V2, "Bidang" menu.
+// BidangPanel.jsx — Admin Console V2, "Kategori" menu.
 //
 // Groups 3 real, audit-backed concepts under one menu (per docs/prototypes/
 // source-feed-type-audit-v2-correction.md) instead of exposing backend
@@ -90,7 +90,7 @@ const CONTENT_PHRASE_RULES = [
 // (classification/edition-classification.mjs's classifyForEdition(),
 // confirmed by reading the code, not assumed). So "Tetapan asas" here is
 // literally sources.known_category (or "Umum" when unset, meaning the
-// source itself has no field dedication and relies on Bidang's other
+// source itself has no field dedication and relies on Kategori's other
 // two tiers -- URL/RSS petunjuk or content-rule fallback); "Pelarasan
 // Admin" is a matching classification_rules row.
 //
@@ -150,7 +150,7 @@ function PemetaanSumber({ supabase, editionId }) {
             <thead>
               <tr>
                 <th>Sumber</th>
-                <th>Bidang</th>
+                <th>Kategori</th>
                 <th>Asal keputusan</th>
                 <th>Tindakan</th>
               </tr>
@@ -178,7 +178,7 @@ function PemetaanSumber({ supabase, editionId }) {
         <div className="drawer-overlay" onClick={() => setOpenId(null)}>
           <aside className="drawer" onClick={e => e.stopPropagation()}>
             <button type="button" className="drawer__close" onClick={() => setOpenId(null)}>Tutup</button>
-            <h3 className="drawer__title">{open.source.name} &mdash; Pemetaan Bidang</h3>
+            <h3 className="drawer__title">{open.source.name} &mdash; Pemetaan Kategori</h3>
             <dl className="drawer__fields">
               <dt>Tetapan asas</dt>
               <dd>{open.source.knownCategory ? getFieldLabel(editionId, open.source.knownCategory) : 'Umum (ditentukan melalui petunjuk berita)'}</dd>
@@ -235,7 +235,11 @@ function PetunjukRssUrl({ supabase, editionId }) {
     .map(token => ({
       key: `vocab-${token}`,
       sumber: 'Semua sumber',
-      jenis: 'Kategori RSS / segmen URL',
+      // "Tag RSS", bukan "Kategori RSS" -- selepas Bidang dinamakan semula
+      // jadi Kategori (arahan Izzat), "Kategori RSS" jadi taksa: pembaca
+      // tak tahu sama ada maksudnya Kategori Adjung atau tag kategori
+      // milik feed RSS itu sendiri. Ini yang KEDUA.
+      jenis: 'Tag RSS / segmen URL',
       corak: token,
       bidang: resolveBidangLabel(editionId, { subjectCode: SUBJECT_VOCABULARY[token] }),
       asal: 'Tetapan asas',
@@ -279,7 +283,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
                 <th>Sumber</th>
                 <th>Jenis Petunjuk</th>
                 <th>Corak/Nilai</th>
-                <th>Bidang</th>
+                <th>Kategori</th>
                 <th>Asal</th>
                 <th>Liputan</th>
                 <th>Tindakan</th>
@@ -291,7 +295,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
                   <td className="source-table__name">{r.sumber}</td>
                   <td>{r.jenis}</td>
                   <td><code>{r.corak}</code></td>
-                  <td>{r.bidang}</td>
+                  <td>{r.kategori}</td>
                   <td>{r.asal}</td>
                   <td>{r.liputan}</td>
                   <td><button type="button" onClick={() => setOpenRow(r.key)}>Lihat</button></td>
@@ -315,7 +319,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
             <dl className="drawer__fields">
               <dt>Sumber</dt><dd>{open.sumber}</dd>
               <dt>Corak</dt><dd><code>{open.corak}</code></dd>
-              <dt>Hasil</dt><dd>{open.bidang}</dd>
+              <dt>Hasil</dt><dd>{open.kategori}</dd>
               <dt>Asal</dt><dd>{open.asal}</dd>
             </dl>
             <p className="section-note" style={{ marginTop: 14 }}>
@@ -338,7 +342,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
 // afterwards (classifyForEdition() only calls a story "classified" once
 // confidence clears its threshold; otherwise it lands in Semakan as
 // low-confidence). This component's copy reflects "calon, tertakluk
-// keyakinan" throughout -- never "kata X = terus bidang Y".
+// keyakinan" throughout -- never "kata X = terus kategori Y".
 //
 // classification_rules rows with rule_type='keyword' ARE a direct/
 // deterministic admin fact (per that table's own design, same as type=
@@ -394,8 +398,8 @@ function FeedCampuran({ supabase, editionId }) {
     <div className="bidang-pemetaan">
       <p className="section-note">
         Mental model: petunjuk sumber/RSS tak cukup &rarr; sistem semak kandungan &rarr; rule
-        hasilkan CALON bidang &rarr; sistem tentukan sama ada keyakinan cukup utk klasifikasi
-        terus, atau berita masuk Perlu Semakan. Bukan &ldquo;ada kata X = terus bidang Y&rdquo;.
+        hasilkan CALON kategori &rarr; sistem tentukan sama ada keyakinan cukup utk klasifikasi
+        terus, atau berita masuk Perlu Semakan. Bukan &ldquo;ada kata X = terus kategori Y&rdquo;.
       </p>
       <p className="section-note">
         Contoh feed campuran sebenar: Metro Mutakhir -- 0% item ada metadata struktur, peraturan
@@ -412,7 +416,7 @@ function FeedCampuran({ supabase, editionId }) {
               <tr>
                 <th>Sumber</th>
                 <th>Corak kandungan</th>
-                <th>Bidang</th>
+                <th>Kategori</th>
                 <th>Kaedah</th>
                 <th>Asal</th>
                 <th>Tindakan</th>
@@ -423,7 +427,7 @@ function FeedCampuran({ supabase, editionId }) {
                 <tr key={r.key}>
                   <td>{r.sumber}</td>
                   <td><code>{r.corak}</code></td>
-                  <td>{r.bidang}</td>
+                  <td>{r.kategori}</td>
                   <td>{r.kaedah}</td>
                   <td>{r.asal}</td>
                   <td><button type="button" onClick={() => setOpenKey(r.key)}>Lihat</button></td>
@@ -445,7 +449,7 @@ function FeedCampuran({ supabase, editionId }) {
             <h3 className="drawer__title">Peraturan kandungan</h3>
             <dl className="drawer__fields">
               <dt>Semua corak</dt><dd>{open.fullPhrases.join(', ')}</dd>
-              <dt>Bidang (calon)</dt><dd>{open.bidang}</dd>
+              <dt>Kategori (calon)</dt><dd>{open.kategori}</dd>
               <dt>Kaedah</dt><dd>{open.kaedah}</dd>
               <dt>Asal</dt><dd>{open.asal}</dd>
             </dl>
@@ -468,21 +472,21 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
   return (
     <div className="bidang-panel">
       <p className="bidang-panel__intro">
-        Quick tidak menggunakan AI untuk meneka bidang. Ia bergantung dahulu pada petunjuk yang
-        sumber sendiri sudah beri (sumber/URL/kategori RSS); kata kunci kandungan hanya
+        Quick tidak menggunakan AI untuk meneka kategori. Ia bergantung dahulu pada petunjuk yang
+        sumber sendiri sudah beri (sumber/URL/tag RSS); kata kunci kandungan hanya
         digunakan sebagai jalan terakhir apabila petunjuk itu tidak mencukupi (cth. feed
         campuran seperti Metro Mutakhir).
       </p>
 
       <h2 className="bidang-panel__section-title">Pemetaan Sumber</h2>
       <p className="bidang-panel__section-desc">
-        Sumber yang feednya sudah didedikasikan kepada satu bidang -- tiada peraturan diperlukan.
+        Sumber yang feednya sudah didedikasikan kepada satu kategori -- tiada peraturan diperlukan.
       </p>
       <PemetaanSumber supabase={supabase} editionId={editionId} />
 
       <h2 className="bidang-panel__section-title">Petunjuk RSS/URL</h2>
       <p className="bidang-panel__section-desc">
-        Bila kategori RSS, segmen URL atau prefix tajuk sudah cukup jelas -- tiada kata kunci
+        Bila tag RSS, segmen URL atau prefix tajuk sudah cukup jelas -- tiada kata kunci
         kandungan terlibat di sini.
       </p>
       <PetunjukRssUrl supabase={supabase} editionId={editionId} />
@@ -494,7 +498,7 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
       </p>
       <FeedCampuran supabase={supabase} editionId={editionId} />
 
-      <h2 className="bidang-panel__section-title">Semua Pelarasan Bidang (pandangan penuh)</h2>
+      <h2 className="bidang-panel__section-title">Semua Pelarasan Kategori (pandangan penuh)</h2>
       <p className="bidang-panel__section-desc">
         Termasuk pelarasan jenis Kata kunci (Feed Campuran) -- tapis &ldquo;Jenis&rdquo; di
         bawah utk fokus kepada satu jenis.
@@ -503,7 +507,7 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
 
       <h2 className="bidang-panel__section-title">Susunan Edisi</h2>
       <p className="bidang-panel__section-desc">
-        Bila sesuatu bidang patut papar berbeza utk edisi ini (cth. Politik luar negara &rarr; Dunia).
+        Bila sesuatu kategori patut papar berbeza utk edisi ini (cth. Politik luar negara &rarr; Dunia).
       </p>
       {editionId === 'ms-MY' ? (
         <>

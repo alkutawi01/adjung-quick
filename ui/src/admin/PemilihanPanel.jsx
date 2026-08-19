@@ -111,7 +111,7 @@ export default function PemilihanPanel({ corpus, error, weights }) {
 
       <div className="classification-rules__filters">
         <label>
-          Bidang{' '}
+          Kategori{' '}
           <select value={activeField ?? ''} onChange={e => setFieldCode(e.target.value)}>
             {fieldOptions.map(f => <option key={f} value={f}>{getFieldLabel(EDITION_ID, f)}</option>)}
           </select>
@@ -126,7 +126,7 @@ export default function PemilihanPanel({ corpus, error, weights }) {
 
       {result && (
         <>
-          <h2 className="bidang-panel__section-title">Semua calon dalam bidang ini</h2>
+          <h2 className="bidang-panel__section-title">Semua calon dalam kategori ini</h2>
           <div className="source-table-wrap">
             <table className="source-table">
               <thead>
@@ -188,7 +188,7 @@ export default function PemilihanPanel({ corpus, error, weights }) {
             </table>
           </div>
           <p className="admin-app__status">
-            Had maksimum 2 pin serentak setiap bidang dikuatkuasakan pelayan
+            Had maksimum 2 pin serentak setiap kategori dikuatkuasakan pelayan
             (reviewQueueAdapter.js::submitPinOverride) -- bukan sesuatu panel ini kawal.
           </p>
         </>

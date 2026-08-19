@@ -21,7 +21,7 @@ const EDITION_ID = 'ms-MY';
 // "Kaedah semasa" -- real ceilings/shape from ranking/candidate-scoring.mjs,
 // written out here as display text (the file itself is never touched).
 const CURRENT_METHOD_LABEL = {
-  freshnessCeiling: 'Bucket tetap: <=6j=100, <=24j=80, <=3h=50, <=7h=20, lebih=0 (sama utk semua bidang)',
+  freshnessCeiling: 'Bucket tetap: <=6j=100, <=24j=80, <=3h=50, <=7h=20, lebih=0 (sama utk semua kategori)',
   trustCeiling: '0-100 mentah (skala penuh, TIDAK dinormal)',
   duplicationCeiling: '(tiada faktor ini dlm formula lama)',
   confidenceMultiplier: 'x10',
@@ -47,7 +47,7 @@ const INPUT_RANGE = {
 };
 
 // Hampiran "macam formula lama" -- BUKAN candidate-scoring.mjs sebenar
-// (kurva kebaruan V1 masih ikut bentuk per-bidang Pusingan 12, tak boleh
+// (kurva kebaruan V1 masih ikut bentuk per-kategori Pusingan 12, tak boleh
 // ditukar jadi bucket rata guna penukar magnitud sahaja). Label UI
 // nyatakan ini jelas supaya tak disalah anggap sbg formula lama tepat.
 const PRODUCTION_LIKE_PRESET = { freshnessCeiling: 25, trustCeiling: 100, duplicationCeiling: 0, confidenceMultiplier: 10, boostWeight: 40 };
@@ -146,7 +146,7 @@ export default function KaedahNilaiPanel({ corpus, error, weights, setWeights })
 
           <div className="classification-rules__filters">
             <label>
-              Bidang{' '}
+              Kategori{' '}
               <select value={fieldCode ?? ''} onChange={e => setFieldCode(e.target.value)}>
                 {fieldOptions.map(f => <option key={f} value={f}>{getFieldLabel(EDITION_ID, f)}</option>)}
               </select>
@@ -158,7 +158,7 @@ export default function KaedahNilaiPanel({ corpus, error, weights, setWeights })
           </div>
 
           {rows.length === 0 && (
-            <p className="review-queue__empty">{majorOnly ? 'Tiada perubahan besar dgn tetapan semasa.' : 'Tiada berita dlm bidang ini.'}</p>
+            <p className="review-queue__empty">{majorOnly ? 'Tiada perubahan besar dgn tetapan semasa.' : 'Tiada berita dlm kategori ini.'}</p>
           )}
           {rows.length > 0 && (
             <div className="source-table-wrap">

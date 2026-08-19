@@ -4,7 +4,7 @@ import { fetchClassificationFlow } from './classificationFlowAdapter.js';
 // ClassificationFlow.jsx — Aliran Klasifikasi Langsung.
 //
 // Direct answer to Izzat's complaint (2026-08-16): a live, readable list
-// of every recent RSS item, its source, and which Bidang it landed in.
+// of every recent RSS item, its source, and which Kategori it landed in.
 // No aggregation, no interpretation — the raw routing decision, visible.
 // Auto-refreshes every 30s; a manual button for "I want it now".
 export default function ClassificationFlow({ supabase, editionId }) {
@@ -28,7 +28,7 @@ export default function ClassificationFlow({ supabase, editionId }) {
     <div className="classification-flow">
       <div className="classification-flow__header">
         <p className="editorial-desk__placeholder-desc">
-          Setiap berita RSS terkini, sumber, dan Bidang yang ia diberikan —
+          Setiap berita RSS terkini, sumber, dan Kategori yang ia diberikan —
           tanpa tafsiran, terus daripada data sebenar.
         </p>
         <button type="button" onClick={load}>Muat semula sekarang</button>
@@ -49,7 +49,7 @@ export default function ClassificationFlow({ supabase, editionId }) {
             <tr>
               <th>Tajuk</th>
               <th>Sumber</th>
-              <th>Bidang</th>
+              <th>Kategori</th>
             </tr>
           </thead>
           <tbody>
@@ -60,8 +60,8 @@ export default function ClassificationFlow({ supabase, editionId }) {
                 <td>
                   {row.field ?? (
                     row.classificationStatus === 'not_yet_run'
-                      ? 'belum diklasifikasi'
-                      : 'tiada Bidang (unclassified)'
+                      ? 'belum diproses'
+                      : 'tiada kategori dikesan'
                   )}
                 </td>
               </tr>

@@ -52,7 +52,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
       {entry.pin && (
         <p className="review-card__promo-status">
           <span className="review-card__promo-tag">Dikekalkan dalam pemilihan</span>
-          Bidang: {entry.pin.field}. Tidak mengubah nilai berita; mempengaruhi pemilihan akhir.
+          Kategori: {entry.pin.field}. Tidak mengubah nilai berita; mempengaruhi pemilihan akhir.
           <button type="button" className="review-card__promo-undo" onClick={() => onUnpin(entry.pin.overrideId)} disabled={busy}>Nyahaktifkan</button>
         </p>
       )}
@@ -60,7 +60,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
       {composing === null && (
         <div className="review-card__actions">
           <button type="button" onClick={() => setComposing('reclassify')} disabled={busy}>
-            Ubah bidang
+            Ubah kategori
           </button>
           <button type="button" onClick={() => setComposing('hide')} disabled={busy}>
             Sembunyikan
@@ -83,7 +83,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
           {composing === 'reclassify' && (
             <>
               <label className="review-card__field">
-                Bidang baru
+                Kategori baru
                 <select value={newField} onChange={e => setNewField(e.target.value)}>
                   {taxonomy.map(field => (
                     <option key={field} value={field}>{field}</option>
@@ -92,7 +92,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
               </label>
               {/* Human-first confirm copy, per ChatGPT's explicit 3.6.3b
                   mandate — never "Override classification". */}
-              <p className="review-card__confirm">Letakkan berita ini di bidang lain.</p>
+              <p className="review-card__confirm">Letakkan berita ini di kategori lain.</p>
             </>
           )}
           {composing === 'hide' && (
@@ -107,14 +107,14 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
           {composing === 'pin' && (
             <>
               <label className="review-card__field">
-                Bidang
+                Kategori
                 <select value={newField} onChange={e => setNewField(e.target.value)}>
                   {taxonomy.map(field => (
                     <option key={field} value={field}>{field}</option>
                   ))}
                 </select>
               </label>
-              <p className="review-card__confirm">Tidak mengubah nilai berita; mempengaruhi pemilihan akhir dalam bidang ini. Had maksimum 2 berita dikekalkan serentak setiap bidang.</p>
+              <p className="review-card__confirm">Tidak mengubah nilai berita; mempengaruhi pemilihan akhir dalam kategori ini. Had maksimum 2 berita dikekalkan serentak setiap kategori.</p>
             </>
           )}
           <label className="review-card__field">
@@ -126,7 +126,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
                 composing === 'hide' ? 'Kenapa berita ini disembunyikan?'
                 : composing === 'boost' ? 'Kenapa berita ini perlu dinaikkan keutamaan?'
                 : composing === 'pin' ? 'Kenapa berita ini perlu dikekalkan?'
-                : 'Kenapa bidang ini lebih sesuai?'
+                : 'Kenapa kategori ini lebih sesuai?'
               }
               rows={2}
             />

@@ -47,7 +47,7 @@ export default function AdminDigest({ digest, error, onOpenQueue }) {
           <div className="digest__row digest__row--attention">
             <dt>Perlu perhatian</dt>
             <dd>
-              {needsAttention} berita belum pasti bidang{trend.reviewQueue}
+              {needsAttention} berita belum pasti kategori{trend.reviewQueue}
               {/* A digest that reports a problem without a route to fix it
                   just relocates the hunting — plan §2. */}
               <button type="button" className="digest__action" onClick={onOpenQueue}>

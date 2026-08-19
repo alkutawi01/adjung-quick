@@ -195,7 +195,7 @@ export default function SourceRegistryPanel({ supabase, role }) {
                       Sumber{sortKey === 'name' ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
                     </th>
                     <th>Jenis</th>
-                    <th>Bidang</th>
+                    <th>Kategori</th>
                     <th className="source-table__sortable" onClick={() => toggleSort('status')}>
                       Status{sortKey === 'status' ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
                     </th>
@@ -303,7 +303,7 @@ function SourceDrawer({ source, supabase, role, onClose, onSaved }) {
               <dt>Kepercayaan</dt><dd>{source.trustScore ?? '—'}</dd>
               <dt>Bahasa</dt><dd>{source.language ?? '—'} <span className="admin-app__status">(belum boleh diubah daripada Admin)</span></dd>
               <dt>Jenis</dt><dd>{JENIS_OPTIONS.find(o => o.value === source.sourceType)?.label ?? source.sourceType ?? '—'}</dd>
-              <dt>Bidang</dt><dd>{BIDANG_OPTIONS.find(o => o.code === source.knownCategory)?.label ?? source.knownCategory ?? '—'}</dd>
+              <dt>Kategori</dt><dd>{BIDANG_OPTIONS.find(o => o.code === source.knownCategory)?.label ?? source.knownCategory ?? '—'}</dd>
               {source.excludePatterns && <><dt>Corak dikecualikan</dt><dd>{source.excludePatterns.map(String).join(', ')}</dd></>}
               {source.extraCa && <><dt>Sijil tambahan</dt><dd>Ada (extra_ca) <span className="admin-app__status">(belum boleh diubah daripada Admin)</span></dd></>}
             </dl>
@@ -334,9 +334,9 @@ function SourceDrawer({ source, supabase, role, onClose, onSaved }) {
               </select>
             </label>
             <label className="review-card__field">
-              Bidang
+              Kategori
               <select value={knownCategory} onChange={e => setKnownCategory(e.target.value)} disabled={busy}>
-                <option value="">— Tiada bidang khusus —</option>
+                <option value="">— Tiada kategori khusus —</option>
                 {BIDANG_OPTIONS.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
               </select>
             </label>
@@ -427,9 +427,9 @@ function AddSourceDrawer({ supabase, role, onDone, onCancel }) {
             </select>
           </label>
           <label className="review-card__field">
-            Bidang (jika khusus satu bidang sahaja)
+            Kategori (jika feed ini khusus satu kategori sahaja)
             <select value={knownCategory} onChange={e => setKnownCategory(e.target.value)} disabled={busy}>
-              <option value="">— Tiada bidang khusus —</option>
+              <option value="">— Tiada kategori khusus —</option>
               {BIDANG_OPTIONS.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
             </select>
           </label>
@@ -438,7 +438,7 @@ function AddSourceDrawer({ supabase, role, onDone, onCancel }) {
             Sumber akan ditambah sebagai aktif<br />
             Nama: <b>{name || '—'}</b><br />
             URL: <b>{url || '—'}</b><br />
-            Bidang: <b>{bidangLabel}</b>
+            Kategori: <b>{bidangLabel}</b>
           </p>
 
           <div className="review-card__actions">

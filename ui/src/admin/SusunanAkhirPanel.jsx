@@ -35,7 +35,7 @@ const COMPOSITION_LABEL = {
   source_diversity_opportunity: 'Dimasukkan -- gantikan pilihan sumber dominan yang lebih lemah',
   displaced_for_source_diversity: 'Digantikan -- sumbernya menguasai >50% slot, ada gantian lebih kuat',
   dominant_event_preserved: 'Dikekalkan -- peristiwa dominan sebenar, tiada gantian cukup kualiti',
-  no_diversity_candidate_available: 'Dikekalkan -- tiada calon sumber lain langsung dlm bidang ini',
+  no_diversity_candidate_available: 'Dikekalkan -- tiada calon sumber lain langsung dlm kategori ini',
 };
 
 function runPipeline(group, mode, weights, now) {
@@ -109,7 +109,7 @@ export default function SusunanAkhirPanel({ corpus, error, weights }) {
 
       <div className="classification-rules__filters">
         <label>
-          Bidang{' '}
+          Kategori{' '}
           <select value={activeField ?? ''} onChange={e => setFieldCode(e.target.value)}>
             {fieldOptions.map(f => <option key={f} value={f}>{getFieldLabel(EDITION_ID, f)}</option>)}
           </select>

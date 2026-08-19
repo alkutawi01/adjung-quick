@@ -26,7 +26,7 @@ const UNIVERSAL_GEOGRAPHIES = [...new Set(Object.values(GEOGRAPHY_VOCABULARY))].
 // Pusingan Polish 1/5 (2026-08-19): renamed "Susunan Edisi" -> "Paparan
 // Edisi" and copy simplified throughout per ChatGPT's exact target --
 // this was one of Izzat's own flagged screenshots (too technical, mixed
-// Bidang/Kategori terminology, raw priority number shown to editor).
+// Kategori/Kategori terminology, raw priority number shown to editor).
 const BUILT_IN_RULE_DESCRIPTION = 'Politik luar Malaysia → Dunia';
 
 export default function EditionRulesManager({ editionLabel, taxonomyFieldCodes, taxonomyFieldLabels, rules, busy, onAdd, onArchive, onRestore }) {
@@ -42,7 +42,7 @@ export default function EditionRulesManager({ editionLabel, taxonomyFieldCodes, 
     <article className="edition-rules">
       <h3 className="editorial-desk__placeholder-title">Paparan Edisi — {editionLabel}</h3>
       <p className="editorial-desk__placeholder-desc">
-        Tentukan bagaimana sesuatu bidang dipaparkan dalam edisi ini. Pelarasan yang awak tambah
+        Tentukan bagaimana sesuatu kategori dipaparkan dalam edisi ini. Pelarasan yang awak tambah
         di bawah diutamakan berbanding tetapan asas.
       </p>
 
@@ -176,7 +176,7 @@ function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, busy, onA
       <label className="edition-rules__field">
         Jika bidang:
         <select value={subject} onChange={e => setSubject(e.target.value)} disabled={busy}>
-          <option value="">— Pilih bidang —</option>
+          <option value="">— Pilih kategori —</option>
           {UNIVERSAL_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </label>

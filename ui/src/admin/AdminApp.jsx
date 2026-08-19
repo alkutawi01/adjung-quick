@@ -23,11 +23,11 @@ import TapisanPanel from './TapisanPanel.jsx';
 
 // Berita sub-sections — per docs/editorial-desk-shell-implementation-plan-v1.md.
 // 'aliran' added 2026-08-16, direct response to Izzat's complaint that raw
-// RSS-to-Bidang routing was invisible — a live table, not a report. Its
+// RSS-to-Kategori routing was invisible — a live table, not a report. Its
 // label was originally "Semua Berita" — renamed to "Aliran Klasifikasi"
 // (matching the component's own doc header) in Pusingan 7/15, when
 // 'semua-berita' below took over that name for the real daily workbench
-// (title/sumber/masa/bidang/status/nilai, allStoriesAdapter.js) --
+// (title/sumber/masa/kategori/status/nilai, allStoriesAdapter.js) --
 // ClassificationFlow.jsx is a routing audit, not the corpus an editor
 // scans day to day, so the two needed to stop sharing one label.
 const BERITA_SECTIONS = [
@@ -48,7 +48,7 @@ const GROUPS = [
   { id: 'berita', label: 'Berita', sections: ['hari-ini', 'semakan', 'semua-berita', 'aliran', 'rekod'] },
   { id: 'sumber', label: 'Sumber', sections: [] },
   { id: 'tapisan', label: 'Tapisan', sections: ['keputusan'] },
-  { id: 'bidang', label: 'Bidang', sections: ['peraturan', 'susunan-edisi'] },
+  { id: 'bidang', label: 'Kategori', sections: ['peraturan', 'susunan-edisi'] },
   { id: 'nilai', label: 'Nilai & Susunan', sections: [] },
   { id: 'tetapan', label: 'Tetapan', sections: [] },
 ];

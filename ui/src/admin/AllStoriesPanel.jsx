@@ -129,7 +129,7 @@ export default function AllStoriesPanel({ supabase, editionId, role, userId, tax
               {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <select value={fieldFilter} onChange={e => setFieldFilter(e.target.value)}>
-              <option value="all">Semua bidang</option>
+              <option value="all">Semua kategori</option>
               {fieldOptions.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
@@ -151,7 +151,7 @@ export default function AllStoriesPanel({ supabase, editionId, role, userId, tax
                     <th>Berita</th>
                     <th>Sumber</th>
                     <th>Masa</th>
-                    <th>Bidang</th>
+                    <th>Kategori</th>
                     <th>Status</th>
                     <th>Nilai</th>
                     <th>Tindakan</th>
@@ -236,7 +236,7 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
         <dl className="drawer__fields">
           <dt>Sumber</dt><dd>{story.sourceName}</dd>
           <dt>Masa</dt><dd>{formatMasa(story.publishedAt)}</dd>
-          <dt>Bidang</dt><dd>{story.fieldLabel ?? '—'}</dd>
+          <dt>Kategori</dt><dd>{story.fieldLabel ?? '—'}</dd>
           <dt>Status</dt><dd>{story.status}</dd>
           {story.link && <><dt>URL sumber</dt><dd><code>{story.link}</code></dd></>}
           {story.filteredByPhrase && <><dt>Ditapis</dt><dd>Sepadan kata kunci "{story.filteredByPhrase}" (tidak dipaparkan kepada pembaca).</dd></>}
@@ -262,7 +262,7 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
           </p>
         ) : composing === null && (
           <div className="review-card__actions">
-            <button type="button" onClick={() => setComposing('reclassify')} disabled={busy}>Ubah bidang</button>
+            <button type="button" onClick={() => setComposing('reclassify')} disabled={busy}>Ubah kategori</button>
             <button type="button" onClick={() => setComposing('hide')} disabled={busy}>Sembunyikan</button>
             {!story.boosted && <button type="button" onClick={() => setComposing('boost')} disabled={busy}>Naikkan keutamaan</button>}
             {!story.pinned && <button type="button" onClick={() => setComposing('pin')} disabled={busy}>Kekalkan dalam pemilihan</button>}
@@ -273,7 +273,7 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
           <div className="review-card__compose">
             {(composing === 'reclassify' || composing === 'pin') && (
               <label className="review-card__field">
-                Bidang{composing === 'pin' ? '' : ' baru'}
+                Kategori{composing === 'pin' ? '' : ' baru'}
                 <select value={newField} onChange={e => setNewField(e.target.value)}>
                   {taxonomy.map(field => <option key={field} value={field}>{field}</option>)}
                 </select>
@@ -281,8 +281,8 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
             )}
             {composing === 'hide' && <p className="review-card__confirm">Berita ini tidak akan muncul kepada pembaca.</p>}
             {composing === 'boost' && <p className="review-card__confirm">Menambah +40 pada nilai berita ini -- meningkatkan peluang ia dipilih, tidak menjamin.</p>}
-            {composing === 'pin' && <p className="review-card__confirm">Tidak mengubah nilai berita; mempengaruhi pemilihan akhir dalam bidang ini. Had maksimum 2 berita dikekalkan serentak setiap bidang.</p>}
-            {composing === 'reclassify' && <p className="review-card__confirm">Letakkan berita ini di bidang lain.</p>}
+            {composing === 'pin' && <p className="review-card__confirm">Tidak mengubah nilai berita; mempengaruhi pemilihan akhir dalam kategori ini. Had maksimum 2 berita dikekalkan serentak setiap kategori.</p>}
+            {composing === 'reclassify' && <p className="review-card__confirm">Letakkan berita ini di kategori lain.</p>}
             <label className="review-card__field">
               Sebab (wajib)
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} />
