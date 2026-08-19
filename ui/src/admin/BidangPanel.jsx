@@ -27,6 +27,56 @@ import EditionRulesManager from './EditionRulesManager.jsx';
 import { getFieldLabel } from '../../../state/editions.js';
 import { getFieldEntryForSubject } from '../../../classification/lib/taxonomy-registry.mjs';
 import { resolveKnownCategory } from './kategoriLabel.js';
+import { addClassificationRule, archiveClassificationRule } from './classificationRulesAdapter.js';
+
+// Polish 2/5: self-service form for a source-scoped Kategori override.
+// A classification rule of rule_type='source' SHORT-CIRCUITS the whole
+// automatic resolver when it matches (confirmed in classifyForEdition()),
+// so the copy here says "tetapkan" -- a firm decision -- never "cadangan".
+// Priority is auto-assigned by the caller; the editor never sees a number.
+function TambahPelarasanSumber({ sources, taxonomyFieldCodes, taxonomyFieldLabels, busy, nextPriority, onAdd, onCancel }) {
+  const [sourceId, setSourceId] = useState('');
+  const [fieldCode, setFieldCode] = useState('');
+  const canSubmit = sourceId && fieldCode && !busy;
+
+  return (
+    <form
+      className="source-registry__add"
+      onSubmit={e => {
+        e.preventDefault();
+        if (!canSubmit) return;
+        onAdd({ ruleType: 'source', pattern: sourceId, fieldCode, priority: nextPriority });
+      }}
+    >
+      <label className="review-card__field">
+        Sumber
+        <select value={sourceId} onChange={e => setSourceId(e.target.value)} disabled={busy}>
+          <option value="">— Pilih sumber —</option>
+          {[...(sources ?? [])].sort((a, b) => a.name.localeCompare(b.name)).map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+      </label>
+      <label className="review-card__field">
+        Paparkan dalam
+        <select value={fieldCode} onChange={e => setFieldCode(e.target.value)} disabled={busy}>
+          <option value="">— Pilih kategori —</option>
+          {taxonomyFieldCodes.map((code, i) => (
+            <option key={code} value={code}>{taxonomyFieldLabels[i]}</option>
+          ))}
+        </select>
+      </label>
+      <p className="section-note">
+        Semua berita daripada sumber ini akan terus diletakkan dalam kategori yang dipilih,
+        mengatasi petunjuk automatik.
+      </p>
+      <div className="card__actions">
+        <button type="submit" disabled={!canSubmit}>{busy ? 'Menyimpan...' : 'Simpan'}</button>
+        <button type="button" className="btn--quiet" onClick={onCancel} disabled={busy}>Batal</button>
+      </div>
+    </form>
+  );
+}
 
 // Pusingan Polish 1/5 (2026-08-19), real bug found via authenticated
 // screenshot audit: getFieldLabel(editionId, fieldCode) only resolves a
@@ -102,14 +152,17 @@ const CONTENT_PHRASE_RULES = [
 // pelarasan" action is offered here; the gap is stated plainly instead of
 // papered over with a button that would fail or, worse, silently need a
 // secret key this app must never hold.
-function PemetaanSumber({ supabase, editionId }) {
+function PemetaanSumber({ supabase, editionId, taxonomyFieldCodes, taxonomyFieldLabels, userId }) {
   const [sources, setSources] = useState(null);
   const [sourcesError, setSourcesError] = useState(null);
   const [rules, setRules] = useState(null);
   const [rulesError, setRulesError] = useState(null);
   const [openId, setOpenId] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
-  useEffect(() => {
+  const load = () => {
     setSources(null);
     setSourcesError(null);
     fetchAllSourcesForIngestion(supabase)
@@ -120,7 +173,22 @@ function PemetaanSumber({ supabase, editionId }) {
     fetchClassificationRules(supabase)
       .then(setRules)
       .catch(err => setRulesError(err.message));
-  }, [supabase]);
+  };
+
+  useEffect(load, [supabase]);
+
+  const runAction = async fn => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await fn();
+      load();
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Admin override lookup: an ACTIVE classification_rules row of
   // rule_type='source' whose pattern is this source's id.
@@ -144,7 +212,27 @@ function PemetaanSumber({ supabase, editionId }) {
   return (
     <div className="bidang-pemetaan">
       {error && <p className="review-queue__error">Ralat memuatkan pemetaan: {error}</p>}
+      {actionError && <p className="review-queue__error">Ralat: {actionError}</p>}
       {loading && !error && <p className="admin-app__status">Memuatkan...</p>}
+
+      {!loading && !addOpen && (
+        <button type="button" onClick={() => setAddOpen(true)}>+ Tambah pelarasan</button>
+      )}
+      {!loading && addOpen && (
+        <TambahPelarasanSumber
+          sources={sources}
+          taxonomyFieldCodes={taxonomyFieldCodes}
+          taxonomyFieldLabels={taxonomyFieldLabels}
+          busy={busy}
+          nextPriority={(rules ?? []).filter(r => r.rule_type === 'source' && r.status !== 'archived').length + 1}
+          onCancel={() => setAddOpen(false)}
+          onAdd={payload => runAction(async () => {
+            await addClassificationRule(supabase, { ...payload, editionId, createdBy: userId ?? null });
+            setAddOpen(false);
+          })}
+        />
+      )}
+
       {!loading && (
         <div className="source-table-wrap">
           <table className="source-table">
@@ -166,7 +254,18 @@ function PemetaanSumber({ supabase, editionId }) {
                     <td className="source-table__name">{source.name}</td>
                     <td>{fieldLabel}</td>
                     <td>{override ? 'Pelarasan Admin' : 'Tetapan asas'}</td>
-                    <td><button type="button" onClick={() => setOpenId(source.id)}>Lihat</button></td>
+                    <td className="source-table__actions">
+                      <button type="button" onClick={() => setOpenId(source.id)}>Lihat</button>
+                      {override && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => runAction(() => archiveClassificationRule(supabase, override.id))}
+                        >
+                          Buang pelarasan
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -187,9 +286,8 @@ function PemetaanSumber({ supabase, editionId }) {
               <dd>{open.override ? resolveBidangLabel(editionId, { fieldCode: open.override.field_code, subjectCode: open.override.subject_code }) : 'Tiada'}</dd>
             </dl>
             <p className="section-note" style={{ marginTop: 14 }}>
-              Tambah/ubah pelarasan belum tersedia di sini -- laluan tulis backend masih
-              terhad kepada sistem sahaja, bukan sesi admin biasa. Perlu dibetulkan di
-              backend dahulu (macam Paparan Edisi dahulu) sebelum boleh disambung dgn selamat.
+              Pelarasan Admin mengatasi tetapan asas: semua berita daripada sumber ini akan
+              terus diletakkan dalam kategori yang ditetapkan.
             </p>
           </aside>
         </div>
@@ -469,7 +567,7 @@ function FeedCampuran({ supabase, editionId }) {
   );
 }
 
-export default function BidangPanel({ supabase, editionId, editionLabel, editionRules, editionRulesError, editionRulesBusy, onAddEditionRule, onArchiveEditionRule, onRestoreEditionRule, taxonomyFieldCodes, taxonomyFieldLabels }) {
+export default function BidangPanel({ supabase, editionId, editionLabel, editionRules, editionRulesError, editionRulesBusy, onAddEditionRule, onArchiveEditionRule, onRestoreEditionRule, taxonomyFieldCodes, taxonomyFieldLabels, userId }) {
   return (
     <div className="bidang-panel">
       <p className="bidang-panel__intro">
@@ -483,7 +581,13 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
       <p className="bidang-panel__section-desc">
         Sumber yang feednya sudah didedikasikan kepada satu kategori -- tiada peraturan diperlukan.
       </p>
-      <PemetaanSumber supabase={supabase} editionId={editionId} />
+      <PemetaanSumber
+        supabase={supabase}
+        editionId={editionId}
+        taxonomyFieldCodes={taxonomyFieldCodes}
+        taxonomyFieldLabels={taxonomyFieldLabels}
+        userId={userId}
+      />
 
       <h2 className="bidang-panel__section-title">Petunjuk RSS/URL</h2>
       <p className="bidang-panel__section-desc">

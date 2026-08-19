@@ -477,6 +477,7 @@ function ReviewQueue({ userId, role }) {
             editionLabel={getEdition(editionId).label}
             taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
             taxonomyFieldLabels={getEdition(editionId).taxonomy}
+            userId={userId}
             editionRules={editionRules}
             editionRulesError={editionRulesError}
             editionRulesBusy={editionRulesBusy}

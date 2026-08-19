@@ -34,6 +34,42 @@ export async function fetchClassificationRules(supabase) {
 // Returns a Map<id, rule> — a missing id simply has no entry, which
 // ClassificationProvenance.jsx treats as "rule not found" rather than
 // throwing.
+// Write path — Polish 2/5 (2026-08-19). Newly usable from the browser:
+// db/schema-classification-rules-rpc-authenticated-patch-v1.sql granted
+// EXECUTE to `authenticated` (admin enforced inside each function, V2
+// pattern). Before that patch these RPCs were service_role-only, which is
+// why Kategori was read-only for four rounds.
+//
+// Same shape as editionRulesAdapter.js's write functions deliberately --
+// thin rpc() wrappers, no client-side authority logic. The admin check
+// lives in the function body where it cannot be bypassed by a caller.
+//
+// `priority` is auto-assigned by the caller, never entered by the editor
+// (ChatGPT's instruction: no raw priority in the UI).
+export async function addClassificationRule(supabase, { ruleType, editionId, pattern, fieldCode, subjectCode, priority, createdBy }) {
+  const { data, error } = await supabase.rpc('add_classification_rule', {
+    p_rule_type: ruleType,
+    p_edition_id: editionId ?? null,
+    p_pattern: pattern,
+    p_field_code: fieldCode ?? null,
+    p_subject_code: subjectCode ?? null,
+    p_priority: priority ?? 0,
+    p_created_by: createdBy ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function archiveClassificationRule(supabase, id) {
+  const { error } = await supabase.rpc('archive_classification_rule', { p_id: id });
+  if (error) throw new Error(error.message);
+}
+
+export async function restoreClassificationRule(supabase, id) {
+  const { error } = await supabase.rpc('restore_classification_rule', { p_id: id });
+  if (error) throw new Error(error.message);
+}
+
 export async function fetchClassificationRulesByIds(supabase, ids) {
   const uniqueIds = [...new Set(ids.filter(Boolean))];
   if (uniqueIds.length === 0) return new Map();
