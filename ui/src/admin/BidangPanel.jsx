@@ -21,8 +21,30 @@
 import { useEffect, useState, useMemo } from 'react';
 import { fetchAllSourcesForIngestion } from '../../../db/source-registry-adapter.mjs';
 import { fetchClassificationRules } from './classificationRulesAdapter.js';
+import { SUBJECT_VOCABULARY } from '../../../classification/lib/desk-vocabulary.mjs';
 import ClassificationRulesList from './ClassificationRulesList.jsx';
 import EditionRulesManager from './EditionRulesManager.jsx';
+import { getFieldLabel } from '../../../state/editions.js';
+
+// ms-MY tokens only from SUBJECT_VOCABULARY -- Fasa 4's locked scope is
+// ms-MY sahaja (en-global/ar-global deferred), same convention as
+// EditionRulesManager's ms-MY-only gate elsewhere in this file. The
+// dictionary itself has no per-token language tag, so this list is
+// maintained by hand against the real file's own "--- ms-MY ---" section
+// (classification/lib/desk-vocabulary.mjs) -- verified against that file
+// this round, not guessed.
+const MS_MY_TOKENS = [
+  'politik', 'nasional/politik', 'berita-politik', 'jenayah', 'kes', 'ekonomi',
+  'bisnes', 'berita-bisnes', 'sukan', 'berita-sukan', 'arena', 'kesihatan', 'sihat',
+  'pendidikan', 'akademia', 'teknologi', 'itmetro', 'sains', 'alam sekitar', 'budaya',
+  'hiburan', 'gaya/hiburan', 'berita-hiburan', 'rap', 'agama', 'addin',
+  'gaya hidup', 'gaya-hidup', 'santai',
+];
+
+// Bernama's real title-prefix mechanism (classification/lib/bernama-prefix.mjs),
+// hand-copied here for display since the source file exports a lookup
+// function, not the raw map -- values verified to match that file exactly.
+const BERNAMA_PREFIX_SUBJECTS = { business: 'Business', sports: 'Sports', sukan: 'Sports' };
 
 // Pemetaan Sumber -- Round 4/15 (2026-08-19). Traced before building:
 // classify-production.js's real precedence is Admin Classification Rule
@@ -139,6 +161,137 @@ function PemetaanSumber({ supabase }) {
   );
 }
 
+// Petunjuk RSS/URL -- Round 5/15 (2026-08-19). Traced every REAL
+// production structural-evidence mechanism before building this table
+// (per instruction: "cari semua production path... jangan gunakan audit
+// malam tadi sebagai senarai pemetaan baru"):
+//
+// 1. desk-vocabulary.mjs's SUBJECT_VOCABULARY -- a token->Universal
+//    Subject lookup matched against RSS <category>/URL segments alike
+//    (story-understanding.mjs reads it for both). Always "Tetapan asas"
+//    -- there is no admin-override path into this hardcoded dictionary.
+// 2. bernama-prefix.mjs's title-prefix map -- Bernama-specific, a
+//    DIFFERENT evidence shape (title text, not URL/category) but still
+//    Tier 1 publisher-declared structure, not content/keyword.
+// 3. classification_rules rows with rule_type='url' -- these ARE
+//    Admin-authored per that table's own design (an explicit fact), so
+//    always shown as "Pelarasan Admin", never "Tetapan asas".
+//
+// Deliberately excludes keyword-type rules and content-rules.mjs's
+// phrase list -- those are Feed Campuran's scope (a later round), kept
+// out so the hierarchy (source-dedicated -> structural evidence ->
+// content fallback) stays legible to an editor reading this screen.
+function PetunjukRssUrl({ supabase, editionId }) {
+  const [rules, setRules] = useState(null);
+  const [error, setError] = useState(null);
+  const [openRow, setOpenRow] = useState(null);
+
+  useEffect(() => {
+    setRules(null);
+    setError(null);
+    fetchClassificationRules(supabase)
+      .then(setRules)
+      .catch(err => setError(err.message));
+  }, [supabase]);
+
+  const vocabRows = MS_MY_TOKENS
+    .filter(token => SUBJECT_VOCABULARY[token])
+    .map(token => ({
+      key: `vocab-${token}`,
+      sumber: 'Semua sumber',
+      jenis: 'Kategori RSS / segmen URL',
+      corak: token,
+      bidang: getFieldLabel(editionId, SUBJECT_VOCABULARY[token]),
+      asal: 'Tetapan asas',
+      liputan: 'Hanya item sepadan',
+    }));
+
+  const bernamaRows = Object.entries(BERNAMA_PREFIX_SUBJECTS).map(([prefix, subject]) => ({
+    key: `bernama-${prefix}`,
+    sumber: 'Bernama',
+    jenis: 'Prefix tajuk',
+    corak: `"${prefix} : ..."`,
+    bidang: getFieldLabel(editionId, subject),
+    asal: 'Tetapan asas',
+    liputan: 'Hanya item sepadan',
+  }));
+
+  const urlRuleRows = (rules ?? [])
+    .filter(r => r.rule_type === 'url' && r.status !== 'archived')
+    .map(r => ({
+      key: `rule-${r.id}`,
+      sumber: r.sourceName ?? 'Pelbagai',
+      jenis: 'URL (peraturan Admin)',
+      corak: r.pattern,
+      bidang: getFieldLabel(r.edition_id ?? editionId, r.field_code ?? r.subject_code),
+      asal: 'Pelarasan Admin',
+      liputan: 'Hanya item sepadan',
+    }));
+
+  const rows = [...vocabRows, ...bernamaRows, ...urlRuleRows];
+  const open = rows.find(r => r.key === openRow) ?? null;
+
+  return (
+    <div className="bidang-pemetaan">
+      {error && <p className="review-queue__error">Ralat memuatkan peraturan Admin: {error}</p>}
+      {rules === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {rules !== null && (
+        <div className="source-table-wrap">
+          <table className="source-table">
+            <thead>
+              <tr>
+                <th>Sumber</th>
+                <th>Jenis Petunjuk</th>
+                <th>Corak/Nilai</th>
+                <th>Bidang</th>
+                <th>Asal</th>
+                <th>Liputan</th>
+                <th>Tindakan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.key}>
+                  <td className="source-table__name">{r.sumber}</td>
+                  <td>{r.jenis}</td>
+                  <td><code>{r.corak}</code></td>
+                  <td>{r.bidang}</td>
+                  <td>{r.asal}</td>
+                  <td>{r.liputan}</td>
+                  <td><button type="button" onClick={() => setOpenRow(r.key)}>Lihat</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="section-note">
+        Peraturan Admin baharu (jenis URL) belum boleh ditambah di sini -- laluan tulis
+        classification_rules RPC masih terhad kepada service_role sahaja (sama isu macam
+        Pemetaan Sumber di atas). Dicatat sebagai backlog, belum dibetulkan pusingan ini.
+      </p>
+
+      {open && (
+        <div className="drawer-overlay" onClick={() => setOpenRow(null)}>
+          <aside className="drawer" onClick={e => e.stopPropagation()}>
+            <button type="button" className="drawer__close" onClick={() => setOpenRow(null)}>Tutup</button>
+            <h3 className="drawer__title">Petunjuk {open.jenis}</h3>
+            <dl className="drawer__fields">
+              <dt>Sumber</dt><dd>{open.sumber}</dd>
+              <dt>Corak</dt><dd><code>{open.corak}</code></dd>
+              <dt>Hasil</dt><dd>{open.bidang}</dd>
+              <dt>Asal</dt><dd>{open.asal}</dd>
+            </dl>
+            <p className="section-note" style={{ marginTop: 14 }}>
+              Digunakan apabila petunjuk ini ditemui pada item berita.
+            </p>
+          </aside>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BidangPanel({ supabase, editionId, editionLabel, editionRules, editionRulesError, editionRulesBusy, onAddEditionRule, onArchiveEditionRule, onRestoreEditionRule, taxonomyFieldCodes, taxonomyFieldLabels }) {
   return (
     <div className="bidang-panel">
@@ -155,10 +308,17 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
       </p>
       <PemetaanSumber supabase={supabase} />
 
-      <h2 className="bidang-panel__section-title">Petunjuk RSS/URL &amp; Feed Campuran</h2>
+      <h2 className="bidang-panel__section-title">Petunjuk RSS/URL</h2>
       <p className="bidang-panel__section-desc">
-        Peraturan bidang sebenar -- tapis &ldquo;Jenis&rdquo; di bawah kepada URL/Sumber utk
-        petunjuk struktur, atau Kata kunci utk feed campuran (bila petunjuk struktur tak cukup).
+        Bila kategori RSS, segmen URL atau prefix tajuk sudah cukup jelas -- tiada kata kunci
+        kandungan terlibat di sini.
+      </p>
+      <PetunjukRssUrl supabase={supabase} editionId={editionId} />
+
+      <h2 className="bidang-panel__section-title">Semua peraturan (pandangan penuh)</h2>
+      <p className="bidang-panel__section-desc">
+        Termasuk peraturan jenis Kata kunci (Feed Campuran) -- tapis &ldquo;Jenis&rdquo; di
+        bawah utk fokus kepada satu jenis.
       </p>
       <ClassificationRulesList supabase={supabase} />
 
