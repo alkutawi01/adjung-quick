@@ -26,6 +26,7 @@ import ClassificationRulesList from './ClassificationRulesList.jsx';
 import EditionRulesManager from './EditionRulesManager.jsx';
 import { getFieldLabel } from '../../../state/editions.js';
 import { getFieldEntryForSubject } from '../../../classification/lib/taxonomy-registry.mjs';
+import { resolveKnownCategory } from './kategoriLabel.js';
 
 // Pusingan Polish 1/5 (2026-08-19), real bug found via authenticated
 // screenshot audit: getFieldLabel(editionId, fieldCode) only resolves a
@@ -159,7 +160,7 @@ function PemetaanSumber({ supabase, editionId }) {
               {rows.map(({ source, override }) => {
                 const fieldLabel = override
                   ? resolveBidangLabel(editionId, { fieldCode: override.field_code, subjectCode: override.subject_code })
-                  : (source.knownCategory ? getFieldLabel(editionId, source.knownCategory) : 'Umum (ditentukan melalui petunjuk berita)');
+                  : resolveKnownCategory(editionId, source.knownCategory).label;
                 return (
                   <tr key={source.id}>
                     <td className="source-table__name">{source.name}</td>
@@ -181,7 +182,7 @@ function PemetaanSumber({ supabase, editionId }) {
             <h3 className="drawer__title">{open.source.name} &mdash; Pemetaan Kategori</h3>
             <dl className="drawer__fields">
               <dt>Tetapan asas</dt>
-              <dd>{open.source.knownCategory ? getFieldLabel(editionId, open.source.knownCategory) : 'Umum (ditentukan melalui petunjuk berita)'}</dd>
+              <dd>{resolveKnownCategory(editionId, open.source.knownCategory).label}</dd>
               <dt>Pelarasan Admin</dt>
               <dd>{open.override ? resolveBidangLabel(editionId, { fieldCode: open.override.field_code, subjectCode: open.override.subject_code }) : 'Tiada'}</dd>
             </dl>

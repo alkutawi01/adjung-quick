@@ -27,6 +27,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { fetchAllSourcesForIngestion, addSource, updateSource, setSourceStatus } from '../../../db/source-registry-adapter.mjs';
 import { getEdition } from '../../../state/editions.js';
+import { resolveKnownCategory } from './kategoriLabel.js';
 
 // known_category values observed in production (db/generate-source-
 // registry-production-migration.mjs carries lab/sources.js's sourceType/
@@ -195,7 +196,13 @@ export default function SourceRegistryPanel({ supabase, role }) {
                       Sumber{sortKey === 'name' ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
                     </th>
                     <th>Jenis</th>
-                    <th>Kategori</th>
+                    {/* "Petunjuk kategori", bukan "Kategori" -- lajur ini
+                        memaparkan known_category, iaitu token PETUNJUK yang
+                        didaftarkan pada feed, bukan kuasa editorial. Sumber
+                        simpan fakta tentang feed; Kategori simpan keputusan
+                        Admin. Jangan campur (keputusan reka bentuk dikunci
+                        Polish 2/5). */}
+                    <th>Petunjuk kategori</th>
                     <th className="source-table__sortable" onClick={() => toggleSort('status')}>
                       Status{sortKey === 'status' ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
                     </th>
@@ -211,7 +218,7 @@ export default function SourceRegistryPanel({ supabase, role }) {
                     <tr key={s.id} className={s.status !== 'active' ? 'source-table__row--inactive' : ''}>
                       <td className="source-table__name">{s.name}</td>
                       <td>{JENIS_OPTIONS.find(o => o.value === s.sourceType)?.label ?? s.sourceType ?? '—'}</td>
-                      <td>{BIDANG_OPTIONS.find(o => o.code === s.knownCategory)?.label ?? s.knownCategory ?? '—'}</td>
+                      <td>{resolveKnownCategory('ms-MY', s.knownCategory).label}</td>
                       <td>
                         <span className={`source-registry__status source-registry__status--${s.status}`}>
                           {s.status === 'active' ? 'Aktif' : s.status === 'disabled' ? 'Tidak aktif' : 'Diarkibkan'}
@@ -303,7 +310,7 @@ function SourceDrawer({ source, supabase, role, onClose, onSaved }) {
               <dt>Kepercayaan</dt><dd>{source.trustScore ?? '—'}</dd>
               <dt>Bahasa</dt><dd>{source.language ?? '—'} <span className="admin-app__status">(belum boleh diubah daripada Admin)</span></dd>
               <dt>Jenis</dt><dd>{JENIS_OPTIONS.find(o => o.value === source.sourceType)?.label ?? source.sourceType ?? '—'}</dd>
-              <dt>Kategori</dt><dd>{BIDANG_OPTIONS.find(o => o.code === source.knownCategory)?.label ?? source.knownCategory ?? '—'}</dd>
+              <dt>Petunjuk kategori</dt><dd>{resolveKnownCategory('ms-MY', source.knownCategory).label}</dd>
               {source.excludePatterns && <><dt>Corak dikecualikan</dt><dd>{source.excludePatterns.map(String).join(', ')}</dd></>}
               {source.extraCa && <><dt>Sijil tambahan</dt><dd>Ada (extra_ca) <span className="admin-app__status">(belum boleh diubah daripada Admin)</span></dd></>}
             </dl>
