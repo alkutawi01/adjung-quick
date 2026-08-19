@@ -14,6 +14,7 @@ import SourceRegistryPanel from './SourceRegistryPanel.jsx';
 import BidangPanel from './BidangPanel.jsx';
 import ValueRankingPanel from './ValueRankingPanel.jsx';
 import AllStoriesPanel from './AllStoriesPanel.jsx';
+import TapisanPanel from './TapisanPanel.jsx';
 
 // Berita sub-sections — per docs/editorial-desk-shell-implementation-plan-v1.md.
 // 'aliran' added 2026-08-16, direct response to Izzat's complaint that raw
@@ -421,28 +422,30 @@ function ReviewQueue({ userId, role }) {
 
       {activeGroup === 'tapisan' && (
         <section className="editorial-desk__section editorial-desk__keputusan">
-          {/* Editorial Filter Rules V1 — the one REAL, wired-up card here,
-              per docs/editorial-filter-rules-design-v1.md and ChatGPT's
-              2026-08-16 instruction to build this before dropping *_old. */}
+          {/* Pusingan 9/15: TapisanPanel replaces the old side-by-side
+              FilterRulesManager + FilterRuleEffect layout with two dense
+              tables (peraturan tapisan / pengecualian global), effect
+              counts inline on each row. Same adapters, same resolver,
+              only the layout changed. FilterRulesManager.jsx/
+              FilterRuleEffect.jsx are no longer mounted here -- left in
+              place (not deleted) since nothing else in this round
+              confirmed them fully orphaned. */}
           {filterRulesError && <p className="review-queue__error">{filterRulesError}</p>}
           {filterRules === null && !filterRulesError && (
             <p className="admin-app__status">Memuatkan...</p>
           )}
           {filterRules !== null && (
-            <FilterRulesManager
+            <TapisanPanel
               rules={filterRules}
+              effects={filterEffect}
+              effectsError={filterEffectError}
               busy={filterRulesBusy}
               onAdd={({ ruleType, phrase, reason }) => runFilterRuleAction(() =>
                 addFilterRule(adminSupabase, { ruleType, phrase, reason, createdBy: userId, role }))}
               onToggle={(id, active) => runFilterRuleAction(() =>
                 setFilterRuleActive(adminSupabase, id, active, role))}
-              onDelete={id => runFilterRuleAction(() =>
-                deleteFilterRule(adminSupabase, id, role))}
             />
           )}
-
-          <h3 className="bidang-panel__section-title">Kesan sebenar</h3>
-          <FilterRuleEffect effects={filterEffect} error={filterEffectError} />
         </section>
       )}
 
