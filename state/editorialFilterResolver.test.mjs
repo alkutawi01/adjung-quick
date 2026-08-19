@@ -55,12 +55,58 @@ const rules = [
   assert('empty rule list -> default keep (caller responsible for active filtering)', r.keep === true && r.reason === 'default');
 }
 
-// --- substring behavior: "artis" matches inside "wartawan"? No — but
-// does match inside a longer word containing it as a substring, since
-// V1 is explicitly substring not word-boundary matching. ---
+// --- Polish 5A.1: word-boundary matching (BREAKING change from V1's
+// original plain substring) -- "artis" must NOT fire inside "artistik".
+// Live production audit (691-story corpus) found exactly this class of
+// false positive for real filter-candidate words: arak/semarak,
+// pub/Republic, seks/seksyen, judi/judicial. ---
 {
   const r = resolveEditorialFilter('Seorang artistik mempamerkan lukisan', rules);
-  assert('substring match fires even mid-word (documented V1 behavior, not word-boundary)', r.keep === false && r.reason === 'exclude');
+  assert('word-boundary: "artis" does NOT fire mid-word inside "artistik"', r.keep === true && r.reason === 'default');
+}
+{
+  const boundaryRules = [
+    { id: 'b1', rule_type: 'exclude', phrase: 'arak' },
+    { id: 'b2', rule_type: 'exclude', phrase: 'pub' },
+    { id: 'b3', rule_type: 'exclude', phrase: 'seks' },
+    { id: 'b4', rule_type: 'exclude', phrase: 'judi' },
+  ];
+  const r1 = resolveEditorialFilter('Lagu KITA semarak semangat patriotisme', boundaryRules);
+  assert('"arak" does not fire inside "semarak"', r1.keep === true && r1.reason === 'default');
+  const r2 = resolveEditorialFilter('Public in England and Wales wrongly think', boundaryRules);
+  assert('"pub" does not fire inside "Public"', r2.keep === true && r2.reason === 'default');
+  const r3 = resolveEditorialFilter('Pemansuhan AUKU boleh jejas seksyen tertentu', boundaryRules);
+  assert('"seks" does not fire inside "seksyen"', r3.keep === true && r3.reason === 'default');
+  const r4 = resolveEditorialFilter('Kajian bidang judicial review di Malaysia', boundaryRules);
+  assert('"judi" does not fire inside "judicial"', r4.keep === true && r4.reason === 'default');
+
+  const real1 = resolveEditorialFilter('Kedai jual arak tanpa lesen dirampas', boundaryRules);
+  assert('real standalone "arak" still fires', real1.keep === false && real1.reason === 'exclude');
+  const real2 = resolveEditorialFilter('Pub tutup lewat malam disaman', boundaryRules);
+  assert('real standalone "Pub" still fires (case-insensitive)', real2.keep === false && real2.reason === 'exclude');
+  const real3 = resolveEditorialFilter('Kes seks tanpa persetujuan didakwa', boundaryRules);
+  assert('real standalone "seks" still fires', real3.keep === false && real3.reason === 'exclude');
+  const real4 = resolveEditorialFilter('Sindiket judi online ditumpaskan', boundaryRules);
+  assert('real standalone "judi" still fires', real4.keep === false && real4.reason === 'exclude');
+}
+
+// --- morphological variants are NOT implied ---
+{
+  const r = resolveEditorialFilter('Sindiket perjudian online ditumpaskan', [
+    { id: 'j1', rule_type: 'exclude', phrase: 'judi' },
+  ]);
+  assert('"judi" rule does NOT also match "perjudian" (explicit-rule-per-form policy)', r.keep === true && r.reason === 'default');
+}
+
+// --- HTML stripping (Polish 5A.1, same real bug class content-rules.mjs
+// found: an <img alt="..."> caption's unrelated text must never trigger
+// or suppress a filter match) ---
+{
+  const r = resolveEditorialFilterForStory({
+    title: 'Berita sukan hari ini',
+    description: '<img alt="gambar arak di kedai lama" src="x.jpg"> Perlawanan berjalan lancar.',
+  }, [{ id: 'h1', rule_type: 'exclude', phrase: 'arak' }]);
+  assert('markup/attribute text does not trigger a filter match', r.keep === true && r.reason === 'default');
 }
 
 // --- title+description combined ---
