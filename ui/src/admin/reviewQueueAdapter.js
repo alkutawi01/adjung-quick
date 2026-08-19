@@ -24,6 +24,23 @@ const REASON_DISPLAY = {
   no_evidence: 'Sistem tidak jumpa petunjuk untuk letak berita ini dalam mana-mana bidang.',
 };
 
+// Extracted Pusingan 8/15 (2026-08-19), per ChatGPT's explicit instruction
+// not to let AllStoriesPanel's "Semua Berita" table invent a second,
+// slightly-different definition of "perlu semakan". This is the EXACT
+// same predicate the `.or(...)` query below expresses server-side --
+// kept in sync by hand since a Supabase `.or()` filter string can't
+// itself be shared code across a server-side query and a client-side
+// array filter. If this predicate ever changes, change the `.or()`
+// string below to match, and vice versa.
+export function isReviewNeeded(classificationStatus, classificationConfidence) {
+  return classificationStatus === 'unclassified' || Number(classificationConfidence) < 0.5;
+}
+
+export function getReviewReason(classificationStatus) {
+  const reasonCode = classificationStatus === 'unclassified' ? 'no_evidence' : 'low_confidence';
+  return { reasonCode, displayReason: REASON_DISPLAY[reasonCode] };
+}
+
 // Editorial Filter Rules V1 (docs/editorial-filter-rules-design-v1.md,
 // approved by ChatGPT 2026-08-16): a story excluded by a keyword rule is
 // audit-visible here, NOT action_required — this reasonCode is deliberately
@@ -152,7 +169,7 @@ export async function fetchReviewQueue(supabase, editionId) {
       const members = itemsByCluster.get(c.story_id) || [];
       const canonical = [...members].sort((a, b) => new Date(a.published_at) - new Date(b.published_at))[0];
       if (!canonical) return null;
-      const reasonCode = c.classification_status === 'unclassified' ? 'no_evidence' : 'low_confidence';
+      const { reasonCode, displayReason } = getReviewReason(c.classification_status);
       return {
         storyId: c.story_id,
         field: c.field ?? null,
@@ -160,7 +177,7 @@ export async function fetchReviewQueue(supabase, editionId) {
         sourceName: sourceNameById.get(canonical.source_id) ?? canonical.source_id,
         publishedAt: canonical.published_at,
         reasonCode,
-        displayReason: REASON_DISPLAY[reasonCode],
+        displayReason,
         classificationMethod: c.classification_method,
         resolvedRule: c.classification_method === 'admin_rule' ? (ruleById.get(c.classification_rule) ?? null) : null,
         boostOverrideId: boostByStoryId.get(c.story_id) ?? null,

@@ -5,31 +5,47 @@
 // scannable like a spreadsheet, not a queue of cards. "Perlu Semakan" is a
 // status FILTER over this same dataset, not a separate query/dataset.
 //
+// Round 8/15: Perlu Semakan's card-based experience (ReviewQueueCard.jsx)
+// is retired from the main path -- this table + drawer is now the ONLY
+// "Berita" surface. `presetStatusFilter` lets AdminApp.jsx's "Perlu
+// Semakan" tab open this exact same panel pre-filtered, instead of a
+// separate component. The drawer now also carries the two things worth
+// keeping from the old card (Sebab perlu semakan, ClassificationProvenance)
+// -- allStoriesAdapter.js computes them with the SAME predicate
+// fetchReviewQueue() uses (reviewQueueAdapter.js::isReviewNeeded), not a
+// re-guessed one.
+//
 // Editorial actions reuse the exact same write functions Semakan already
 // uses (reviewQueueAdapter.js's submit*/deactivateOverride) -- no new
 // write logic. The composer UI here is a simplified version of
 // ReviewQueueCard.jsx's pattern (same reason-required, same confirm-copy
-// principle) rather than that component verbatim, since ReviewQueueCard is
-// coupled to review-queue-only concepts (displayReason, ClassificationProvenance)
-// that don't apply to every row in the full corpus.
+// principle) rather than that component verbatim.
 import { useState, useEffect, useMemo } from 'react';
 import { fetchAllStories } from './allStoriesAdapter.js';
 import {
   submitHideOverride, submitReclassifyOverride, submitBoostOverride, submitPinOverride, deactivateOverride,
 } from './reviewQueueAdapter.js';
+import ClassificationProvenance from './ClassificationProvenance.jsx';
 
-const STATUS_OPTIONS = ['Aktif', 'Perlu semakan', 'Belum diklasifikasi', 'Disembunyikan'];
+const STATUS_OPTIONS = ['Aktif', 'Perlu semakan', 'Disembunyikan'];
 
-export default function AllStoriesPanel({ supabase, editionId, role, userId, taxonomy }) {
+export default function AllStoriesPanel({ supabase, editionId, role, userId, taxonomy, presetStatusFilter = 'all' }) {
   const [stories, setStories] = useState(null); // null = loading
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [fieldFilter, setFieldFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(presetStatusFilter);
   const [openId, setOpenId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
+
+  // Re-apply the preset whenever the caller changes it -- this is how
+  // AdminApp.jsx's "Perlu Semakan" tab and "Semua Berita" tab both mount
+  // this same component with a different starting filter (switching tabs
+  // remounts nothing, so without this the filter would stick from
+  // whichever tab was opened first).
+  useEffect(() => { setStatusFilter(presetStatusFilter); }, [presetStatusFilter]);
 
   const load = () => {
     setStories(null);
@@ -225,6 +241,17 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
           {story.link && <><dt>URL sumber</dt><dd><code>{story.link}</code></dd></>}
           {story.filteredByPhrase && <><dt>Ditapis</dt><dd>Sepadan kata kunci "{story.filteredByPhrase}" (tidak dipaparkan kepada pembaca).</dd></>}
         </dl>
+
+        {story.status === 'Perlu semakan' && (
+          <p className="review-card__reason">
+            <span className="review-card__reason-label">Sebab perlu semakan: </span>
+            {story.displayReason}
+          </p>
+        )}
+        <ClassificationProvenance
+          classificationMethod={story.classificationMethod}
+          resolvedRule={story.resolvedRule}
+        />
 
         {story.status === 'Disembunyikan' ? (
           <p className="review-card__promo-status">

@@ -378,40 +378,24 @@ function ReviewQueue({ userId, role }) {
             </section>
           )}
 
+          {/* Pusingan 8/15: Perlu Semakan is no longer a separate card
+              experience -- it opens the SAME AllStoriesPanel table,
+              pre-filtered. entries/loadError/busyStoryId/resolve/applyPromo
+              and the ReviewQueueCard import below are now orphaned by this
+              change (kept, not deleted, per ChatGPT's explicit instruction
+              not to refactor/remove aggressively) -- `load()` still sets
+              `entries` as a side effect of fetching `digest` in the same
+              call, and AdminDigest (Ringkasan tab) still depends on that
+              digest fetch, so this callback is left exactly as-is. */}
           {activeSection === 'semakan' && (
             <section className="editorial-desk__section">
-              {loadError && <p className="review-queue__error">{loadError}</p>}
-              {entries === null && !loadError && <p className="admin-app__status">Memuatkan...</p>}
-              {entries !== null && entries.length === 0 && (
-                <p className="review-queue__empty">Tiada berita perlu semakan buat masa ini.</p>
-              )}
-
-              <div className="review-queue__list">
-                {entries?.map(entry => (
-                  <ReviewQueueCard
-                    key={entry.storyId}
-                    entry={entry}
-                    taxonomy={taxonomy}
-                    busy={busyStoryId === entry.storyId}
-                    onHide={reason => resolve(entry.storyId, () =>
-                      submitHideOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
-                    onReclassify={(newField, reason) => resolve(entry.storyId, () =>
-                      submitReclassifyOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
-                    onBoost={reason => applyPromo(entry.storyId, () =>
-                      submitBoostOverride(adminSupabase, { storyId: entry.storyId, editionId, reason, createdBy: userId, role }))}
-                    onUnboost={overrideId => applyPromo(entry.storyId, () => deactivateOverride(adminSupabase, overrideId))}
-                    onPin={(newField, reason) => applyPromo(entry.storyId, () =>
-                      submitPinOverride(adminSupabase, { storyId: entry.storyId, editionId, newField, reason, createdBy: userId, role }))}
-                    onUnpin={overrideId => applyPromo(entry.storyId, () => deactivateOverride(adminSupabase, overrideId))}
-                  />
-                ))}
-              </div>
+              <AllStoriesPanel supabase={adminSupabase} editionId={editionId} role={role} userId={userId} taxonomy={taxonomy} presetStatusFilter="Perlu semakan" />
             </section>
           )}
 
           {activeSection === 'semua-berita' && (
             <section className="editorial-desk__section">
-              <AllStoriesPanel supabase={adminSupabase} editionId={editionId} role={role} userId={userId} taxonomy={taxonomy} />
+              <AllStoriesPanel supabase={adminSupabase} editionId={editionId} role={role} userId={userId} taxonomy={taxonomy} presetStatusFilter="all" />
             </section>
           )}
 

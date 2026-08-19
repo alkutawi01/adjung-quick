@@ -30,6 +30,12 @@
 import { resolveStoryField } from '../../../state/editorialStateResolver.mjs';
 import { resolveEditorialFilterForStory } from '../../../state/editorialFilterResolver.mjs';
 import { getFieldLabel } from '../../../state/editions.js';
+// Pusingan 8/15: "Perlu semakan" status here MUST mean exactly what
+// fetchReviewQueue() means, not a third independent definition -- these
+// two functions are the SAME predicate that adapter's own `.or()` query
+// expresses server-side, extracted so both call sites provably agree.
+import { isReviewNeeded, getReviewReason } from './reviewQueueAdapter.js';
+import { fetchClassificationRulesByIds } from './classificationRulesAdapter.js';
 
 export async function fetchAllStories(supabase, editionId) {
   const [
@@ -43,8 +49,11 @@ export async function fetchAllStories(supabase, editionId) {
     supabase.from('story_clusters').select('id, editorial_score, workspace_state'),
     supabase.from('rss_items').select('cluster_id, source_id, title, description, link, published_at'),
     supabase.from('sources').select('id, name'),
+    // `classification_method`/`classification_rule` added Pusingan 8/15 --
+    // same two already-real columns ReviewQueueCard's ClassificationProvenance
+    // reads via fetchReviewQueue(), now surfaced here too.
     supabase.from('edition_story_classifications')
-      .select('story_id, field_code, classification_status, classification_confidence')
+      .select('story_id, field_code, classification_status, classification_confidence, classification_method, classification_rule')
       .eq('edition_id', editionId),
     // Every active override type (hide/reclassify/boost/pin), unlike
     // productionAdapter.js's two-query split -- this table drives status
@@ -80,6 +89,13 @@ export async function fetchAllStories(supabase, editionId) {
     itemsByCluster.get(row.cluster_id).push(row);
   }
 
+  // Same batch-resolve reviewQueueAdapter.js uses -- one query for every
+  // admin_rule-method placement in the edition, not one per story.
+  const ruleIds = placements
+    .filter(p => p.classification_method === 'admin_rule')
+    .map(p => p.classification_rule);
+  const ruleById = await fetchClassificationRulesByIds(supabase, ruleIds);
+
   return clusters
     .filter(c => c.workspace_state !== 'expired' && c.workspace_state !== 'released')
     .map(c => {
@@ -101,11 +117,25 @@ export async function fetchAllStories(supabase, editionId) {
         rules,
       );
 
-      let status;
+      // "Perlu semakan" here uses the EXACT same predicate + resolved-by-
+      // override exclusion as fetchReviewQueue() -- a story with an active
+      // hide OR reclassify override is treated as already resolved, same
+      // as that adapter's `resolvedIds` set, even though its underlying
+      // classification row is untouched (reclassify never rewrites
+      // edition_story_classifications, only adds an override on top).
+      const rawNeedsReview = isReviewNeeded(
+        placement?.classification_status ?? 'unclassified',
+        placement?.classification_confidence,
+      );
+      const resolvedByOverride = storyOverrides.some(o => o.override_type === 'hide' || o.override_type === 'reclassify');
+      const needsReview = rawNeedsReview && !resolvedByOverride;
+
+      let status, reasonCode = null, displayReason = null;
       if (!resolved.visible) status = 'Disembunyikan';
-      else if (!placement || placement.classification_status === 'unclassified') status = 'Belum diklasifikasi';
-      else if (Number(placement.classification_confidence) < 0.5) status = 'Perlu semakan';
-      else status = 'Aktif';
+      else if (needsReview) {
+        status = 'Perlu semakan';
+        ({ reasonCode, displayReason } = getReviewReason(placement?.classification_status ?? 'unclassified'));
+      } else status = 'Aktif';
 
       return {
         storyId: c.id,
@@ -128,6 +158,10 @@ export async function fetchAllStories(supabase, editionId) {
         editorialScore: Number(c.editorial_score),
         fieldLabel: resolved.fieldCode ? getFieldLabel(editionId, resolved.fieldCode) : null,
         status,
+        reasonCode,
+        displayReason,
+        classificationMethod: placement?.classification_method ?? null,
+        resolvedRule: placement?.classification_method === 'admin_rule' ? (ruleById.get(placement.classification_rule) ?? null) : null,
         boosted,
         pinned,
         filteredByPhrase: filterResult.keep ? null : filterResult.phrase,
