@@ -14,6 +14,9 @@ import SourceRegistryPanel from './SourceRegistryPanel.jsx';
 import BidangPanel from './BidangPanel.jsx';
 import ValueRankingPanel from './ValueRankingPanel.jsx';
 import KaedahNilaiPanel from './KaedahNilaiPanel.jsx';
+import PemilihanPanel from './PemilihanPanel.jsx';
+import { fetchScoringCorpus } from './kaedahNilaiAdapter.js';
+import { DEFAULT_SCORING_V1_WEIGHTS } from '../../../ranking/scoring-v1-simulation.mjs';
 import AllStoriesPanel from './AllStoriesPanel.jsx';
 import TapisanPanel from './TapisanPanel.jsx';
 
@@ -188,7 +191,18 @@ function ReviewQueue({ userId, role }) {
   const [digestError, setDigestError] = useState(null);
   const [activeSection, setActiveSection] = useState('hari-ini');
   const [activeGroup, setActiveGroup] = useState('berita');
-  const [nilaiTab, setNilaiTab] = useState('data'); // 'data' | 'kaedah' -- Pusingan 13/15
+  const [nilaiTab, setNilaiTab] = useState('data'); // 'data' | 'kaedah' | 'pemilihan' -- Pusingan 13-14/15
+  // Pusingan 14/15: dikongsi antara KaedahNilaiPanel dan PemilihanPanel --
+  // satu fetch, satu set berat simulasi, bukan dua salinan berasingan.
+  const [scoringCorpus, setScoringCorpus] = useState(null);
+  const [scoringCorpusError, setScoringCorpusError] = useState(null);
+  const [scoringWeights, setScoringWeights] = useState(DEFAULT_SCORING_V1_WEIGHTS);
+
+  useEffect(() => {
+    if ((nilaiTab === 'kaedah' || nilaiTab === 'pemilihan') && scoringCorpus === null && !scoringCorpusError) {
+      fetchScoringCorpus(adminSupabase).then(setScoringCorpus).catch(err => setScoringCorpusError(err.message));
+    }
+  }, [nilaiTab, scoringCorpus, scoringCorpusError]);
 
   // Switching group resets activeSection to that group's first
   // sub-section (only 'berita' has real sub-sections today) -- keeps the
@@ -497,9 +511,21 @@ function ReviewQueue({ userId, role }) {
             >
               Kaedah Nilai
             </button>
+            <button
+              type="button"
+              className={`editorial-desk__nav-item${nilaiTab === 'pemilihan' ? ' editorial-desk__nav-item--active' : ''}`}
+              onClick={() => setNilaiTab('pemilihan')}
+            >
+              Pemilihan 10
+            </button>
           </nav>
           {nilaiTab === 'data' && <ValueRankingPanel supabase={adminSupabase} role={role} userId={userId} />}
-          {nilaiTab === 'kaedah' && <KaedahNilaiPanel supabase={adminSupabase} />}
+          {nilaiTab === 'kaedah' && (
+            <KaedahNilaiPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} setWeights={setScoringWeights} />
+          )}
+          {nilaiTab === 'pemilihan' && (
+            <PemilihanPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} />
+          )}
         </section>
       )}
 

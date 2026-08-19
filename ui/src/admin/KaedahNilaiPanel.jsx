@@ -11,8 +11,7 @@
 // here is a pure, in-browser recompute (scoreCandidateV1's optional
 // `weights` argument, Pusingan 13's own addition, backward-compatible
 // with Pusingan 12's Node script) -- zero DB writes anywhere in this file.
-import { useState, useEffect, useMemo } from 'react';
-import { fetchScoringCorpus } from './kaedahNilaiAdapter.js';
+import { useState, useMemo } from 'react';
 import { scoreCandidates } from '../../../ranking/candidate-scoring.mjs';
 import { scoreCandidateV1, SCORING_V1_WEIGHTS, DEFAULT_SCORING_V1_WEIGHTS } from '../../../ranking/scoring-v1-simulation.mjs';
 import { getFieldLabel } from '../../../state/editions.js';
@@ -53,16 +52,15 @@ const INPUT_RANGE = {
 // nyatakan ini jelas supaya tak disalah anggap sbg formula lama tepat.
 const PRODUCTION_LIKE_PRESET = { freshnessCeiling: 25, trustCeiling: 100, duplicationCeiling: 0, confidenceMultiplier: 10, boostWeight: 40 };
 
-export default function KaedahNilaiPanel({ supabase }) {
-  const [corpus, setCorpus] = useState(null); // null = loading
-  const [error, setError] = useState(null);
-  const [weights, setWeights] = useState(DEFAULT_SCORING_V1_WEIGHTS);
+// Pusingan 14/15: `weights`/`setWeights` AND `corpus`/`error` diangkat ke
+// AdminApp (dikongsi dgn PemilihanPanel.jsx -- satu fetch, bukan dua) --
+// per arahan "tak perlu buat state architecture besar... kongsi pure
+// calculation/helper antara dua panel". Lifting state sedia ada ke
+// parent ialah pendekatan paling mudah yang memenuhi ni, bukan store/
+// context baharu.
+export default function KaedahNilaiPanel({ corpus, error, weights, setWeights }) {
   const [fieldCode, setFieldCode] = useState(null);
   const [majorOnly, setMajorOnly] = useState(false);
-
-  useEffect(() => {
-    fetchScoringCorpus(supabase).then(setCorpus).catch(err => setError(err.message));
-  }, [supabase]);
 
   const fieldOptions = useMemo(() => {
     if (!corpus) return [];
