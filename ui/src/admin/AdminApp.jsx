@@ -13,14 +13,22 @@ import { fetchEditionRules, addEditionRule, archiveEditionRule, restoreEditionRu
 import SourceRegistryPanel from './SourceRegistryPanel.jsx';
 import BidangPanel from './BidangPanel.jsx';
 import ValueRankingPanel from './ValueRankingPanel.jsx';
+import AllStoriesPanel from './AllStoriesPanel.jsx';
 
 // Berita sub-sections — per docs/editorial-desk-shell-implementation-plan-v1.md.
 // 'aliran' added 2026-08-16, direct response to Izzat's complaint that raw
-// RSS-to-Bidang routing was invisible — a live table, not a report.
+// RSS-to-Bidang routing was invisible — a live table, not a report. Its
+// label was originally "Semua Berita" — renamed to "Aliran Klasifikasi"
+// (matching the component's own doc header) in Pusingan 7/15, when
+// 'semua-berita' below took over that name for the real daily workbench
+// (title/sumber/masa/bidang/status/nilai, allStoriesAdapter.js) --
+// ClassificationFlow.jsx is a routing audit, not the corpus an editor
+// scans day to day, so the two needed to stop sharing one label.
 const BERITA_SECTIONS = [
   { id: 'hari-ini', label: 'Ringkasan' },
   { id: 'semakan', label: 'Perlu Semakan' },
-  { id: 'aliran', label: 'Semua Berita' },
+  { id: 'semua-berita', label: 'Semua Berita' },
+  { id: 'aliran', label: 'Aliran Klasifikasi' },
   { id: 'rekod', label: 'Rekod' },
 ];
 
@@ -31,7 +39,7 @@ const BERITA_SECTIONS = [
 // ialah id activeSection sedia ada yang dikumpul di bawahnya — logik/fetch
 // sedia ada TIDAK diubah, hanya lapisan navigasi.
 const GROUPS = [
-  { id: 'berita', label: 'Berita', sections: ['hari-ini', 'semakan', 'aliran', 'rekod'] },
+  { id: 'berita', label: 'Berita', sections: ['hari-ini', 'semakan', 'semua-berita', 'aliran', 'rekod'] },
   { id: 'sumber', label: 'Sumber', sections: [] },
   { id: 'tapisan', label: 'Tapisan', sections: ['keputusan'] },
   { id: 'bidang', label: 'Bidang', sections: ['peraturan', 'susunan-edisi'] },
@@ -398,6 +406,12 @@ function ReviewQueue({ userId, role }) {
                   />
                 ))}
               </div>
+            </section>
+          )}
+
+          {activeSection === 'semua-berita' && (
+            <section className="editorial-desk__section">
+              <AllStoriesPanel supabase={adminSupabase} editionId={editionId} role={role} userId={userId} taxonomy={taxonomy} />
             </section>
           )}
 
