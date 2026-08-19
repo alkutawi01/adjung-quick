@@ -60,6 +60,17 @@ function stripHtml(s) {
   return (s ?? '').replace(/<[^>]*>/g, ' ');
 }
 
+// Exported Polish 5B (2026-08-19), per ChatGPT's explicit instruction:
+// "jangan implement boundary kali kedua". Any caller that needs to know
+// "does this one phrase match this text" (Admin's per-rule effect
+// preview, rule-simulation before save/activate) MUST use this, not its
+// own text.includes() -- that duplication is exactly the bug
+// fetchEditorialFilterEffect() had (a stale pre-filter shortcut using
+// plain substring, found live while building 5B).
+export function phraseMatchesText(text, phrase) {
+  return buildBoundaryRegex(phrase).test(stripHtml(text ?? ''));
+}
+
 // rules: editorial_filter_rules rows already filtered by the caller to
 // `active = true` (a query concern, not this function's — keeps this
 // pure and trivially testable with hand-built arrays).

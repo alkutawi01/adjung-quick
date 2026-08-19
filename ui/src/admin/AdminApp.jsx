@@ -409,6 +409,7 @@ function ReviewQueue({ userId, role }) {
           )}
           {filterRules !== null && (
             <TapisanPanel
+              supabase={adminSupabase}
               rules={filterRules}
               effects={filterEffect}
               effectsError={filterEffectError}

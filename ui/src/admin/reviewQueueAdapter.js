@@ -12,7 +12,7 @@
 // authenticated session, not the anonymous reader client.
 
 import { canPerformAction, isAdmin } from '../../../db/editor-auth.mjs';
-import { resolveEditorialFilterForStory } from '../../../state/editorialFilterResolver.mjs';
+import { resolveEditorialFilterForStory, phraseMatchesText } from '../../../state/editorialFilterResolver.mjs';
 import { getFieldEntryByLabel } from '../../../classification/lib/taxonomy-registry.mjs';
 import { fetchClassificationRulesByIds } from './classificationRulesAdapter.js';
 
@@ -262,25 +262,22 @@ export async function fetchEditorialFilterMatches(supabase, editionId) {
 // rule, even though the UI groups exclude/except into two visual lists.
 // This function's counts respect that real semantics rather than
 // pretending each exclude has its own private except list.
-export async function fetchEditorialFilterEffect(supabase) {
+// Polish 5B (2026-08-19) -- extracted so previewFilterRuleCandidate()
+// (below) scans the exact same live-story set as fetchEditorialFilterEffect,
+// no second implementation of "what counts as a live canonical story".
+async function fetchCanonicalLiveStoriesForFilterScan(supabase) {
   const [
     { data: clusters, error: clustersErr },
     { data: items, error: itemsErr },
     { data: sources, error: sourcesErr },
-    { data: filterRules, error: filterRulesErr },
   ] = await Promise.all([
     supabase.from('story_clusters').select('id, workspace_state'),
     supabase.from('rss_items').select('cluster_id, source_id, title, description, published_at'),
     supabase.from('sources').select('id, name'),
-    supabase.from('editorial_filter_rules').select('id, rule_type, phrase').eq('active', true),
   ]);
-  if (clustersErr) throw new Error(`fetchEditorialFilterEffect: story_clusters — ${clustersErr.message}`);
-  if (itemsErr) throw new Error(`fetchEditorialFilterEffect: rss_items — ${itemsErr.message}`);
-  if (sourcesErr) throw new Error(`fetchEditorialFilterEffect: sources — ${sourcesErr.message}`);
-  if (filterRulesErr) { console.warn(`fetchEditorialFilterEffect: editorial_filter_rules unavailable — ${filterRulesErr.message}`); return []; }
-
-  const excludeRules = filterRules.filter(r => r.rule_type === 'exclude');
-  if (excludeRules.length === 0) return [];
+  if (clustersErr) throw new Error(`fetchCanonicalLiveStoriesForFilterScan: story_clusters — ${clustersErr.message}`);
+  if (itemsErr) throw new Error(`fetchCanonicalLiveStoriesForFilterScan: rss_items — ${itemsErr.message}`);
+  if (sourcesErr) throw new Error(`fetchCanonicalLiveStoriesForFilterScan: sources — ${sourcesErr.message}`);
 
   const liveClusterIds = new Set(
     clusters.filter(c => c.workspace_state !== 'expired' && c.workspace_state !== 'released').map(c => c.id),
@@ -298,14 +295,33 @@ export async function fetchEditorialFilterEffect(supabase) {
     const canonical = [...members].sort((a, b) => new Date(a.published_at) - new Date(b.published_at))[0];
     if (canonical) canonicalStories.push({ clusterId, ...canonical });
   }
+  return { canonicalStories, sourceNameById };
+}
+
+export async function fetchEditorialFilterEffect(supabase) {
+  const [{ canonicalStories, sourceNameById }, { data: filterRules, error: filterRulesErr }] = await Promise.all([
+    fetchCanonicalLiveStoriesForFilterScan(supabase),
+    supabase.from('editorial_filter_rules').select('id, rule_type, phrase').eq('active', true),
+  ]);
+  if (filterRulesErr) { console.warn(`fetchEditorialFilterEffect: editorial_filter_rules unavailable — ${filterRulesErr.message}`); return []; }
+
+  const excludeRules = filterRules.filter(r => r.rule_type === 'exclude');
+  if (excludeRules.length === 0) return [];
 
   return excludeRules.map(rule => {
-    const phraseLower = rule.phrase.toLowerCase();
     const filtered = [];
     const excepted = [];
     for (const story of canonicalStories) {
-      const text = `${story.title ?? ''} ${story.description ?? ''}`.toLowerCase();
-      if (!text.includes(phraseLower)) continue; // this exclude rule doesn't apply to this story at all
+      const text = `${story.title ?? ''} ${story.description ?? ''}`;
+      // Polish 5B (2026-08-19), real bug found while building rule preview:
+      // this used to pre-filter with plain text.includes(phraseLower) --
+      // the exact substring hole Polish 5A.1 fixed in the resolver itself
+      // (e.g. rule "arak" would "match" the word "semarak" here, then the
+      // real resolver correctly returns a DEFAULT keep for it, which the
+      // old `if (result.keep) excepted.push(...)` below wrongly counted as
+      // "dikecualikan" with a blank/null savedByPhrase). Now uses the same
+      // boundary-aware matcher as the resolver -- one matcher, everywhere.
+      if (!phraseMatchesText(text, rule.phrase)) continue; // this exclude rule doesn't apply to this story at all
       const result = resolveEditorialFilterForStory({ title: story.title, description: story.description }, filterRules);
       const row = {
         storyId: story.clusterId,
@@ -313,13 +329,12 @@ export async function fetchEditorialFilterEffect(supabase) {
         sourceName: sourceNameById.get(story.source_id) ?? story.source_id,
         publishedAt: story.published_at,
       };
-      // result.reason === 'exclude' && result.ruleId === rule.id: THIS rule
-      // is what actually removed it (no except elsewhere saved it, and no
-      // higher-priority... V1 has no priority, so this is just "no except
-      // matched first"). Anything else matching this exclude's phrase but
-      // NOT excluded by it was saved by an except.
-      if (result.keep) excepted.push({ ...row, savedByPhrase: result.phrase });
-      else filtered.push(row);
+      // Only a real 'exception' outcome counts as "saved by an except" --
+      // a story that matched THIS rule's phrase but landed on a plain
+      // 'default' keep (impossible now that the matcher is shared, kept as
+      // a defensive check) must never be mislabelled as excepted.
+      if (result.keep && result.reason === 'exception') excepted.push({ ...row, savedByPhrase: result.phrase });
+      else if (!result.keep) filtered.push(row);
     }
     return {
       ruleId: rule.id,
@@ -331,6 +346,76 @@ export async function fetchEditorialFilterEffect(supabase) {
       sampleExcepted: excepted.slice(0, 5),
     };
   });
+}
+
+// Polish 5B (2026-08-19) -- read-only rule-candidate preview, per
+// ChatGPT's "Find & Replace" mental model: show what a rule would do
+// BEFORE it's saved/activated, not after. Zero writes (no INSERT, no
+// UPDATE, no temp DB row) -- purely a live scan + in-memory resolver run.
+//
+// Simulates the REAL rule set, not just "does this phrase appear
+// anywhere" -- combines the candidate with the CURRENTLY ACTIVE rules
+// (excludeRuleId lets a Pulih/reactivate preview omit the rule's own
+// now-inactive row from the "existing active rules" side, since it's
+// about to become the candidate again) before calling the same
+// resolveEditorialFilterForStory() production uses. This is what makes
+// "serbuan kasino" correctly preview as KEPT when an active except rule
+// like "serbuan" already exists, instead of naively reporting every
+// "kasino" match as a future filter.
+export async function previewFilterRuleCandidate(supabase, candidate, { excludeRuleId } = {}) {
+  const [{ canonicalStories, sourceNameById }, { data: activeRules, error }] = await Promise.all([
+    fetchCanonicalLiveStoriesForFilterScan(supabase),
+    supabase.from('editorial_filter_rules').select('id, rule_type, phrase').eq('active', true),
+  ]);
+  if (error) throw new Error(`previewFilterRuleCandidate: editorial_filter_rules — ${error.message}`);
+
+  const baseRules = (activeRules ?? []).filter(r => r.id !== excludeRuleId);
+  const combinedRules = [...baseRules, { id: '__candidate__', rule_type: candidate.ruleType, phrase: candidate.phrase }];
+
+  const toRow = s => ({
+    storyId: s.clusterId,
+    title: s.title,
+    sourceName: sourceNameById.get(s.source_id) ?? s.source_id,
+    publishedAt: s.published_at,
+  });
+
+  const matched = canonicalStories.filter(s => phraseMatchesText(`${s.title ?? ''} ${s.description ?? ''}`, candidate.phrase));
+
+  if (candidate.ruleType === 'exclude') {
+    const filtered = [], excepted = [];
+    for (const s of matched) {
+      const result = resolveEditorialFilterForStory({ title: s.title, description: s.description }, combinedRules);
+      if (!result.keep) filtered.push(toRow(s));
+      else excepted.push({ ...toRow(s), savedByPhrase: result.phrase });
+    }
+    return {
+      ruleType: 'exclude',
+      matchedCount: matched.length,
+      filteredCount: filtered.length,
+      exceptedCount: excepted.length,
+      sampleFiltered: filtered.slice(0, 5),
+      sampleExcepted: excepted.slice(0, 5),
+    };
+  }
+
+  // except: for each story the phrase itself matches, compare the outcome
+  // WITHOUT the candidate (current active rules only) against WITH it --
+  // "saved" means this except would flip an exclude match to kept; a
+  // story that was already going to be kept regardless is NOT a rescue.
+  const saved = [], alreadyKept = [];
+  for (const s of matched) {
+    const withoutCandidate = resolveEditorialFilterForStory({ title: s.title, description: s.description }, baseRules);
+    if (!withoutCandidate.keep) saved.push(toRow(s));
+    else alreadyKept.push(toRow(s));
+  }
+  return {
+    ruleType: 'except',
+    matchedCount: matched.length,
+    savedCount: saved.length,
+    alreadyKeptCount: alreadyKept.length,
+    sampleSaved: saved.slice(0, 5),
+    sampleAlreadyKept: alreadyKept.slice(0, 5),
+  };
 }
 
 // Editorial Filter Rules V1 management (Editorial Desk > Keputusan
