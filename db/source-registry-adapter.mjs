@@ -106,6 +106,13 @@ export async function setSourceStatus(supabase, { id, status, reason, role }) {
     status,
     active: status === 'active',
     updated_at: new Date().toISOString(),
+    // Polish 6B-a (2026-08-19): `reason` was validated above but never
+    // actually stored -- editor types a reason, system silently
+    // discarded it. Current-status reason only (no history/event log,
+    // per ChatGPT's explicit call) -- cleared back to null once the
+    // source is active again, since a stale disable-reason on an active
+    // source would be misleading.
+    status_reason: status === 'active' ? null : reason,
   }).eq('id', id);
   if (error) throw new Error(`setSourceStatus: ${error.message}`);
 }
@@ -142,6 +149,7 @@ export async function fetchAllSourcesForIngestion(supabase) {
     language: r.language,
     trustScore: r.trust_score,
     status: r.status,
+    statusReason: r.status_reason ?? undefined,
     knownCategory: r.known_category ?? undefined,
     sourceType: r.source_type ?? undefined,
     excludePatterns: r.exclude_patterns ? r.exclude_patterns.map(parseExcludePattern) : undefined,

@@ -130,8 +130,15 @@ export default function SourceRegistryPanel({ supabase, role }) {
       // setSourceStatus requires a reason for any non-active status
       // (db/source-registry-adapter.mjs) -- same discipline as
       // story_overrides.reason NOT NULL elsewhere in this app.
+      // Polish 6B-b (2026-08-19): copy rewritten -- the old "rekod lama
+      // tidak dipadam" was misleading about what an editor/reader can
+      // actually SEE. Real behaviour (confirmed via Polish 6B lifecycle
+      // audit): the registry row survives, but ingestion fully REBUILDS
+      // story_clusters/rss_items every run from only-active sources, so
+      // this source's old stories drop out of the live/public view on
+      // the very next ingestion cycle -- not "kept, just not updated".
       reason = window.prompt(
-        'Sumber ini tidak akan digunakan untuk pengambilan berita baharu. Rekod lama tidak dipadam.\n\nSebab nyahaktifkan?',
+        'Nyahaktifkan sumber?\n\nSumber ini tidak akan diambil untuk berita baharu. Pada kemas kini berita seterusnya, berita lama daripada sumber ini juga tidak lagi berada dalam paparan semasa.\n\nSebab nyahaktifkan:',
       );
       if (!reason || !reason.trim()) return;
     }
@@ -308,6 +315,9 @@ function SourceDrawer({ source, supabase, role, onClose, onSaved }) {
             <dl className="drawer__fields">
               <dt>URL</dt><dd><code>{source.url}</code></dd>
               <dt>Status</dt><dd>{source.status === 'active' ? 'Aktif' : source.status === 'disabled' ? 'Tidak aktif' : 'Diarkibkan'}</dd>
+              {source.status !== 'active' && source.statusReason && (
+                <><dt>Sebab</dt><dd>{source.statusReason}</dd></>
+              )}
               <dt>Kepercayaan</dt><dd>{source.trustScore ?? '—'}</dd>
               <dt>Bahasa</dt><dd>{source.language ?? '—'} <span className="admin-app__status">(belum boleh diubah daripada Admin)</span></dd>
               <dt>Jenis</dt><dd>{JENIS_OPTIONS.find(o => o.value === source.sourceType)?.label ?? source.sourceType ?? '—'}</dd>

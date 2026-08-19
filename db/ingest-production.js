@@ -130,6 +130,11 @@ async function main() {
     // the moment staging is rebuilt (found live via
     // db/verify-staging-post-patch.mjs, 2026-08-17: rss-kpm exactly).
     active: (s.status ?? 'active') === 'active',
+    // Polish 6B-a: same reason this whole block exists for known_category
+    // etc -- sources_staging is a fresh CREATE TABLE every run, promoted
+    // via RENAME (not merged), so any column left out here is silently
+    // wiped from `sources` on the very next swap.
+    status_reason: s.statusReason ?? null,
     known_category: s.knownCategory ?? null,
     source_type: s.sourceType ?? null,
     exclude_patterns: s.excludePatterns ? s.excludePatterns.map(String) : null,
