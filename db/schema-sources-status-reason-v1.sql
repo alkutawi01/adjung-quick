@@ -119,6 +119,48 @@ BEGIN
 
   GRANT SELECT ON sources_staging, story_clusters_staging, rss_items_staging TO anon, authenticated;
 
+  -- Swap-security fix (ChatGPT's catch, 2026-08-19): every ingestion run
+  -- CREATE TABLEs a brand new sources_staging, which the swap then
+  -- RENAMEs directly into `sources` -- a fresh CREATE TABLE has none of
+  -- the RLS/policy/column-GRANT posture Polish 4B/6A built up on the
+  -- table it replaces. Without this block, the very first real
+  -- (non-dry-run) ingestion run after those patches would silently wipe
+  -- Admin Sumber's write capability again -- the exact class of
+  -- permission regression this project has already hit twice. Building
+  -- the full security posture HERE, before swap, means the promoted
+  -- table is already complete atomically -- never "regrant after swap"
+  -- (a window where the live table would be under-secured).
+  ALTER TABLE sources_staging ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY sources_read_all ON sources_staging
+    FOR SELECT
+    USING (true);
+
+  CREATE POLICY sources_insert_admin_only ON sources_staging
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (is_admin(auth.uid()));
+
+  CREATE POLICY sources_admin_update ON sources_staging
+    FOR UPDATE
+    USING (auth.uid() IS NULL OR is_admin(auth.uid()))
+    WITH CHECK (auth.uid() IS NULL OR is_admin(auth.uid()));
+
+  -- addSource()'s exact 9-column write shape.
+  GRANT INSERT (
+    id, name, url, language, trust_score, known_category, source_type,
+    exclude_patterns, status
+  ) ON sources_staging TO authenticated;
+
+  -- updateSource() + setSourceStatus()'s combined write shape.
+  GRANT UPDATE (
+    name, url, trust_score, known_category, source_type, exclude_patterns,
+    extra_ca, updated_at, status, active, status_reason
+  ) ON sources_staging TO authenticated;
+
+  -- DELETE deliberately NOT granted -- no code path needs it, matches
+  -- the least-privilege posture already verified on live `sources`.
+
   NOTIFY pgrst, 'reload schema';
 END;
 $$;
