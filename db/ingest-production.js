@@ -25,6 +25,15 @@ import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
 import { assertWriteAllowed, evaluateDestructiveRebuildGuard } from './production-write-guard.mjs';
 import { fetchAllSourcesForIngestion } from './source-registry-adapter.mjs';
+import {
+  computeProtectedStoryIds,
+  computeMissingProtected,
+  buildCarryForwardClusterRow,
+  buildCarryForwardItemRows,
+  validateCarryForwardCluster,
+  findItemIdCollisions,
+  findStillMissingProtected,
+} from './carry-forward-personal-state.mjs';
 
 // CUTOVER (2026-08-17, Backend Control Plane Phase 1, per ChatGPT's
 // explicit go-ahead): production ingestion's source registry now reads
@@ -52,7 +61,37 @@ async function main() {
   // network call or write, if DATABASE_ENV isn't explicitly set safe.
   assertWriteAllowed();
 
+  // Polish 6B.1 (docs/polish-6b1-personal-state-carry-forward-design-v1.md,
+  // step A): ONE nowIso used for the whole run -- both the cleanup delete
+  // below and the protected-ID read (step B) must agree on the same instant.
+  const nowIso = new Date().toISOString();
+
   console.log(DRY_RUN ? 'DRY RUN — will stage and validate, NEVER swap.\n' : 'Fetching real RSS...\n');
+
+  // --- Polish 6B.1 step A: bersihkan saved_stories/history_entries yang
+  // dah tamat. Physical DELETE hanya non-dry-run -- kontrak --dry-run
+  // sedia ada ("stage + validate, NEVER swap") tidak bermakna "tiada
+  // kesan production langsung"; ia tak boleh padam data pengguna sebenar.
+  // Fail closed pada sebarang ralat Supabase (jangan teruskan dgn andaian
+  // "set protected kosong"). ---
+  if (!DRY_RUN) {
+    const delSaved = await supabase.from('saved_stories').delete().lte('expires_at', nowIso);
+    if (delSaved.error) { console.error('cleanup saved_stories gagal:', delSaved.error); process.exit(1); }
+    const delHistory = await supabase.from('history_entries').delete().lte('expires_at', nowIso);
+    if (delHistory.error) { console.error('cleanup history_entries gagal:', delHistory.error); process.exit(1); }
+    console.log('Dibersihkan: saved_stories/history_entries yang dah tamat.\n');
+  }
+
+  // --- Polish 6B.1 step B: baca protected story IDs (SELEPAS cleanup A,
+  // guna nowIso sama). Fail closed pada ralat. ---
+  const [savedRes, historyRes] = await Promise.all([
+    supabase.from('saved_stories').select('story_id').gt('expires_at', nowIso),
+    supabase.from('history_entries').select('story_id').gt('expires_at', nowIso),
+  ]);
+  if (savedRes.error) { console.error('baca saved_stories gagal:', savedRes.error); process.exit(1); }
+  if (historyRes.error) { console.error('baca history_entries gagal:', historyRes.error); process.exit(1); }
+  const protectedStoryIds = computeProtectedStoryIds(savedRes.data, historyRes.data);
+  console.log(`${protectedStoryIds.size} protected story ID (saved/history aktif).\n`);
 
   const sources = await fetchAllSourcesForIngestion(supabase);
   console.log(`${sources.length} sources read from public.sources (production registry).\n`);
@@ -65,35 +104,8 @@ async function main() {
   const labRankedQueue = buildRankedQueue(allItems);
   console.log(`Lab (in-memory ground truth): ${allItems.length} raw items -> ${labRankedQueue.length} clusters, top score ${labRankedQueue[0].editorialScore}.\n`);
 
-  // --- Destructive-rebuild guard, KEPT per ChatGPT's explicit instruction
-  // not to remove it even under staging+swap (2026-08-15 review of
-  // docs/content-pipeline-reliability-plan-v1.md's audit): staging+swap
-  // solves the reader-empty-window/no-rollback risk, but does NOT solve
-  // the FK-dangling risk this guard exists for — saved_stories/
-  // history_entries reference story_clusters with no ON DELETE action, so
-  // a swap that eventually leads to `_old` being dropped can still orphan
-  // real user data if a referenced cluster simply didn't reappear in the
-  // new generation. This checks NOW, every run, never trusting "it was
-  // empty yesterday".
-  const [{ count: savedCount }, { count: historyCount }] = await Promise.all([
-    supabase.from('saved_stories').select('*', { count: 'exact', head: true }),
-    supabase.from('history_entries').select('*', { count: 'exact', head: true }),
-  ]);
-  const guard = evaluateDestructiveRebuildGuard(savedCount, historyCount);
-  if (!guard.allowed) {
-    console.error('');
-    console.error('ERROR: Ingestion blocked.');
-    console.error('');
-    console.error(`Reason: ${guard.reason}`);
-    console.error('');
-    console.error('See docs/ingestion-staging-swap-implementation-plan-v1.md §4 —');
-    console.error('staging+swap does not remove this risk, only postpones it to');
-    console.error('whenever _old tables are eventually dropped.');
-    process.exit(1);
-  }
-  if (guard.forced) {
-    console.log(`WARNING: proceeding with ALLOW_DESTRUCTIVE_REBUILD=true over ${guard.userRows} user row(s).`);
-  }
+  // Polish 6B.1: preservation moved to carry-forward step D/E later in
+  // this run (fixture-proven, db/carry-forward-personal-state.test.mjs).
 
   // --- Reset staging (clears any partial data left by a previous failed
   // run — staging is disposable working space by construction). ---
@@ -208,23 +220,100 @@ async function main() {
   }
   console.log('Set representative_rss_item_id on all staged clusters.\n');
 
+  // --- Polish 6B.1 step D: carry-forward protected stories (saved/history)
+  // that did NOT reappear in this run's fresh corpus. Read from LIVE
+  // (pre-swap) story_clusters/rss_items, insert into staging separately
+  // from the fresh-build path above -- never routed through
+  // buildRankedQueue(). Fail closed on any anomaly (see step E). ---
+  const freshClusterIds = new Set(labRankedQueue.map(c => c.clusterKey));
+  const toCarryForward = computeMissingProtected(protectedStoryIds, freshClusterIds);
+  console.log(`Polish 6B.1: ${toCarryForward.length} protected story/stories missing from fresh corpus, carrying forward.`);
+
+  const stagingSourceIds = new Set(sourceRows.map(s => s.id));
+  const carryForwardErrors = [];
+  let carriedItemCount = 0;
+
+  if (toCarryForward.length > 0) {
+    const { data: liveClusters, error: liveClustersErr } = await supabase
+      .from('story_clusters')
+      .select('*')
+      .in('id', toCarryForward);
+    if (liveClustersErr) { console.error('baca live story_clusters (carry-forward) gagal:', liveClustersErr); process.exit(1); }
+
+    for (const id of toCarryForward) {
+      const liveCluster = liveClusters.find(c => c.id === id);
+      if (!liveCluster) {
+        carryForwardErrors.push(`carry-forward gagal: protected story "${id}" tiada langsung dalam story_clusters LIVE (data tercicir/corrupt).`);
+        continue;
+      }
+      const { data: liveItems, error: liveItemsErr } = await supabase
+        .from('rss_items')
+        .select('*')
+        .eq('cluster_id', id);
+      if (liveItemsErr) { console.error(`baca live rss_items (carry-forward, cluster ${id}) gagal:`, liveItemsErr); process.exit(1); }
+
+      const errs = validateCarryForwardCluster({ liveCluster, liveItems, stagingSourceIds });
+      if (errs.length > 0) { carryForwardErrors.push(...errs); continue; }
+
+      const cfItems = buildCarryForwardItemRows(liveItems);
+      const collisionErrs = findItemIdCollisions(cfItems, new Map(dedupedItemRows.map(r => [r.id, r])));
+      if (collisionErrs.length > 0) { carryForwardErrors.push(...collisionErrs); continue; }
+
+      const cfClusterRow = buildCarryForwardClusterRow(liveCluster);
+      const { error: cfClusterErr } = await supabase.from('story_clusters_staging').insert(cfClusterRow);
+      if (cfClusterErr) { console.error(`carry-forward story_clusters_staging insert gagal (${id}):`, cfClusterErr); process.exit(1); }
+
+      const { error: cfItemsErr } = await supabase.from('rss_items_staging').insert(cfItems);
+      if (cfItemsErr) { console.error(`carry-forward rss_items_staging insert gagal (${id}):`, cfItemsErr); process.exit(1); }
+      carriedItemCount += cfItems.length;
+
+      const { error: cfRepErr } = await supabase.from('story_clusters_staging')
+        .update({ representative_rss_item_id: liveCluster.representative_rss_item_id })
+        .eq('id', id);
+      if (cfRepErr) { console.error(`carry-forward representative restore gagal (${id}):`, cfRepErr); process.exit(1); }
+    }
+  }
+
+  if (carryForwardErrors.length > 0) {
+    console.error('\n✗ CARRY-FORWARD VALIDATION FAILED — refusing to swap. Production untouched.');
+    carryForwardErrors.forEach(e => console.error(`  - ${e}`));
+    process.exit(1);
+  }
+  if (toCarryForward.length > 0) console.log(`Carried forward ${toCarryForward.length} protected story/stories (workspace_state='expired').\n`);
+
   // --- Validate staging BEFORE swapping — row counts must be sane
   // relative to what was actually computed, not just non-zero. A staging
   // set that silently under-populated (a partial insert that still
   // returned no error, or a logic bug) must never get promoted. ---
   const { count: stagedClusterCount } = await supabase.from('story_clusters_staging').select('*', { count: 'exact', head: true });
   const { count: stagedItemCount } = await supabase.from('rss_items_staging').select('*', { count: 'exact', head: true });
-  const stagingValid = stagedClusterCount === labRankedQueue.length && stagedItemCount === dedupedItemRows.length;
+  const expectedClusterCount = labRankedQueue.length + toCarryForward.length;
+  const expectedItemCount = dedupedItemRows.length + carriedItemCount;
+  const stagingValid = stagedClusterCount === expectedClusterCount && stagedItemCount === expectedItemCount;
 
   console.log('=== STAGING VALIDATION ===');
-  console.log(`Clusters: expected=${labRankedQueue.length}  staged=${stagedClusterCount}  ${stagedClusterCount === labRankedQueue.length ? '✓' : '✗ MISMATCH'}`);
-  console.log(`RSS items: expected=${dedupedItemRows.length}  staged=${stagedItemCount}  ${stagedItemCount === dedupedItemRows.length ? '✓' : '✗ MISMATCH'}`);
+  console.log(`Clusters: expected=${expectedClusterCount} (fresh=${labRankedQueue.length} + carry-forward=${toCarryForward.length})  staged=${stagedClusterCount}  ${stagedClusterCount === expectedClusterCount ? '✓' : '✗ MISMATCH'}`);
+  console.log(`RSS items: expected=${expectedItemCount} (fresh=${dedupedItemRows.length} + carry-forward=${carriedItemCount})  staged=${stagedItemCount}  ${stagedItemCount === expectedItemCount ? '✓' : '✗ MISMATCH'}`);
 
   if (!stagingValid) {
     console.error('\n✗ STAGING VALIDATION FAILED — refusing to swap. Production untouched.');
     console.error('Staging tables left in place for forensic inspection (cleared on next run).');
     process.exit(1);
   }
+
+  // --- Polish 6B.1 step E.1: every protected story ID must be present in
+  // staging (fresh OR carried forward) before swap is ever attempted. ---
+  const { data: stagingClusterRows, error: stagingClusterIdsErr } = await supabase
+    .from('story_clusters_staging').select('id');
+  if (stagingClusterIdsErr) { console.error('baca story_clusters_staging (protected check) gagal:', stagingClusterIdsErr); process.exit(1); }
+  const stagingClusterIds = new Set(stagingClusterRows.map(r => r.id));
+  const stillMissing = findStillMissingProtected(protectedStoryIds, stagingClusterIds);
+  if (stillMissing.length > 0) {
+    console.error('\n✗ PROTECTED STORY MISSING FROM STAGING — refusing to swap. Production untouched.');
+    stillMissing.forEach(id => console.error(`  - ${id}`));
+    process.exit(1);
+  }
+  if (protectedStoryIds.size > 0) console.log(`✓ Semua ${protectedStoryIds.size} protected story ID disahkan wujud dalam staging.\n`);
 
   if (DRY_RUN) {
     console.log('\n✓ Staging valid. DRY RUN — stopping before swap, per --dry-run. Production untouched.');
