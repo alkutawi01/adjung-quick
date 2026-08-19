@@ -1067,8 +1067,10 @@ body {
    inventory data needs scan/sort/compare, so it's a table, not cards.
    Locked principle: table for scanning many rows, card for one item with
    context, form for decisions. Reused for any future "many rows" screen. */
-.source-table-wrap { overflow-x: auto; margin-bottom: 12px; }
-.source-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.source-table-wrap { overflow-x: auto; margin-bottom: 12px; max-width: 100%; }
+/* table-layout: fixed so column widths obey the container instead of
+   being driven by the longest untruncated cell content (Polish 1/5). */
+.source-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; table-layout: fixed; }
 .source-table th {
   text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--hairline);
   color: var(--ink-muted); font-weight: normal; white-space: nowrap;
@@ -1078,7 +1080,16 @@ body {
 .source-table__sortable:hover { color: var(--accent); }
 .source-table td { padding: 5px 8px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
 .source-table__row--inactive { color: var(--ink-faint); }
-.source-table__name { font-weight: 500; white-space: nowrap; }
+/* Pusingan Polish 1/5 (2026-08-19): `white-space: nowrap` here was the
+   SECOND cause of the clipped-table bug (the first was .admin-app's
+   640px cap, fixed above). This class carries the story TITLE in
+   Semua Berita/Pemilihan/Susunan Akhir -- a real headline is 60-100
+   chars, so nowrap forced the column to ~1207px on its own and pushed
+   total table width to 1631px, hiding every column after it behind a
+   horizontal scroll no editor would think to use. Titles must wrap;
+   only short cells (status, actions, numbers) keep nowrap. Measured
+   live on production after the 640px fix alone did NOT resolve it. */
+.source-table__name { font-weight: 500; white-space: normal; overflow-wrap: anywhere; min-width: 220px; }
 .source-table__num { font-variant-numeric: tabular-nums; }
 .source-table__url {
   max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
