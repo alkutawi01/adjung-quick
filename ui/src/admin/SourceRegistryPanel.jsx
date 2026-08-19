@@ -1,9 +1,17 @@
 // SourceRegistryPanel.jsx — Admin Console V2, "Sumber" menu.
 //
-// Round 3/15 (2026-08-19): reads REAL public.sources via
-// db/source-registry-adapter.mjs::fetchAllSourcesForIngestion (browser-safe,
-// no admin gate on read). NOT lab/sources.js -- that's fixture/reference
-// only per the project's locked Fasa 1 finding.
+// Round 3/15 (2026-08-19), corrected same round after Izzat's direct
+// pushback on the first draft ("kenapa awak tak guna table? cara awak ni
+// buat editor menyampah. banyak kad"). Locked UI principle from that
+// correction: TABLE when the editor needs to scan/compare many rows,
+// CARD only for reading one item with context, FORM for decisions.
+// Sumber is registry/inventory data -- many rows, needs sort/filter/scan
+// -- so it's a table, not a card list.
+//
+// Reads REAL public.sources via db/source-registry-adapter.mjs::
+// fetchAllSourcesForIngestion (browser-safe, no admin gate on read). NOT
+// lab/sources.js -- that's fixture/reference only per the project's
+// locked Fasa 1 finding.
 //
 // Write path (add/disable) traced before wiring: addSource/setSourceStatus
 // follow the EXACT same convention already trusted elsewhere in this
@@ -13,21 +21,20 @@
 // working" -- no editor login credentials were available locally to
 // actually submit one and confirm.
 //
-// Only fields useful to an editor are shown on the main row (name/URL/
-// status/trust/type). exclude_patterns and extra_ca are real but
-// technical/rarely-relevant -- kept behind "Lihat butiran", not in the
-// main table, per explicit instruction not to clutter it with schema
-// internals.
+// exclude_patterns/extra_ca are real but technical/rarely-relevant --
+// kept in the row-click detail drawer, never a table column.
 
 import { useState, useEffect, useMemo } from 'react';
 import { fetchAllSourcesForIngestion, addSource, setSourceStatus } from '../../../db/source-registry-adapter.mjs';
 
-export default function SourceRegistryPanel({ supabase, role, userId }) {
+export default function SourceRegistryPanel({ supabase, role }) {
   const [sources, setSources] = useState(null); // null = loading
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all | active | disabled | archived
-  const [expandedId, setExpandedId] = useState(null);
+  const [sortKey, setSortKey] = useState('name');
+  const [sortDir, setSortDir] = useState(1); // 1 asc, -1 desc
+  const [openId, setOpenId] = useState(null); // drawer
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -44,20 +51,37 @@ export default function SourceRegistryPanel({ supabase, role, userId }) {
 
   const counts = useMemo(() => {
     if (!sources) return null;
-    const active = sources.filter(s => s.status === 'active').length;
-    const disabled = sources.filter(s => s.status !== 'active').length;
-    return { active, disabled };
+    return {
+      active: sources.filter(s => s.status === 'active').length,
+      inactive: sources.filter(s => s.status !== 'active').length,
+    };
   }, [sources]);
 
-  const filtered = useMemo(() => {
+  const rows = useMemo(() => {
     if (!sources) return [];
     const q = query.trim().toLowerCase();
-    return sources.filter(s => {
+    const filtered = sources.filter(s => {
       if (statusFilter !== 'all' && s.status !== statusFilter) return false;
       if (q && !s.name.toLowerCase().includes(q) && !(s.url ?? '').toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [sources, query, statusFilter]);
+    const val = s => {
+      if (sortKey === 'trust') return s.trustScore ?? -1;
+      if (sortKey === 'status') return s.status;
+      return (s.name ?? '').toLowerCase();
+    };
+    return [...filtered].sort((a, b) => {
+      const av = val(a), bv = val(b);
+      if (av < bv) return -1 * sortDir;
+      if (av > bv) return 1 * sortDir;
+      return 0;
+    });
+  }, [sources, query, statusFilter, sortKey, sortDir]);
+
+  const toggleSort = key => {
+    if (sortKey === key) setSortDir(d => d * -1);
+    else { setSortKey(key); setSortDir(1); }
+  };
 
   const toggleStatus = async source => {
     const nextStatus = source.status === 'active' ? 'disabled' : 'active';
@@ -78,13 +102,14 @@ export default function SourceRegistryPanel({ supabase, role, userId }) {
     }
   };
 
+  const openSource = rows.find(s => s.id === openId) ?? null;
+
   return (
     <div className="source-registry">
       <p className="source-registry__note">
         Baca terus daripada <code>public.sources</code> (produksi sebenar). Tindakan
-        tambah/nyahaktif guna path admin sebenar (<code>addSource</code>/
-        <code>setSourceStatus</code>) tetapi belum disahkan hujung-ke-hujung -- tiada akaun
-        editor tersedia tempatan untuk log masuk dan cuba sebenar.
+        tambah/nyahaktif guna path admin sebenar tetapi belum disahkan hujung-ke-hujung --
+        tiada akaun editor tersedia tempatan untuk log masuk dan cuba sebenar.
       </p>
 
       {error && <p className="review-queue__error">Ralat memuatkan sumber: {error}</p>}
@@ -94,7 +119,7 @@ export default function SourceRegistryPanel({ supabase, role, userId }) {
       {sources !== null && (
         <>
           <p className="source-registry__summary">
-            <b>{counts.active}</b> aktif &middot; <b>{counts.disabled}</b> tidak aktif
+            <b>{counts.active}</b> aktif &middot; <b>{counts.inactive}</b> tidak aktif
           </p>
           <div className="classification-rules__filters">
             <input
@@ -111,43 +136,55 @@ export default function SourceRegistryPanel({ supabase, role, userId }) {
             </select>
           </div>
 
-          {filtered.length === 0 && (
+          {rows.length === 0 && (
             <p className="review-queue__empty">Tiada sumber sepadan carian.</p>
           )}
 
-          <ul className="source-registry__list">
-            {filtered.map(s => (
-              <li key={s.id} className={`source-registry__row${s.status !== 'active' ? ' source-registry__row--inactive' : ''}`}>
-                <div className="source-registry__row-main">
-                  <span className="source-registry__name">{s.name}</span>
-                  <span className={`source-registry__status source-registry__status--${s.status}`}>
-                    {s.status === 'active' ? 'Aktif' : s.status === 'disabled' ? 'Tidak aktif' : 'Diarkibkan'}
-                  </span>
-                  <span className="source-registry__meta">Kepercayaan: {s.trustScore ?? '—'}</span>
-                  {s.knownCategory && <span className="source-registry__meta">Bidang: {s.knownCategory}</span>}
-                  <button type="button" onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}>
-                    {expandedId === s.id ? 'Sorok butiran' : 'Lihat butiran'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busyId === s.id}
-                    onClick={() => toggleStatus(s)}
-                  >
-                    {busyId === s.id ? 'Menyimpan...' : s.status === 'active' ? 'Nyahaktifkan' : 'Aktifkan'}
-                  </button>
-                </div>
-                {expandedId === s.id && (
-                  <div className="source-registry__details">
-                    <div>URL: <code>{s.url}</code></div>
-                    <div>Bahasa/Edisi: {s.language ?? '—'}</div>
-                    <div>Jenis: {s.sourceType ?? '—'}</div>
-                    {s.excludePatterns && <div>Corak dikecualikan: {s.excludePatterns.map(String).join(', ')}</div>}
-                    {s.extraCa && <div>Sijil tambahan (extra_ca): ada</div>}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+          {rows.length > 0 && (
+            <div className="source-table-wrap">
+              <table className="source-table">
+                <thead>
+                  <tr>
+                    <th className="source-table__sortable" onClick={() => toggleSort('name')}>
+                      Sumber{sortKey === 'name' ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
+                    </th>
+                    <th>Jenis</th>
+                    <th>Bidang</th>
+                    <th className="source-table__sortable" onClick={() => toggleSort('status')}>
+                      Status{sortKey === 'status' ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
+                    </th>
+                    <th className="source-table__sortable" onClick={() => toggleSort('trust')}>
+                      Kepercayaan{sortKey === 'trust' ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
+                    </th>
+                    <th>URL</th>
+                    <th>Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(s => (
+                    <tr key={s.id} className={s.status !== 'active' ? 'source-table__row--inactive' : ''}>
+                      <td className="source-table__name">{s.name}</td>
+                      <td>{s.sourceType ?? '—'}</td>
+                      <td>{s.knownCategory ?? '—'}</td>
+                      <td>
+                        <span className={`source-registry__status source-registry__status--${s.status}`}>
+                          {s.status === 'active' ? 'Aktif' : s.status === 'disabled' ? 'Tidak aktif' : 'Diarkibkan'}
+                        </span>
+                      </td>
+                      <td className="source-table__num">{s.trustScore ?? '—'}</td>
+                      <td className="source-table__url" title={s.url}>{s.url}</td>
+                      <td className="source-table__actions">
+                        <button type="button" onClick={() => setOpenId(s.id)}>Lihat</button>
+                        <button type="button" disabled={busyId === s.id} onClick={() => toggleStatus(s)}>
+                          {busyId === s.id ? '...' : s.status === 'active' ? 'Nyahaktif' : 'Aktif'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {!adding && (
             <button type="button" onClick={() => setAdding(true)}>+ Tambah sumber</button>
@@ -161,6 +198,25 @@ export default function SourceRegistryPanel({ supabase, role, userId }) {
             />
           )}
         </>
+      )}
+
+      {openSource && (
+        <div className="drawer-overlay" onClick={() => setOpenId(null)}>
+          <aside className="drawer" onClick={e => e.stopPropagation()}>
+            <button type="button" className="drawer__close" onClick={() => setOpenId(null)}>Tutup</button>
+            <h3 className="drawer__title">{openSource.name}</h3>
+            <dl className="drawer__fields">
+              <dt>URL</dt><dd><code>{openSource.url}</code></dd>
+              <dt>Status</dt><dd>{openSource.status}</dd>
+              <dt>Kepercayaan</dt><dd>{openSource.trustScore ?? '—'}</dd>
+              <dt>Bahasa/Edisi</dt><dd>{openSource.language ?? '—'}</dd>
+              <dt>Jenis</dt><dd>{openSource.sourceType ?? '—'}</dd>
+              <dt>Bidang</dt><dd>{openSource.knownCategory ?? '—'}</dd>
+              {openSource.excludePatterns && <><dt>Corak dikecualikan</dt><dd>{openSource.excludePatterns.map(String).join(', ')}</dd></>}
+              {openSource.extraCa && <><dt>Sijil tambahan</dt><dd>Ada (extra_ca)</dd></>}
+            </dl>
+          </aside>
+        </div>
       )}
     </div>
   );

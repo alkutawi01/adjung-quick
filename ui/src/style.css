@@ -1052,6 +1052,44 @@ body {
   border-radius: 4px; background: var(--paper); color: var(--ink);
 }
 
+/* Sumber table -- per Izzat's direct correction (2026-08-19): registry/
+   inventory data needs scan/sort/compare, so it's a table, not cards.
+   Locked principle: table for scanning many rows, card for one item with
+   context, form for decisions. Reused for any future "many rows" screen. */
+.source-table-wrap { overflow-x: auto; margin-bottom: 12px; }
+.source-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.source-table th {
+  text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--hairline);
+  color: var(--ink-muted); font-weight: normal; white-space: nowrap;
+  position: sticky; top: 0; background: var(--paper);
+}
+.source-table__sortable { cursor: pointer; user-select: none; }
+.source-table__sortable:hover { color: var(--accent); }
+.source-table td { padding: 5px 8px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.source-table__row--inactive { color: var(--ink-faint); }
+.source-table__name { font-weight: 500; white-space: nowrap; }
+.source-table__num { font-variant-numeric: tabular-nums; }
+.source-table__url {
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink-faint); font-size: 0.75rem;
+}
+.source-table__actions { white-space: nowrap; display: flex; gap: 4px; }
+.source-table__actions button { font-size: 0.72rem; padding: 3px 7px; }
+
+.drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.2); z-index: 50;
+  display: flex; justify-content: flex-end;
+}
+.drawer {
+  width: min(360px, 90vw); height: 100%; background: var(--paper); padding: 20px;
+  overflow-y: auto; box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+}
+.drawer__close { background: none; border: 1px solid var(--hairline); border-radius: 4px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; margin-bottom: 14px; }
+.drawer__title { font-size: 1rem; color: var(--accent); margin: 0 0 14px; font-weight: normal; }
+.drawer__fields { margin: 0; }
+.drawer__fields dt { font-size: 0.72rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; }
+.drawer__fields dd { margin: 2px 0 0; font-size: 0.85rem; color: var(--ink); word-break: break-word; }
+
 .bidang-panel__section-title { font-size: 0.9rem; color: var(--accent); margin: 20px 0 4px; font-weight: normal; }
 .bidang-pemetaan__list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .bidang-pemetaan__row { display: flex; gap: 8px; font-size: 0.82rem; padding: 4px 0; border-bottom: 1px solid var(--hairline); }
