@@ -1068,9 +1068,7 @@ body {
    Locked principle: table for scanning many rows, card for one item with
    context, form for decisions. Reused for any future "many rows" screen. */
 .source-table-wrap { overflow-x: auto; margin-bottom: 12px; max-width: 100%; }
-/* table-layout: fixed so column widths obey the container instead of
-   being driven by the longest untruncated cell content (Polish 1/5). */
-.source-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; table-layout: fixed; }
+.source-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 .source-table th {
   text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--hairline);
   color: var(--ink-muted); font-weight: normal; white-space: nowrap;
@@ -1089,14 +1087,20 @@ body {
    horizontal scroll no editor would think to use. Titles must wrap;
    only short cells (status, actions, numbers) keep nowrap. Measured
    live on production after the 640px fix alone did NOT resolve it. */
-/* Title column gets ~40% under table-layout:fixed (which otherwise
-   splits width evenly and leaves headlines in a cramped ~120px column,
-   seen live after the first fix). Set on the first body row's title
-   cell -- under the fixed layout algorithm the first row determines
-   column widths, so this sizes the whole column without needing the
-   class added to five separate <th> rows across five panels. */
-.source-table tbody tr:first-child .source-table__name { width: 40%; }
-.source-table__name { font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
+/* Story-title cells: wrap instead of nowrap (nowrap was the second cause
+   of the clipped table -- a 60-100 char headline forced a ~1207px column
+   and pushed the table to 1631px). max-width caps how much the title can
+   claim under the default auto layout, so the remaining columns keep
+   their natural widths and stay on screen; table-layout:fixed was tried
+   and reverted -- it split all columns equally (123px each, measured
+   live), which starved the title column instead. */
+.source-table__name {
+  font-weight: 500;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 380px;
+  min-width: 200px;
+}
 .source-table__num { font-variant-numeric: tabular-nums; }
 .source-table__url {
   max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
