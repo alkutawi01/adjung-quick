@@ -26,7 +26,12 @@ function normalizeTitle(title) {
   return title.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
 }
 
-function titleSimilarity(a, b) {
+// Exported Pusingan 11/15 (2026-08-19, ranking/scoring-v1-simulation.mjs)
+// -- same function, no behavior change. The scoring simulation needs a
+// real, derivable "near-duplicate" signal for its duplication-penalty
+// factor and reuses this rather than re-implementing Jaccard similarity
+// a second time.
+export function titleSimilarity(a, b) {
   const wordsA = new Set(normalizeTitle(a).split(' ').filter(Boolean));
   const wordsB = new Set(normalizeTitle(b).split(' ').filter(Boolean));
   if (wordsA.size === 0 || wordsB.size === 0) return 0;
