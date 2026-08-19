@@ -252,6 +252,7 @@ export default function SourceRegistryPanel({ supabase, role }) {
 
       {openSource && (
         <SourceDrawer
+          key={openSource.id}
           source={openSource}
           supabase={supabase}
           role={role}
