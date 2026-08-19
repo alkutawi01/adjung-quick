@@ -101,10 +101,10 @@ export default function KaedahNilaiPanel({ corpus, error, weights, setWeights })
   return (
     <div className="kaedah-nilai-panel">
       <p className="bidang-panel__intro">
-        Terokai bagaimana Skor V1 (docs/scoring-v1-policy.md, ditala Pusingan 11-12) berbanding
-        kaedah semasa production -- ubah berat di bawah dan lihat kesannya terus atas berita
-        sebenar. <b>Simulasi sahaja -- belum mengubah sistem sebenar.</b> Tiada apa-apa di sini
-        ditulis ke pangkalan data atau ke <code>ranking/candidate-scoring.mjs</code> production.
+        Terokai bagaimana Skor V1 (cadangan yang telah ditala) berbanding kaedah semasa production --
+        ubah berat di bawah dan lihat kesannya terus atas berita sebenar.
+        <b> Simulasi sahaja -- belum mengubah sistem sebenar.</b> Tiada apa-apa di sini ditulis ke
+        pangkalan data atau ke kaedah ranking production.
       </p>
 
       {error && <p className="review-queue__error">Ralat memuatkan korpus: {error}</p>}

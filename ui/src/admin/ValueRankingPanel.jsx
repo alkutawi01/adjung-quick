@@ -143,11 +143,10 @@ export default function ValueRankingPanel({ supabase, role, userId }) {
       )}
 
       <div className="section-note">
-        Bidang/edisi lain (semua selain ms-MY &middot; Politik) guna susunan tersimpan
-        (<code>editorial_score</code>) tanpa enjin ranking boleh terang ini -- lihat lajur Nilai
-        dalam Berita &rarr; Semua Berita untuk skor am semua bidang. Menambah bidang baharu ke
-        enjin ini ialah perubahan konfigurasi (<code>state/rankingFlags.js</code>), bukan sesuatu
-        yang boleh dilakukan dari Admin Console setakat ini.
+        Bidang/edisi lain (semua selain ms-MY &middot; Politik) guna skor nilai tersimpan tanpa enjin
+        ranking boleh terang ini -- lihat lajur Nilai dalam Berita &rarr; Semua Berita untuk skor am
+        semua bidang. Menambah bidang baharu ke enjin ini ialah perubahan konfigurasi backend, bukan
+        sesuatu yang boleh dilakukan dari Admin Console setakat ini.
       </div>
     </div>
   );

@@ -80,7 +80,7 @@ const CONTENT_PHRASE_RULES = [
 // pelarasan" action is offered here; the gap is stated plainly instead of
 // papered over with a button that would fail or, worse, silently need a
 // secret key this app must never hold.
-function PemetaanSumber({ supabase }) {
+function PemetaanSumber({ supabase, editionId }) {
   const [sources, setSources] = useState(null);
   const [sourcesError, setSourcesError] = useState(null);
   const [rules, setRules] = useState(null);
@@ -162,7 +162,7 @@ function PemetaanSumber({ supabase }) {
               <dt>Tetapan asas</dt>
               <dd>{open.source.knownCategory ?? 'Umum (ditentukan melalui petunjuk berita)'}</dd>
               <dt>Pelarasan Admin</dt>
-              <dd>{open.override ? (open.override.subject_code ?? open.override.field_code) : 'Tiada'}</dd>
+              <dd>{open.override ? getFieldLabel(editionId, open.override.field_code ?? open.override.subject_code) : 'Tiada'}</dd>
             </dl>
             <p className="section-note" style={{ marginTop: 14 }}>
               Tambah/ubah pelarasan belum tersedia di sini -- laluan tulis backend
@@ -460,7 +460,7 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
       <p className="bidang-panel__section-desc">
         Sumber yang feednya sudah didedikasikan kepada satu bidang -- tiada peraturan diperlukan.
       </p>
-      <PemetaanSumber supabase={supabase} />
+      <PemetaanSumber supabase={supabase} editionId={editionId} />
 
       <h2 className="bidang-panel__section-title">Petunjuk RSS/URL</h2>
       <p className="bidang-panel__section-desc">

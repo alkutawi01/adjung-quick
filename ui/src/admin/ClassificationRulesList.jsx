@@ -115,7 +115,7 @@ export default function ClassificationRulesList({ supabase }) {
                 <span className="classification-rules__arrow">→</span>
                 <span className="classification-rules__target">{targetLabel(rule)}</span>
                 <span className="classification-rules__scope">{scopeLabel(rule)}</span>
-                <span className="classification-rules__priority">Priority {rule.priority}</span>
+                <span className="classification-rules__priority">Keutamaan {rule.priority}</span>
                 <span className="classification-rules__status">{rule.status === 'archived' ? 'Diarkibkan' : 'Aktif'}</span>
                 <span className="classification-rules__created">
                   {rule.created_by ? `${rule.created_by} · ` : ''}{formatTimestamp(rule.created_at)}

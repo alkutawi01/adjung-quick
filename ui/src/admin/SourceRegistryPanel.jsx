@@ -299,7 +299,7 @@ function SourceDrawer({ source, supabase, role, onClose, onSaved }) {
           <>
             <dl className="drawer__fields">
               <dt>URL</dt><dd><code>{source.url}</code></dd>
-              <dt>Status</dt><dd>{source.status}</dd>
+              <dt>Status</dt><dd>{source.status === 'active' ? 'Aktif' : source.status === 'disabled' ? 'Tidak aktif' : 'Diarkibkan'}</dd>
               <dt>Kepercayaan</dt><dd>{source.trustScore ?? '—'}</dd>
               <dt>Bahasa</dt><dd>{source.language ?? '—'} <span className="admin-app__status">(belum boleh diubah daripada Admin)</span></dd>
               <dt>Jenis</dt><dd>{JENIS_OPTIONS.find(o => o.value === source.sourceType)?.label ?? source.sourceType ?? '—'}</dd>

@@ -104,10 +104,9 @@ export default function PemilihanPanel({ corpus, error, weights }) {
   return (
     <div className="pemilihan-panel">
       <p className="bidang-panel__intro">
-        Bagaimana Nilai Berita diterjemah kepada 10 berita aktif -- guna
-        <code> ranking/diversity-selection.mjs</code>'s <code>selectDiverseCandidates()</code> SEBENAR
-        (tak diubah), skor sahaja berbeza antara mod. Susunan Akhir/composition belum termasuk di
-        sini (Pusingan 15).
+        Bagaimana Nilai Berita diterjemah kepada 10 berita aktif -- guna enjin pemilihan kepelbagaian
+        SEBENAR (tak diubah), skor sahaja berbeza antara mod. Susunan Akhir (pemeriksaan komposisi
+        selepas ini) ada di tab berasingan.
       </p>
 
       <div className="classification-rules__filters">
