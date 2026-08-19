@@ -455,7 +455,7 @@ function PetunjukRssUrl({ supabase, editionId, taxonomyFieldCodes, taxonomyField
     key: `bernama-${prefix}`,
     sumber: 'Bernama',
     jenis: 'Prefix tajuk',
-    corak: `"${prefix} : ..."`,
+    corak: `"${prefix} : …"`,
     kategori: resolveBidangLabel(editionId, { subjectCode: subject }),
     asal: 'Tetapan asas',
     liputan: 'Hanya item sepadan',
