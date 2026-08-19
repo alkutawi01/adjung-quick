@@ -448,7 +448,18 @@ body {
   height: 100dvh;
   overflow-y: auto;
   padding: 20px 16px 60px;
-  max-width: 640px;
+  /* Pusingan Polish 1/5 (2026-08-19): was 640px, inherited from the
+     reader-facing bento's column width without reconsidering it for
+     Admin. An admin table (Semua Berita, Nilai & Susunan comparisons,
+     Bidang) needs real width to scan -- 640px forced every wide table
+     into a horizontal-scroll box with no visible scrollbar hint, so
+     every column past "Berita" was silently invisible unless the editor
+     happened to scroll right. Found live via an authenticated screenshot
+     (Izzat's own report + this session's own audit): .source-table-wrap's
+     scrollWidth was 1631px against a 592px content box. Admin is a work
+     tool, not the reader Wheel -- it doesn't need the reader's column
+     width. */
+  max-width: 1180px;
   margin: 0 auto;
   font-family: Georgia, 'Times New Roman', serif;
   color: var(--ink);

@@ -22,7 +22,12 @@ const UNIVERSAL_GEOGRAPHIES = [...new Set(Object.values(GEOGRAPHY_VOCABULARY))].
 // deliberately — default+override model) — it's a static description of
 // what the code currently does, kept in sync by hand since it's a single
 // fixed fact, not a list that grows.
-const BUILT_IN_RULE_DESCRIPTION = 'Cerita Politik dari luar Malaysia dipaparkan di bawah Dunia (bukan Politik) — peraturan asas sistem, sentiasa aktif.';
+//
+// Pusingan Polish 1/5 (2026-08-19): renamed "Susunan Edisi" -> "Paparan
+// Edisi" and copy simplified throughout per ChatGPT's exact target --
+// this was one of Izzat's own flagged screenshots (too technical, mixed
+// Bidang/Kategori terminology, raw priority number shown to editor).
+const BUILT_IN_RULE_DESCRIPTION = 'Politik luar Malaysia → Dunia';
 
 export default function EditionRulesManager({ editionLabel, taxonomyFieldCodes, taxonomyFieldLabels, rules, busy, onAdd, onArchive, onRestore }) {
   const activeRules = rules?.filter(r => r.status === 'active') ?? [];
@@ -35,22 +40,21 @@ export default function EditionRulesManager({ editionLabel, taxonomyFieldCodes, 
 
   return (
     <article className="edition-rules">
-      <h3 className="editorial-desk__placeholder-title">Peraturan Susunan Edisi — {editionLabel}</h3>
+      <h3 className="editorial-desk__placeholder-title">Paparan Edisi — {editionLabel}</h3>
       <p className="editorial-desk__placeholder-desc">
-        Tentukan bila sesuatu Bidang patut dipaparkan di bawah Kategori
-        lain untuk edisi ini. Peraturan yang awak tambah di sini akan
-        DIUTAMAKAN berbanding peraturan asas sistem di bawah.
+        Tentukan bagaimana sesuatu bidang dipaparkan dalam edisi ini. Pelarasan yang awak tambah
+        di bawah diutamakan berbanding tetapan asas.
       </p>
 
       <div className="edition-rules__builtin">
-        <span className="edition-rules__builtin-label">Peraturan asas sistem (tak boleh diubah di sini):</span>
+        <span className="edition-rules__builtin-label">Tetapan asas</span>
         <p className="edition-rules__builtin-desc">{BUILT_IN_RULE_DESCRIPTION}</p>
       </div>
 
-      <h4 className="filter-rules__list-title">Peraturan Admin — Aktif</h4>
+      <h4 className="filter-rules__list-title">Pelarasan Admin</h4>
       {activeRules.length === 0 && (
         <p className="review-queue__empty">
-          Tiada peraturan admin lagi. Sistem guna peraturan asas sahaja (di atas).
+          Tiada pelarasan admin lagi. Sistem guna tetapan asas sahaja (di atas).
         </p>
       )}
       {activeRules.map(rule => (
@@ -71,6 +75,7 @@ export default function EditionRulesManager({ editionLabel, taxonomyFieldCodes, 
         taxonomyFieldLabels={taxonomyFieldLabels}
         busy={busy}
         onAdd={onAdd}
+        nextPriority={activeRules.length + 1}
       />
     </article>
   );
@@ -93,7 +98,6 @@ function EditionRuleRow({ rule, fieldLabelFor, busy, onArchive, onRestore, archi
       </span>
       <span className="edition-rules__arrow">→</span>
       <span className="edition-rules__target">{fieldLabelFor(rule.action_field_code)}</span>
-      <span className="edition-rules__priority">Keutamaan {rule.priority}</span>
       {archived && rule.reason && <span className="edition-rules__reason">Sebab: {rule.reason}</span>}
 
       <div className="edition-rules__row-actions">
@@ -135,12 +139,17 @@ function EditionRuleRow({ rule, fieldLabelFor, busy, onArchive, onRestore, archi
   );
 }
 
-function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, busy, onAdd }) {
+// Pusingan Polish 1/5: priority number no longer shown/entered by the
+// editor (ChatGPT's explicit instruction -- "jangan tunjuk nombor
+// priority", conflict resolution is a backend concern). Auto-assigned
+// from `nextPriority` (active rule count + 1) so a newly added rule wins
+// over older ones on conflict, matching the schema's own "higher number
+// wins" convention -- silent, never surfaced as a field to fill in.
+function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, busy, onAdd, nextPriority }) {
   const [subject, setSubject] = useState('');
   const [geographyType, setGeographyType] = useState('');
   const [geographyValue, setGeographyValue] = useState('');
   const [fieldCode, setFieldCode] = useState('');
-  const [priority, setPriority] = useState(1);
 
   const canSubmit = subject && fieldCode && (!geographyType || geographyValue) && !busy;
 
@@ -152,31 +161,30 @@ function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, busy, onA
       conditionGeographyType: geographyType || null,
       conditionGeographyValue: geographyType ? geographyValue : null,
       actionFieldCode: fieldCode,
-      priority: Number(priority) || 0,
+      priority: nextPriority,
     });
     setSubject('');
     setGeographyType('');
     setGeographyValue('');
     setFieldCode('');
-    setPriority(1);
   };
 
   return (
     <form className="edition-rules__add" onSubmit={submit}>
-      <h4 className="filter-rules__list-title">Tambah Peraturan Baharu</h4>
+      <h4 className="filter-rules__list-title">Tambah Pelarasan</h4>
 
       <label className="edition-rules__field">
-        Bila cerita ini Bidang:
+        Jika bidang:
         <select value={subject} onChange={e => setSubject(e.target.value)} disabled={busy}>
-          <option value="">— Pilih Bidang —</option>
+          <option value="">— Pilih bidang —</option>
           {UNIVERSAL_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </label>
 
       <label className="edition-rules__field">
-        Dan (opsyenal) geografi:
+        dan lokasi (opsyenal):
         <select value={geographyType} onChange={e => setGeographyType(e.target.value)} disabled={busy}>
-          <option value="">— Tiada syarat geografi —</option>
+          <option value="">— Tiada syarat lokasi —</option>
           <option value="is">Dari negara/kawasan ini:</option>
           <option value="not">Bukan dari negara/kawasan ini:</option>
         </select>
@@ -193,21 +201,16 @@ function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, busy, onA
       )}
 
       <label className="edition-rules__field">
-        Papar di bawah Kategori:
+        paparkan dalam seksyen:
         <select value={fieldCode} onChange={e => setFieldCode(e.target.value)} disabled={busy}>
-          <option value="">— Pilih Kategori —</option>
+          <option value="">— Pilih seksyen —</option>
           {taxonomyFieldCodes.map((code, i) => (
             <option key={code} value={code}>{taxonomyFieldLabels[i]}</option>
           ))}
         </select>
       </label>
 
-      <label className="edition-rules__field">
-        Keutamaan (nombor lebih tinggi = diutamakan bila 2 peraturan berlanggar):
-        <input type="number" value={priority} onChange={e => setPriority(e.target.value)} disabled={busy} min={0} />
-      </label>
-
-      <button type="submit" disabled={!canSubmit}>+ Tambah Peraturan</button>
+      <button type="submit" disabled={!canSubmit}>+ Tambah</button>
     </form>
   );
 }

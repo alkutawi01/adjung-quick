@@ -339,7 +339,7 @@ function ReviewQueue({ userId, role }) {
   return (
     <div className="review-queue">
       <div className="admin-app__masthead">
-        <span className="admin-app__masthead-title">Senarai Semakan</span>
+        <span className="admin-app__masthead-title">Adjung Quick</span>
         <button type="button" className="admin-app__signout" onClick={() => adminSupabase.auth.signOut()}>
           Log keluar
         </button>

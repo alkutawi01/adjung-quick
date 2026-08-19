@@ -184,9 +184,9 @@ export default function KaedahNilaiPanel({ corpus, error, weights, setWeights })
 
           <h3 className="bidang-panel__section-title">Belum boleh dinilai secara automatik</h3>
           <p className="bidang-panel__section-desc">
-            Empat faktor ini TAK dimasukkan ke Skor V1 sebagai nombor -- tiada metadata boleh
-            dipercayai wujud utk mengukurnya secara selamat (docs/scoring-v1-policy.md). Ranking
-            V1 boleh silap tepat pada faktor-faktor ini.
+            Empat faktor ini TAK dimasukkan ke Skor V1 sebagai nombor -- tiada maklumat boleh
+            dipercayai wujud utk mengukurnya secara selamat. Ranking V1 boleh silap tepat pada
+            faktor-faktor ini.
           </p>
           <ul className="value-ranking-panel__factors">
             {SCORING_V1_WEIGHTS.filter(w => !w.aktif).map(w => (

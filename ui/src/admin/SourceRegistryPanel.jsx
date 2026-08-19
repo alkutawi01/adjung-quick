@@ -152,8 +152,8 @@ export default function SourceRegistryPanel({ supabase, role }) {
   return (
     <div className="source-registry">
       <p className="source-registry__note">
-        Baca terus daripada <code>public.sources</code> (produksi sebenar). Tambah/aktif/nyahaktif
-        ditulis terus ke pangkalan data produksi sebaik disahkan.
+        Senarai sumber sebenar (produksi). Tambah/aktif/nyahaktif ditulis terus ke pangkalan data
+        sebaik disahkan.
       </p>
 
       {error && <p className="review-queue__error">Ralat memuatkan sumber: {error}</p>}

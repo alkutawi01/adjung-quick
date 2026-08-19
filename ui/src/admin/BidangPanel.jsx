@@ -25,6 +25,27 @@ import { SUBJECT_VOCABULARY } from '../../../classification/lib/desk-vocabulary.
 import ClassificationRulesList from './ClassificationRulesList.jsx';
 import EditionRulesManager from './EditionRulesManager.jsx';
 import { getFieldLabel } from '../../../state/editions.js';
+import { getFieldEntryForSubject } from '../../../classification/lib/taxonomy-registry.mjs';
+
+// Pusingan Polish 1/5 (2026-08-19), real bug found via authenticated
+// screenshot audit: getFieldLabel(editionId, fieldCode) only resolves a
+// FIELD code ('politics', 'bisnes') to its Malay label -- it was being
+// called throughout this file with Universal SUBJECT codes instead
+// ('Politics', 'Economy', from desk-vocabulary.mjs's SUBJECT_VOCABULARY
+// or classification_rules.subject_code), which getFieldLabel doesn't
+// know how to resolve, so it fell back to returning the raw English
+// subject code verbatim -- exactly the "Politics"/"Crime"/"Economy" raw
+// text an authenticated pass caught live in Petunjuk RSS/URL. The real
+// subject->field reverse lookup already exists
+// (taxonomy-registry.mjs::getFieldEntryForSubject, keyed on each field's
+// own `subject_codes` array) -- this helper picks the right one of the
+// two lookups depending on which kind of code it's given, so every call
+// site in this file resolves correctly instead of re-guessing.
+function resolveBidangLabel(editionId, { fieldCode, subjectCode }) {
+  if (fieldCode) return getFieldLabel(editionId, fieldCode);
+  if (subjectCode) return getFieldEntryForSubject(editionId, subjectCode)?.label ?? subjectCode;
+  return null;
+}
 
 // ms-MY tokens only from SUBJECT_VOCABULARY -- Fasa 4's locked scope is
 // ms-MY sahaja (en-global/ar-global deferred), same convention as
@@ -137,8 +158,8 @@ function PemetaanSumber({ supabase, editionId }) {
             <tbody>
               {rows.map(({ source, override }) => {
                 const fieldLabel = override
-                  ? (override.subject_code ?? override.field_code ?? '—')
-                  : (source.knownCategory ?? 'Umum (ditentukan melalui petunjuk berita)');
+                  ? resolveBidangLabel(editionId, { fieldCode: override.field_code, subjectCode: override.subject_code })
+                  : (source.knownCategory ? getFieldLabel(editionId, source.knownCategory) : 'Umum (ditentukan melalui petunjuk berita)');
                 return (
                   <tr key={source.id}>
                     <td className="source-table__name">{source.name}</td>
@@ -160,15 +181,14 @@ function PemetaanSumber({ supabase, editionId }) {
             <h3 className="drawer__title">{open.source.name} &mdash; Pemetaan Bidang</h3>
             <dl className="drawer__fields">
               <dt>Tetapan asas</dt>
-              <dd>{open.source.knownCategory ?? 'Umum (ditentukan melalui petunjuk berita)'}</dd>
+              <dd>{open.source.knownCategory ? getFieldLabel(editionId, open.source.knownCategory) : 'Umum (ditentukan melalui petunjuk berita)'}</dd>
               <dt>Pelarasan Admin</dt>
-              <dd>{open.override ? getFieldLabel(editionId, open.override.field_code ?? open.override.subject_code) : 'Tiada'}</dd>
+              <dd>{open.override ? resolveBidangLabel(editionId, { fieldCode: open.override.field_code, subjectCode: open.override.subject_code }) : 'Tiada'}</dd>
             </dl>
             <p className="section-note" style={{ marginTop: 14 }}>
-              Tambah/ubah pelarasan belum tersedia di sini -- laluan tulis backend
-              (classification_rules RPC) masih terhad kepada service_role sahaja, bukan
-              sesi admin biasa. Perlu dibetulkan di backend dahulu (macam edition_rules
-              dahulu) sebelum boleh disambung dgn selamat.
+              Tambah/ubah pelarasan belum tersedia di sini -- laluan tulis backend masih
+              terhad kepada sistem sahaja, bukan sesi admin biasa. Perlu dibetulkan di
+              backend dahulu (macam Paparan Edisi dahulu) sebelum boleh disambung dgn selamat.
             </p>
           </aside>
         </div>
@@ -217,7 +237,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
       sumber: 'Semua sumber',
       jenis: 'Kategori RSS / segmen URL',
       corak: token,
-      bidang: getFieldLabel(editionId, SUBJECT_VOCABULARY[token]),
+      bidang: resolveBidangLabel(editionId, { subjectCode: SUBJECT_VOCABULARY[token] }),
       asal: 'Tetapan asas',
       liputan: 'Hanya item sepadan',
     }));
@@ -227,7 +247,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
     sumber: 'Bernama',
     jenis: 'Prefix tajuk',
     corak: `"${prefix} : ..."`,
-    bidang: getFieldLabel(editionId, subject),
+    bidang: resolveBidangLabel(editionId, { subjectCode: subject }),
     asal: 'Tetapan asas',
     liputan: 'Hanya item sepadan',
   }));
@@ -239,7 +259,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
       sumber: r.sourceName ?? 'Pelbagai',
       jenis: 'URL (peraturan Admin)',
       corak: r.pattern,
-      bidang: getFieldLabel(r.edition_id ?? editionId, r.field_code ?? r.subject_code),
+      bidang: resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code }),
       asal: 'Pelarasan Admin',
       liputan: 'Hanya item sepadan',
     }));
@@ -282,9 +302,9 @@ function PetunjukRssUrl({ supabase, editionId }) {
         </div>
       )}
       <p className="section-note">
-        Peraturan Admin baharu (jenis URL) belum boleh ditambah di sini -- laluan tulis
-        classification_rules RPC masih terhad kepada service_role sahaja (sama isu macam
-        Pemetaan Sumber di atas). Dicatat sebagai backlog, belum dibetulkan pusingan ini.
+        Pelarasan baharu (jenis URL) belum boleh ditambah di sini -- laluan tulis backend
+        masih terhad kepada sistem sahaja (sama isu macam Pemetaan Sumber di atas). Dicatat
+        sebagai backlog, belum dibetulkan pusingan ini.
       </p>
 
       {open && (
@@ -348,7 +368,7 @@ function FeedCampuran({ supabase, editionId }) {
     sumber: 'Sumber dengan metadata tak cukup (cth. feed campuran)',
     corak: r.phrases.slice(0, 4).join(', ') + (r.phrases.length > 4 ? `, +${r.phrases.length - 4} lagi` : ''),
     fullPhrases: r.phrases,
-    bidang: getFieldLabel(editionId, r.subject),
+    bidang: resolveBidangLabel(editionId, { subjectCode: r.subject }),
     kaedah: 'Calon sahaja -- tertakluk get keyakinan',
     asal: 'Tetapan asas',
     isMahkamah: r.subject === 'Crime',
@@ -361,7 +381,7 @@ function FeedCampuran({ supabase, editionId }) {
       sumber: r.sourceName ?? 'Pelbagai',
       corak: r.pattern,
       fullPhrases: [r.pattern],
-      bidang: getFieldLabel(r.edition_id ?? editionId, r.field_code ?? r.subject_code),
+      bidang: resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code }),
       kaedah: 'Fakta admin -- keputusan terus (bukan calon)',
       asal: 'Pelarasan Admin',
       isMahkamah: false,
@@ -378,10 +398,9 @@ function FeedCampuran({ supabase, editionId }) {
         terus, atau berita masuk Perlu Semakan. Bukan &ldquo;ada kata X = terus bidang Y&rdquo;.
       </p>
       <p className="section-note">
-        Contoh feed campuran sebenar: Metro Mutakhir -- 0% item ada metadata struktur (Lapisan
-        1), rule Jenayah di bawah selesaikan ~30% sampel dgn betul. Angka daripada kajian audit
-        20 item (bukan metrik masa nyata) -- lihat
-        docs/prototypes/metro-mutakhir-classification-coverage-analysis-v1.md.
+        Contoh feed campuran sebenar: Metro Mutakhir -- 0% item ada metadata struktur, peraturan
+        Jenayah di bawah selesaikan ~30% sampel dgn betul. Angka daripada kajian audit 20 item
+        (bukan metrik masa nyata).
       </p>
 
       {error && <p className="review-queue__error">Ralat memuatkan peraturan Admin: {error}</p>}
@@ -415,9 +434,8 @@ function FeedCampuran({ supabase, editionId }) {
         </div>
       )}
       <p className="section-note">
-        Peraturan kandungan baharu belum boleh ditambah di sini -- laluan tulis
-        classification_rules RPC masih terhad kepada service_role sahaja (backlog sama
-        macam Pemetaan Sumber &amp; Petunjuk RSS/URL).
+        Peraturan kandungan baharu belum boleh ditambah di sini -- laluan tulis backend masih
+        terhad kepada sistem sahaja (backlog sama macam Pemetaan Sumber &amp; Petunjuk RSS/URL).
       </p>
 
       {open && (
@@ -476,9 +494,9 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
       </p>
       <FeedCampuran supabase={supabase} editionId={editionId} />
 
-      <h2 className="bidang-panel__section-title">Semua peraturan (pandangan penuh)</h2>
+      <h2 className="bidang-panel__section-title">Semua Pelarasan Bidang (pandangan penuh)</h2>
       <p className="bidang-panel__section-desc">
-        Termasuk peraturan jenis Kata kunci (Feed Campuran) -- tapis &ldquo;Jenis&rdquo; di
+        Termasuk pelarasan jenis Kata kunci (Feed Campuran) -- tapis &ldquo;Jenis&rdquo; di
         bawah utk fokus kepada satu jenis.
       </p>
       <ClassificationRulesList supabase={supabase} />

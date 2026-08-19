@@ -59,14 +59,13 @@ export default function ClassificationRulesList({ supabase }) {
 
   return (
     <section className="classification-rules">
-      <h2 className="classification-rules__title">Peraturan Klasifikasi</h2>
-
       {error && <p className="classification-rules__error">Tidak dapat dimuatkan: {error}</p>}
       {rules === null && !error && <p className="admin-app__status">Memuatkan...</p>}
 
       {rules !== null && rules.length === 0 && (
         <p className="classification-rules__empty">
-          Tiada Peraturan Klasifikasi lagi. Klasifikasi berita masih ditentukan sepenuhnya oleh sistem automatik.
+          Tiada pelarasan admin lagi -- sistem tentukan bidang setiap berita sendiri berdasarkan
+          petunjuk sumber/RSS/kandungan (lihat Pemetaan Sumber, Petunjuk RSS/URL, Feed Campuran di atas).
         </p>
       )}
 
