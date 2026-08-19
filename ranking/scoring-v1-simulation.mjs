@@ -142,18 +142,40 @@ function duplicationPenalty(candidate, allTitles) {
   return Math.max(0, 10 - dupCount * 3);
 }
 
+// Pusingan 12/15's recommended ceilings, as data -- the SAME numbers
+// SCORING_V1_WEIGHTS' `berat` column carries, just keyed for direct use
+// as scoreCandidateV1()'s default `weights` argument. Exported Pusingan
+// 13/15 so ui/src/admin/KaedahNilaiPanel.jsx's "Reset ke V1" button loads
+// these exact values -- never a re-typed copy that could drift from the
+// policy doc.
+export const DEFAULT_SCORING_V1_WEIGHTS = {
+  freshnessCeiling: 25,
+  trustCeiling: 20,
+  duplicationCeiling: 10,
+  confidenceMultiplier: 5,
+  boostWeight: 8,
+};
+
 // candidate: { storyId, title, sourceId, publishedAt, trustScore, classificationConfidence, boosted, fieldCode }
 // allTitles: every candidate's title in the same batch (for duplication signal)
-export function scoreCandidateV1(candidate, allTitles, now = new Date()) {
-  const freshness = freshnessScoreV1(candidate.publishedAt, candidate.fieldCode, now);
-  const sourceTrust = ((candidate.trustScore ?? 0) / 100) * 20;
-  const duplication = duplicationPenalty(candidate, allTitles);
-  const confidenceModifier = (candidate.classificationConfidence ?? 0) * 5;
-  // +8, not the old formula's +40 -- see SCORING_V1_WEIGHTS' own comment
-  // (Iteration 3) for why: +40 was confirmed oversized by a real
-  // sensitivity test once sourceTrust was normalized into V1's more
-  // compact score range.
-  const editorialBoost = candidate.boosted ? 8 : 0;
+// weights: optional ceiling/multiplier overrides (Pusingan 13/15, for
+// KaedahNilaiPanel's live simulation slider). Omitted/partial entries
+// fall back to DEFAULT_SCORING_V1_WEIGHTS -- calling this with no 4th
+// arg reproduces EXACTLY Pusingan 12's script behavior, unchanged.
+// Freshness/duplication are computed at their DESIGNED 0-25/0-10 shape
+// first, then proportionally rescaled to the requested ceiling -- the
+// CURVE SHAPE (field-dependent decay, near-duplicate detection) is
+// Pusingan 12's calibrated design and is never touched by a ceiling
+// slider, only its magnitude.
+export function scoreCandidateV1(candidate, allTitles, now = new Date(), weights = {}) {
+  const w = { ...DEFAULT_SCORING_V1_WEIGHTS, ...weights };
+  const freshnessBase = freshnessScoreV1(candidate.publishedAt, candidate.fieldCode, now); // 0-25 designed shape
+  const freshness = freshnessBase * (w.freshnessCeiling / DEFAULT_SCORING_V1_WEIGHTS.freshnessCeiling);
+  const sourceTrust = ((candidate.trustScore ?? 0) / 100) * w.trustCeiling;
+  const duplicationBase = duplicationPenalty(candidate, allTitles); // 0-10 designed shape
+  const duplication = duplicationBase * (w.duplicationCeiling / DEFAULT_SCORING_V1_WEIGHTS.duplicationCeiling);
+  const confidenceModifier = (candidate.classificationConfidence ?? 0) * w.confidenceMultiplier;
+  const editorialBoost = candidate.boosted ? w.boostWeight : 0;
 
   const score = freshness + sourceTrust + duplication + confidenceModifier + editorialBoost;
   return {

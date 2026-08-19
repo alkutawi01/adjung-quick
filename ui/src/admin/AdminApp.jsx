@@ -13,6 +13,7 @@ import { fetchEditionRules, addEditionRule, archiveEditionRule, restoreEditionRu
 import SourceRegistryPanel from './SourceRegistryPanel.jsx';
 import BidangPanel from './BidangPanel.jsx';
 import ValueRankingPanel from './ValueRankingPanel.jsx';
+import KaedahNilaiPanel from './KaedahNilaiPanel.jsx';
 import AllStoriesPanel from './AllStoriesPanel.jsx';
 import TapisanPanel from './TapisanPanel.jsx';
 
@@ -187,6 +188,7 @@ function ReviewQueue({ userId, role }) {
   const [digestError, setDigestError] = useState(null);
   const [activeSection, setActiveSection] = useState('hari-ini');
   const [activeGroup, setActiveGroup] = useState('berita');
+  const [nilaiTab, setNilaiTab] = useState('data'); // 'data' | 'kaedah' -- Pusingan 13/15
 
   // Switching group resets activeSection to that group's first
   // sub-section (only 'berita' has real sub-sections today) -- keeps the
@@ -475,7 +477,29 @@ function ReviewQueue({ userId, role }) {
 
       {activeGroup === 'nilai' && (
         <section className="editorial-desk__section">
-          <ValueRankingPanel supabase={adminSupabase} role={role} userId={userId} />
+          {/* Pusingan 13/15: tab ringkas dalam-seksyen (bukan subnav
+              BERITA_SECTIONS -- itu khusus 'berita', bukan corak umum
+              serata AdminApp) -- Data Sebenar (paparan ranking production,
+              Pusingan 11) vs Kaedah Nilai (simulasi Skor V1 boleh laras,
+              Pusingan 13). */}
+          <nav className="editorial-desk__subnav">
+            <button
+              type="button"
+              className={`editorial-desk__nav-item${nilaiTab === 'data' ? ' editorial-desk__nav-item--active' : ''}`}
+              onClick={() => setNilaiTab('data')}
+            >
+              Data Sebenar
+            </button>
+            <button
+              type="button"
+              className={`editorial-desk__nav-item${nilaiTab === 'kaedah' ? ' editorial-desk__nav-item--active' : ''}`}
+              onClick={() => setNilaiTab('kaedah')}
+            >
+              Kaedah Nilai
+            </button>
+          </nav>
+          {nilaiTab === 'data' && <ValueRankingPanel supabase={adminSupabase} role={role} userId={userId} />}
+          {nilaiTab === 'kaedah' && <KaedahNilaiPanel supabase={adminSupabase} />}
         </section>
       )}
 
