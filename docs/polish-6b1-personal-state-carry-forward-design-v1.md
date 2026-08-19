@@ -29,22 +29,40 @@ Semua di `db/ingest-production.js`, selepas write guard persekitaran
 
 ### A. Bersihkan personal row tamat tempoh dahulu
 
+**Pembetulan 1 (ChatGPT)**: `--dry-run` TAK BOLEH DELETE data pengguna
+sebenar — kontrak `--dry-run` sedia ada (komen atas fail) ialah "stage +
+validate, NEVER swap", bukan "tiada kesan production langsung". Guna SATU
+`nowIso` tetap sepanjang run; physical DELETE hanya pada non-dry-run, tapi
+protected-ID query (B) SENTIASA guna syarat `expires_at > nowIso` — dry-run
+"abaikan secara logik" row tamat tanpa memadamnya.
+
 ```js
-await supabase.from('saved_stories').delete().lte('expires_at', new Date().toISOString());
-await supabase.from('history_entries').delete().lte('expires_at', new Date().toISOString());
+const nowIso = new Date().toISOString(); // SATU nilai, dipakai sepanjang run
+
+if (!DRY_RUN) {
+  const delSaved = await supabase.from('saved_stories').delete().lte('expires_at', nowIso);
+  if (delSaved.error) { console.error('cleanup saved_stories gagal:', delSaved.error); process.exit(1); }
+  const delHistory = await supabase.from('history_entries').delete().lte('expires_at', nowIso);
+  if (delHistory.error) { console.error('cleanup history_entries gagal:', delHistory.error); process.exit(1); }
+}
 ```
 
+**Pembetulan 2 (ChatGPT)**: fail closed pada SEBARANG ralat Supabase di
+langkah cleanup/protected-query — jangan sekali-kali teruskan dengan andaian
+"set protected kosong" bila SELECT/DELETE gagal (di atas sudah tunjuk corak
+`if (error) { ...; process.exit(1); }` yang dipakai konsisten di B juga).
 Bukan scheduler baharu — ingestion yang memang berulang jadi titik cleanup.
-Guna `service_role` (skrip ni dah guna service_role sedia ada).
 
-### B. Ambil protected story IDs (SELEPAS cleanup A)
+### B. Ambil protected story IDs (SELEPAS cleanup A, guna `nowIso` sama)
 
 ```js
-const [{ data: saved }, { data: history }] = await Promise.all([
-  supabase.from('saved_stories').select('story_id'),
-  supabase.from('history_entries').select('story_id'),
+const [savedRes, historyRes] = await Promise.all([
+  supabase.from('saved_stories').select('story_id').gt('expires_at', nowIso),
+  supabase.from('history_entries').select('story_id').gt('expires_at', nowIso),
 ]);
-const protectedStoryIds = new Set([...saved, ...history].map(r => r.story_id));
+if (savedRes.error) { console.error('baca saved_stories gagal:', savedRes.error); process.exit(1); }
+if (historyRes.error) { console.error('baca history_entries gagal:', historyRes.error); process.exit(1); }
+const protectedStoryIds = new Set([...savedRes.data, ...historyRes.data].map(r => r.story_id));
 ```
 
 ### C. Bina corpus baharu — TIADA PERUBAHAN
@@ -60,17 +78,38 @@ const freshClusterIds = new Set(labRankedQueue.map(c => c.clusterKey));
 const toCarryForward = [...protectedStoryIds].filter(id => !freshClusterIds.has(id));
 ```
 
+**Pembetulan 3 (ChatGPT)**: mapping tepat, bukan "kekalkan seboleh mungkin"
+(tiada ruang tafsiran semasa implementasi).
+
 Untuk setiap `toCarryForward` — baca dari `story_clusters`/`rss_items` LIVE
-(sebelum swap, jadual asal belum jadi `*_old` lagi), salin ke
-`story_clusters_staging`/`rss_items_staging` dengan **ID asal dikekalkan**,
-`workspace_state = 'expired'` (bukan `'queued'`/`'active'` — tak boleh masuk
-semula paparan/ranking biasa, `FrontpageView`/ranking dah tapis ikut
-`workspace_state` sedia ada). Metadata/item lain dikekalkan seboleh mungkin.
+(sebelum swap, jadual asal belum jadi `*_old` lagi):
+
+**`story_clusters_staging`** (insert): kekalkan `id`, `topic`,
+`freshness_score`/`cross_source_score`/`prominence_score` (skor asal, TAK
+dikira semula), `expires_at`, `review_expires_at`, `first_seen_at`,
+`updated_at` — SEMUA drpd baris asal, tanpa ubah. Paksa HANYA
+`workspace_state = 'expired'` (bukan `'queued'`/`'active'` — reader/ranking
+sedia ada dah tapis ikut `workspace_state`, `'expired'` sudah dikecualikan).
+`representative_rss_item_id` dimasukkan `NULL` dahulu (circular FK, sama
+corak `ingest-production.js` baris ~198-204 untuk cluster segar), di-`UPDATE`
+balik ke ID representative ASAL selepas SEMUA item cluster itu selesai
+dimasukkan (langkah seterusnya). **Fail closed** jika representative asal
+(`story_clusters.representative_rss_item_id` drpd baris LIVE) tiada langsung
+dalam senarai item cluster itu yang berjaya dibawa — jangan agak gantian.
+
+**`rss_items_staging`** (insert): salin SEMUA lajur asal tanpa kecuali —
+`id`, `source_id`, `cluster_id`, `rss_guid`, `title`, `description`, `link`,
+`normalized_url`, `language`, `published_at`, `fetched_at`, `categories`,
+`source_known_category`. `fetched_at` KEKAL nilai asal (bukan re-fetch time
+run ni) — item ni tak difetch semula.
 
 `source_id` cerita carry-forward mungkin rujuk sumber `disabled` — SAH,
 `sources_staging` (per patch 6B-a) bawa SEMUA sumber dalam registry (bukan
-cuma aktif), jadi FK `rss_items_staging.source_id → sources_staging.id`
-kekal sah walau sumber asal tak aktif.
+cuma aktif). **Fail closed** (ChatGPT's tambahan) jika `source_id` item
+carry-forward TIADA dalam `sources_staging` (cth sumber dipadam terus drpd
+registry, bukan sekadar `disabled`) — beri mesej jelas ("carry-forward gagal:
+source_id X tiada dalam sources_staging"), jangan biarkan INSERT tergelincir
+kena FK violation tanpa diagnosis.
 
 ### E. Fail closed pada anomali (SEBELUM swap, bukan selepas)
 
@@ -118,8 +157,11 @@ TIADA UI dicipta sekarang, ikut arahan eksplisit.
 - [ ] Satu story dirujuk >1 baris (saved+history serentak) → carry-forward SEKALI sahaja.
 - [ ] Protected story tiada langsung dalam live lama (data corrupt/tercicir) → ingestion fail closed.
 - [ ] Perlanggaran ID item carry-forward vs fresh → ingestion fail closed.
+- [ ] (#7/#8) `source_id` item carry-forward tiada dlm `sources_staging` → ingestion fail closed dgn mesej jelas, bukan FK error mentah.
 - [ ] Semua protected ID ada dlm staging → swap diteruskan.
 - [ ] Cerita carry-forward TAK muncul dlm query reader feed/ranking biasa (`workspace_state != 'expired'` filter sedia ada).
+- [ ] (#11) Representative cluster carry-forward hilang/tak konsisten (tiada dlm item yg berjaya dibawa) → fail SEBELUM swap.
+- [ ] (#12) Non-dry-run: cleanup row tamat (A) boleh KEKAL terpadam walau ingestion gagal selepas tu, tapi `sources`/`story_clusters`/`rss_items` LIVE mesti kekal TAK berubah sebab swap belum berlaku (cleanup A ialah write terus, bukan sebahagian transaksi staging).
 
 ## Skop TIDAK disentuh
 
