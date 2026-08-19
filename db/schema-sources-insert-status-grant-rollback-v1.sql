@@ -20,10 +20,16 @@ REVOKE INSERT (
   status
 ) ON public.sources FROM authenticated;
 
+-- updated_at deliberately NOT revoked here -- it was already GRANTed to
+-- authenticated by the Polish 4B updateSource() patch (independent of
+-- this one) and updateSource() still writes it on every call. This
+-- rollback only removes status/active, the two columns THIS patch
+-- actually added (ChatGPT's catch, 2026-08-19 -- the original draft of
+-- this file would have silently broken updateSource() by revoking a
+-- column another feature still legitimately needs).
 REVOKE UPDATE (
   status,
-  active,
-  updated_at
+  active
 ) ON public.sources FROM authenticated;
 
 COMMIT;
