@@ -11,7 +11,16 @@
 // (word-boundary matching to avoid false hits) and per Izzat's SPRM
 // adjudication ("kena rujuk brief juga" — title+description both feed this).
 
-const PHRASE_RULES = [
+// Exported Polish 4B (2026-08-19), per ChatGPT's "manual copy" mini-
+// integrity fix: BidangPanel.jsx (Feed Campuran admin page) used to hand-
+// copy this list under its own CONTENT_PHRASE_RULES const, which had
+// already drifted stale (missing Education/Economy/Business, an old
+// Sports subset) by the time this was caught -- UI describing rules that
+// don't match the runtime classifier. This export lets the UI read the
+// SAME array the classifier actually runs, zero duplication, zero
+// classifier-behavior change (still module-private in every other way --
+// only a read reference, never mutated outside this file).
+export const PHRASE_RULES = [
   // Crime — court/enforcement phrases, real evidence from the 190-item corpus
   { subject: 'Crime', phrases: ['mahkamah', 'didakwa', 'waran tangkap', 'ditahan', 'SPRM', 'dipenjara', 'court', 'charged', 'arrested', 'jailed', 'sentenced', 'مذكرة توقيف', 'محكمة'] },
   // Disaster — acute events, per the locked Bencana definition (distinct from Environment's ongoing conditions).

@@ -28,6 +28,7 @@ import { getFieldLabel } from '../../../state/editions.js';
 import { getFieldEntryForSubject } from '../../../classification/lib/taxonomy-registry.mjs';
 import { resolveKnownCategory } from './kategoriLabel.js';
 import { addClassificationRule, archiveClassificationRule, restoreClassificationRule } from './classificationRulesAdapter.js';
+import { PHRASE_RULES as REAL_CONTENT_PHRASE_RULES } from '../../../classification/lib/content-rules.mjs';
 
 // Polish 2/5: self-service form for a source-scoped Kategori override.
 // A classification rule of rule_type='source' SHORT-CIRCUITS the whole
@@ -165,21 +166,21 @@ const MS_MY_TOKENS = [
 // function, not the raw map -- values verified to match that file exactly.
 const BERNAMA_PREFIX_SUBJECTS = { business: 'Business', sports: 'Sports', sukan: 'Sports' };
 
-// content-rules.mjs's real PHRASE_RULES (Tier 5, "deliberately minimal"
-// per that file's own header) -- hand-copied here since PHRASE_RULES
-// itself isn't exported (only extractContentEvidence() is), and this
-// stays UI-only rather than touching classifier code just to add an
-// export. Kept in sync by hand against the real file, verified this
-// round -- ms-MY/EN phrases only shown (Arabic phrases omitted, matches
-// Fasa 4's ms-MY-only scope).
-const CONTENT_PHRASE_RULES = [
-  { subject: 'Crime', phrases: ['mahkamah', 'didakwa', 'waran tangkap', 'ditahan', 'SPRM', 'dipenjara', 'court', 'charged', 'arrested', 'jailed', 'sentenced'] },
-  { subject: 'Disaster', phrases: ['gempa bumi', 'gempa', 'earthquake', 'banjir besar', 'banjir', 'flood', 'kapal karam', 'tanah runtuh', 'landslide', 'jerebu', 'haze', 'kebakaran hutan', 'wildfire', 'ribut', 'storm', 'kemarau', 'drought'] },
-  { subject: 'Politics', phrases: ['parlimen', 'ahli parlimen', 'menteri', 'parti politik', 'PRU', 'parliament', 'minister', 'election'] },
-  { subject: 'Sports', phrases: ['bola sepak', 'football', 'olympics', 'piala'] },
-  { subject: 'Health', phrases: ['hospital', 'penyakit', 'vaksin', 'disease', 'vaccine', 'wabak', 'outbreak'] },
-  { subject: 'Environment', phrases: ['perubahan iklim', 'climate change', 'pencemaran', 'pollution', 'kualiti udara', 'air quality'] },
-];
+// Polish 4B (2026-08-19) -- was a hand-copied duplicate of content-
+// rules.mjs's real PHRASE_RULES, kept in sync "by hand" (Fasa 4's own
+// words). It drifted stale within one round (missing Education/Economy/
+// Business, an old narrower Sports list) -- Admin was describing rules
+// that no longer matched the runtime classifier. content-rules.mjs now
+// exports PHRASE_RULES directly; this imports the SAME array the
+// classifier runs, zero duplication, zero classifier-behavior change.
+// ms-MY/EN phrases only shown below (Arabic phrases filtered out,
+// matches Fasa 4's ms-MY-only scope -- the real array has more per
+// subject than what renders here).
+const ARABIC_RE = /[؀-ۿ]/;
+const CONTENT_PHRASE_RULES = REAL_CONTENT_PHRASE_RULES.map(r => ({
+  subject: r.subject,
+  phrases: r.phrases.filter(p => !ARABIC_RE.test(p)),
+}));
 
 // Pemetaan Sumber -- Round 4/15 (2026-08-19). Traced before building:
 // classify-production.js's real precedence is Admin Classification Rule
