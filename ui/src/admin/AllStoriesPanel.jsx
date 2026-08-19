@@ -102,14 +102,14 @@ export default function AllStoriesPanel({ supabase, editionId, role, userId, tax
   return (
     <div className="all-stories">
       <p className="all-stories__note">
-        Semua berita dalam edisi ini (produksi sebenar) -- termasuk yang disembunyikan atau ditapis kata
+        Semua berita dalam edisi ini (produksi sebenar) — termasuk yang disembunyikan atau ditapis kata
         kunci, supaya boleh diuruskan terus dari sini. Tindakan editorial guna path yang sama seperti
         Perlu Semakan.
       </p>
 
       {error && <p className="review-queue__error">Ralat memuatkan berita: {error}</p>}
       {actionError && <p className="review-queue__error">Ralat: {actionError}</p>}
-      {stories === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {stories === null && !error && <p className="admin-app__status">Memuatkan…</p>}
 
       {stories !== null && (
         <>
@@ -120,7 +120,7 @@ export default function AllStoriesPanel({ supabase, editionId, role, userId, tax
           <div className="classification-rules__filters">
             <input
               type="text"
-              placeholder="Cari tajuk..."
+              placeholder="Cari tajuk…"
               value={query}
               onChange={e => setQuery(e.target.value)}
             />
@@ -280,7 +280,7 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
               </label>
             )}
             {composing === 'hide' && <p className="review-card__confirm">Berita ini tidak akan muncul kepada pembaca.</p>}
-            {composing === 'boost' && <p className="review-card__confirm">Menambah +40 pada nilai berita ini -- meningkatkan peluang ia dipilih, tidak menjamin.</p>}
+            {composing === 'boost' && <p className="review-card__confirm">Menambah +40 pada nilai berita ini — meningkatkan peluang ia dipilih, tidak menjamin.</p>}
             {composing === 'pin' && <p className="review-card__confirm">Tidak mengubah nilai berita; mempengaruhi pemilihan akhir dalam kategori ini. Had maksimum 2 berita dikekalkan serentak setiap kategori.</p>}
             {composing === 'reclassify' && <p className="review-card__confirm">Letakkan berita ini di kategori lain.</p>}
             <label className="review-card__field">
@@ -288,7 +288,7 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} />
             </label>
             <div className="review-card__actions">
-              <button type="button" onClick={confirm} disabled={busy || !reason.trim()}>{busy ? 'Menyimpan...' : 'Sahkan'}</button>
+              <button type="button" onClick={confirm} disabled={busy || !reason.trim()}>{busy ? 'Menyimpan…' : 'Sahkan'}</button>
               <button type="button" className="review-card__cancel" onClick={cancel} disabled={busy}>Batal</button>
             </div>
           </div>

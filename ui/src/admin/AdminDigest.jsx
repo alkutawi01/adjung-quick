@@ -16,7 +16,7 @@ export default function AdminDigest({ digest, error, onOpenQueue }) {
   if (!digest) {
     return (
       <section className="digest">
-        <p className="digest__loading">Menyediakan laporan...</p>
+        <p className="digest__loading">Menyediakan laporan…</p>
       </section>
     );
   }

@@ -39,7 +39,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
         resolvedRule={entry.resolvedRule}
       />
 
-      {/* Real current state, per FASA 3.6.5/6 -- never an illustration.
+      {/* Real current state, per FASA 3.6.5/6 — never an illustration.
           Boost affects Nilai Berita (+40 pada skor, ranking/candidate-scoring.mjs);
           Pin affects Pemilihan, not score (state/editorialRankingAdapter.js). */}
       {entry.boostOverrideId && (
@@ -102,7 +102,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
             <p className="review-card__confirm">Berita ini tidak akan muncul kepada pembaca.</p>
           )}
           {composing === 'boost' && (
-            <p className="review-card__confirm">Menambah +40 pada nilai berita ini -- meningkatkan peluang ia dipilih, tidak menjamin.</p>
+            <p className="review-card__confirm">Menambah +40 pada nilai berita ini — meningkatkan peluang ia dipilih, tidak menjamin.</p>
           )}
           {composing === 'pin' && (
             <>
@@ -133,7 +133,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
           </label>
           <div className="review-card__actions">
             <button type="button" onClick={confirm} disabled={busy || !reason.trim()}>
-              {busy ? 'Menyimpan...' : 'Sahkan'}
+              {busy ? 'Menyimpan…' : 'Sahkan'}
             </button>
             <button type="button" className="review-card__cancel" onClick={cancel} disabled={busy}>
               Batal

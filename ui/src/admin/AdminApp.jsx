@@ -86,7 +86,7 @@ export default function AdminApp() {
   }, []);
 
   // Keyed on the user ID (a primitive), NOT the session object. Fixed
-  // 2026-08-13 after a real intermittent hang on "Memuatkan...":
+  // 2026-08-13 after a real intermittent hang on "Memuatkan…":
   // onAuthStateChange fires repeatedly (INITIAL_SESSION, TOKEN_REFRESHED,
   // …) with a NEW session object each time but the same user. Keying on
   // the object re-ran this effect on every one of those, resetting
@@ -122,7 +122,7 @@ export default function AdminApp() {
   }
 
   if (!taxonomyReady || session === undefined || (userId && !roleChecked)) {
-    return <main className="admin-app"><p className="admin-app__status">Memuatkan...</p></main>;
+    return <main className="admin-app"><p className="admin-app__status">Memuatkan…</p></main>;
   }
 
   if (session === null) {
@@ -178,7 +178,7 @@ function SignInForm() {
         <input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
       </label>
       {error && <p className="admin-signin__error">{error}</p>}
-      <button type="submit" disabled={busy}>{busy ? 'Log masuk...' : 'Log masuk'}</button>
+      <button type="submit" disabled={busy}>{busy ? 'Log masuk…' : 'Log masuk'}</button>
     </form>
   );
 }
@@ -192,7 +192,7 @@ function ReviewQueue({ userId, role }) {
   const [digestError, setDigestError] = useState(null);
   const [activeSection, setActiveSection] = useState('hari-ini');
   const [activeGroup, setActiveGroup] = useState('berita');
-  const [nilaiTab, setNilaiTab] = useState('data'); // 'data' | 'kaedah' | 'pemilihan' | 'susunan' -- Pusingan 13-15/15
+  const [nilaiTab, setNilaiTab] = useState('data'); // 'data' | 'kaedah' | 'pemilihan' | 'susunan' — Pusingan 13-15/15
   // Pusingan 14/15: dikongsi antara KaedahNilaiPanel dan PemilihanPanel --
   // satu fetch, satu set berat simulasi, bukan dua salinan berasingan.
   const [scoringCorpus, setScoringCorpus] = useState(null);
@@ -397,11 +397,11 @@ function ReviewQueue({ userId, role }) {
           )}
 
           {/* Pusingan 8/15: Perlu Semakan is no longer a separate card
-              experience -- it opens the SAME AllStoriesPanel table,
+              experience — it opens the SAME AllStoriesPanel table,
               pre-filtered. entries/loadError/busyStoryId/resolve/applyPromo
               and the ReviewQueueCard import below are now orphaned by this
               change (kept, not deleted, per ChatGPT's explicit instruction
-              not to refactor/remove aggressively) -- `load()` still sets
+              not to refactor/remove aggressively) — `load()` still sets
               `entries` as a side effect of fetching `digest` in the same
               call, and AdminDigest (Ringkasan tab) still depends on that
               digest fetch, so this callback is left exactly as-is. */}
@@ -444,12 +444,12 @@ function ReviewQueue({ userId, role }) {
               tables (peraturan tapisan / pengecualian global), effect
               counts inline on each row. Same adapters, same resolver,
               only the layout changed. FilterRulesManager.jsx/
-              FilterRuleEffect.jsx are no longer mounted here -- left in
+              FilterRuleEffect.jsx are no longer mounted here — left in
               place (not deleted) since nothing else in this round
               confirmed them fully orphaned. */}
           {filterRulesError && <p className="review-queue__error">{filterRulesError}</p>}
           {filterRules === null && !filterRulesError && (
-            <p className="admin-app__status">Memuatkan...</p>
+            <p className="admin-app__status">Memuatkan…</p>
           )}
           {filterRules !== null && (
             <TapisanPanel
@@ -494,8 +494,8 @@ function ReviewQueue({ userId, role }) {
       {activeGroup === 'nilai' && (
         <section className="editorial-desk__section">
           {/* Pusingan 13/15: tab ringkas dalam-seksyen (bukan subnav
-              BERITA_SECTIONS -- itu khusus 'berita', bukan corak umum
-              serata AdminApp) -- Data Sebenar (paparan ranking production,
+              BERITA_SECTIONS — itu khusus 'berita', bukan corak umum
+              serata AdminApp) — Data Sebenar (paparan ranking production,
               Pusingan 11) vs Kaedah Nilai (simulasi Skor V1 boleh laras,
               Pusingan 13). */}
           <nav className="editorial-desk__subnav">

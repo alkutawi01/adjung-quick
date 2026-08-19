@@ -14,7 +14,7 @@ export default function FilterRuleEffect({ effects, error }) {
     return <p className="review-queue__error">Ralat memuatkan kesan tapisan: {error}</p>;
   }
   if (effects === null) {
-    return <p className="admin-app__status">Memuatkan kesan sebenar...</p>;
+    return <p className="admin-app__status">Memuatkan kesan sebenar…</p>;
   }
   if (effects.length === 0) {
     return <p className="review-queue__empty">Tiada tapisan aktif buat masa ini, jadi tiada kesan untuk ditunjukkan.</p>;
@@ -24,7 +24,7 @@ export default function FilterRuleEffect({ effects, error }) {
     <div className="filter-effect">
       <p className="filter-effect__note">
         Pengecualian (&ldquo;Kecuali jika&rdquo;) terpakai kepada SEMUA tapisan aktif, bukan
-        pasangan khusus satu-satu -- kalau mana-mana pengecualian sepadan, berita itu kekal
+        pasangan khusus satu-satu — kalau mana-mana pengecualian sepadan, berita itu kekal
         dipaparkan tanpa mengira tapisan mana yang termatuh.
       </p>
       {effects.map(effect => (

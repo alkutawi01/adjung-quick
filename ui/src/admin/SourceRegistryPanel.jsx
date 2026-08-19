@@ -160,7 +160,7 @@ export default function SourceRegistryPanel({ supabase, role }) {
       {error && <p className="review-queue__error">Ralat memuatkan sumber: {error}</p>}
       {actionError && <p className="review-queue__error">Ralat: {actionError}</p>}
       {actionMessage && <p className="source-registry__summary">{actionMessage}</p>}
-      {sources === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {sources === null && !error && <p className="admin-app__status">Memuatkan…</p>}
 
       {sources !== null && (
         <>
@@ -171,7 +171,7 @@ export default function SourceRegistryPanel({ supabase, role }) {
             <button type="button" onClick={() => setAddOpen(true)}>+ Tambah sumber</button>
             <input
               type="text"
-              placeholder="Cari sumber..."
+              placeholder="Cari sumber…"
               value={query}
               onChange={e => setQuery(e.target.value)}
             />
@@ -196,7 +196,7 @@ export default function SourceRegistryPanel({ supabase, role }) {
                       Sumber{sortKey === 'name' ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
                     </th>
                     <th>Jenis</th>
-                    {/* "Petunjuk kategori", bukan "Kategori" -- lajur ini
+                    {/* "Petunjuk kategori", bukan "Kategori" — lajur ini
                         memaparkan known_category, iaitu token PETUNJUK yang
                         didaftarkan pada feed, bukan kuasa editorial. Sumber
                         simpan fakta tentang feed; Kategori simpan keputusan
@@ -349,7 +349,7 @@ function SourceDrawer({ source, supabase, role, onClose, onSaved }) {
             </label>
             <p className="admin-app__status">Bahasa dan pengecal sistem tidak boleh diubah daripada Admin.</p>
             <div className="review-card__actions">
-              <button type="submit" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan perubahan'}</button>
+              <button type="submit" disabled={busy}>{busy ? 'Menyimpan…' : 'Simpan perubahan'}</button>
               <button type="button" className="review-card__cancel" onClick={() => setEditing(false)} disabled={busy}>Batal</button>
             </div>
           </form>
@@ -449,7 +449,7 @@ function AddSourceDrawer({ supabase, role, onDone, onCancel }) {
           </p>
 
           <div className="review-card__actions">
-            <button type="submit" disabled={busy || !id.trim() || !name.trim() || !url.trim()}>{busy ? 'Menyimpan...' : 'Simpan'}</button>
+            <button type="submit" disabled={busy || !id.trim() || !name.trim() || !url.trim()}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
             <button type="button" className="review-card__cancel" onClick={onCancel} disabled={busy}>Batal</button>
           </div>
         </form>

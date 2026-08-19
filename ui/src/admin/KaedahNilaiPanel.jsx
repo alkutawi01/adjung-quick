@@ -21,10 +21,10 @@ const EDITION_ID = 'ms-MY';
 // "Kaedah semasa" -- real ceilings/shape from ranking/candidate-scoring.mjs,
 // written out here as display text (the file itself is never touched).
 const CURRENT_METHOD_LABEL = {
-  freshnessCeiling: 'Bucket tetap: <=6j=100, <=24j=80, <=3h=50, <=7h=20, lebih=0 (sama utk semua kategori)',
-  trustCeiling: '0-100 mentah (skala penuh, TIDAK dinormal)',
-  duplicationCeiling: '(tiada faktor ini dlm formula lama)',
-  confidenceMultiplier: 'x10',
+  freshnessCeiling: 'Julat masa tetap: 6 jam=100, 24 jam=80, 3 hari=50, 7 hari=20, lebih lama=0 (sama untuk semua kategori)',
+  trustCeiling: '0–100 mentah (skala penuh, TIDAK dinormalkan)',
+  duplicationCeiling: '(tiada faktor ini dalam formula lama)',
+  confidenceMultiplier: '×10',
   boostWeight: '+40',
 };
 const FACTOR_LABEL = {
@@ -32,7 +32,7 @@ const FACTOR_LABEL = {
   trustCeiling: 'Kepercayaan sumber',
   duplicationCeiling: 'Pertindihan (bukan ulangan)',
   confidenceMultiplier: 'Keyakinan pengelasan',
-  boostWeight: 'Keutamaan editor (boost)',
+  boostWeight: 'Keutamaan editor',
 };
 // Range munasabah -- diambil terus drpd nilai/hasil ujian sensitiviti
 // Pusingan 12 (docs/scoring-v1-policy.md), bukan reka baharu. Boost diuji
@@ -40,7 +40,7 @@ const FACTOR_LABEL = {
 // V1 supaya Admin boleh terokai tanpa had sewenang-wenangnya.
 const INPUT_RANGE = {
   freshnessCeiling: { min: 0, max: 50 },
-  trustCeiling: { min: 0, max: 100 }, // sehingga 100 -- sengaja, supaya kesan dominasi trust boleh dilihat semula jika Admin nak uji
+  trustCeiling: { min: 0, max: 100 }, // sehingga 100 — sengaja, supaya kesan dominasi trust boleh dilihat semula jika Admin nak uji
   duplicationCeiling: { min: 0, max: 20 },
   confidenceMultiplier: { min: 0, max: 10 },
   boostWeight: { min: 0, max: 40 },
@@ -103,12 +103,12 @@ export default function KaedahNilaiPanel({ corpus, error, weights, setWeights })
       <p className="bidang-panel__intro">
         Terokai bagaimana Skor V1 (cadangan yang telah ditala) berbanding kaedah semasa production --
         ubah berat di bawah dan lihat kesannya terus atas berita sebenar.
-        <b> Simulasi sahaja -- belum mengubah sistem sebenar.</b> Tiada apa-apa di sini ditulis ke
+        <b> Simulasi sahaja — belum mengubah sistem sebenar.</b> Tiada apa-apa di sini ditulis ke
         pangkalan data atau ke kaedah ranking production.
       </p>
 
       {error && <p className="review-queue__error">Ralat memuatkan korpus: {error}</p>}
-      {corpus === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {corpus === null && !error && <p className="admin-app__status">Memuatkan…</p>}
 
       {corpus !== null && (
         <>
@@ -158,7 +158,7 @@ export default function KaedahNilaiPanel({ corpus, error, weights, setWeights })
           </div>
 
           {rows.length === 0 && (
-            <p className="review-queue__empty">{majorOnly ? 'Tiada perubahan besar dgn tetapan semasa.' : 'Tiada berita dlm kategori ini.'}</p>
+            <p className="review-queue__empty">{majorOnly ? 'Tiada perubahan besar dengan tetapan semasa.' : 'Tiada berita dalam kategori ini.'}</p>
           )}
           {rows.length > 0 && (
             <div className="source-table-wrap">
@@ -184,8 +184,8 @@ export default function KaedahNilaiPanel({ corpus, error, weights, setWeights })
 
           <h3 className="bidang-panel__section-title">Belum boleh dinilai secara automatik</h3>
           <p className="bidang-panel__section-desc">
-            Empat faktor ini TAK dimasukkan ke Skor V1 sebagai nombor -- tiada maklumat boleh
-            dipercayai wujud utk mengukurnya secara selamat. Ranking V1 boleh silap tepat pada
+            Empat faktor ini TAK dimasukkan ke Skor V1 sebagai nombor — tiada maklumat boleh
+            dipercayai wujud untuk mengukurnya secara selamat. Ranking V1 boleh silap tepat pada
             faktor-faktor ini.
           </p>
           <ul className="value-ranking-panel__factors">

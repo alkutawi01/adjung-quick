@@ -30,7 +30,7 @@ export default function TapisanPanel({ rules, effects, effectsError, busy, onAdd
   return (
     <div className="tapisan-panel">
       <p className="bidang-panel__intro">
-        Tapisan buang berita ikut kata/frasa dalam tajuk atau huraian -- tetapkan sekali, sistem
+        Tapisan buang berita ikut kata/frasa dalam tajuk atau huraian — tetapkan sekali, sistem
         terus bekerja setiap hari tanpa perlu disemak berulang kali.
       </p>
 
@@ -78,7 +78,7 @@ export default function TapisanPanel({ rules, effects, effectsError, busy, onAdd
       <h2 className="bidang-panel__section-title">B. Pengecualian global</h2>
       <p className="bidang-panel__section-desc">
         Jika berita sepadan dengan mana-mana pengecualian aktif, ia tidak ditapis oleh peraturan
-        tapisan -- tidak kira peraturan tapisan mana yang termatuh. Pengecualian bukan pasangan
+        tapisan — tidak kira peraturan tapisan mana yang termatuh. Pengecualian bukan pasangan
         khusus kepada satu peraturan tapisan tertentu.
       </p>
       {exceptRules.length === 0 ? (
@@ -189,7 +189,7 @@ function AddRuleForm({ busy, onAdd, onCancel }) {
         disabled={busy}
       />
       <div className="card__actions">
-        <button type="submit" disabled={busy || !phrase.trim()}>{busy ? 'Menyimpan...' : 'Simpan'}</button>
+        <button type="submit" disabled={busy || !phrase.trim()}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
         <button type="button" className="btn--quiet" onClick={onCancel} disabled={busy}>Batal</button>
       </div>
     </form>

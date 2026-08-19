@@ -71,7 +71,7 @@ function TambahPelarasanSumber({ sources, taxonomyFieldCodes, taxonomyFieldLabel
         mengatasi petunjuk automatik.
       </p>
       <div className="card__actions">
-        <button type="submit" disabled={!canSubmit}>{busy ? 'Menyimpan...' : 'Simpan'}</button>
+        <button type="submit" disabled={!canSubmit}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
         <button type="button" className="btn--quiet" onClick={onCancel} disabled={busy}>Batal</button>
       </div>
     </form>
@@ -213,7 +213,7 @@ function PemetaanSumber({ supabase, editionId, taxonomyFieldCodes, taxonomyField
     <div className="bidang-pemetaan">
       {error && <p className="review-queue__error">Ralat memuatkan pemetaan: {error}</p>}
       {actionError && <p className="review-queue__error">Ralat: {actionError}</p>}
-      {loading && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {loading && !error && <p className="admin-app__status">Memuatkan…</p>}
 
       {!loading && !addOpen && (
         <button type="button" onClick={() => setAddOpen(true)}>+ Tambah pelarasan</button>
@@ -373,7 +373,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
   return (
     <div className="bidang-pemetaan">
       {error && <p className="review-queue__error">Ralat memuatkan peraturan Admin: {error}</p>}
-      {rules === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {rules === null && !error && <p className="admin-app__status">Memuatkan…</p>}
       {rules !== null && (
         <div className="source-table-wrap">
           <table className="source-table">
@@ -405,7 +405,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
         </div>
       )}
       <p className="section-note">
-        Pelarasan baharu (jenis URL) belum boleh ditambah di sini -- laluan tulis backend
+        Pelarasan baharu (jenis URL) belum boleh ditambah di sini — laluan tulis backend
         masih terhad kepada sistem sahaja (sama isu macam Pemetaan Sumber di atas). Dicatat
         sebagai backlog, belum dibetulkan pusingan ini.
       </p>
@@ -468,11 +468,11 @@ function FeedCampuran({ supabase, editionId }) {
 
   const builtInRows = CONTENT_PHRASE_RULES.map(r => ({
     key: `phrase-${r.subject}`,
-    sumber: 'Sumber dengan metadata tak cukup (cth. feed campuran)',
+    sumber: 'Sumber dengan metadata tidak cukup (contoh feed campuran)',
     corak: r.phrases.slice(0, 4).join(', ') + (r.phrases.length > 4 ? `, +${r.phrases.length - 4} lagi` : ''),
     fullPhrases: r.phrases,
     bidang: resolveBidangLabel(editionId, { subjectCode: r.subject }),
-    kaedah: 'Calon sahaja -- tertakluk get keyakinan',
+    kaedah: 'Calon sahaja — tertakluk get keyakinan',
     asal: 'Tetapan asas',
     isMahkamah: r.subject === 'Crime',
   }));
@@ -485,7 +485,7 @@ function FeedCampuran({ supabase, editionId }) {
       corak: r.pattern,
       fullPhrases: [r.pattern],
       bidang: resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code }),
-      kaedah: 'Fakta admin -- keputusan terus (bukan calon)',
+      kaedah: 'Fakta admin — keputusan terus (bukan calon)',
       asal: 'Pelarasan Admin',
       isMahkamah: false,
     }));
@@ -496,18 +496,19 @@ function FeedCampuran({ supabase, editionId }) {
   return (
     <div className="bidang-pemetaan">
       <p className="section-note">
-        Mental model: petunjuk sumber/RSS tak cukup &rarr; sistem semak kandungan &rarr; rule
-        hasilkan CALON kategori &rarr; sistem tentukan sama ada keyakinan cukup utk klasifikasi
-        terus, atau berita masuk Perlu Semakan. Bukan &ldquo;ada kata X = terus kategori Y&rdquo;.
+        Cara ia berfungsi: petunjuk sumber/RSS tidak cukup &rarr; sistem semak kandungan &rarr;
+        peraturan hasilkan CALON kategori &rarr; sistem tentukan sama ada keyakinan cukup untuk
+        klasifikasi terus, atau berita masuk Perlu Semakan. Bukan &ldquo;ada kata X = terus
+        kategori Y&rdquo;.
       </p>
       <p className="section-note">
-        Contoh feed campuran sebenar: Metro Mutakhir -- 0% item ada metadata struktur, peraturan
-        Jenayah di bawah selesaikan ~30% sampel dgn betul. Angka daripada kajian audit 20 item
+        Contoh feed campuran sebenar: Metro Mutakhir — 0% item ada metadata struktur, peraturan
+        Jenayah di bawah selesaikan ~30% sampel dengan betul. Angka daripada kajian audit 20 item
         (bukan metrik masa nyata).
       </p>
 
       {error && <p className="review-queue__error">Ralat memuatkan peraturan Admin: {error}</p>}
-      {rules === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {rules === null && !error && <p className="admin-app__status">Memuatkan…</p>}
       {rules !== null && (
         <div className="source-table-wrap">
           <table className="source-table">
@@ -537,7 +538,7 @@ function FeedCampuran({ supabase, editionId }) {
         </div>
       )}
       <p className="section-note">
-        Peraturan kandungan baharu belum boleh ditambah di sini -- laluan tulis backend masih
+        Peraturan kandungan baharu belum boleh ditambah di sini — laluan tulis backend masih
         terhad kepada sistem sahaja (backlog sama macam Pemetaan Sumber &amp; Petunjuk RSS/URL).
       </p>
 
@@ -554,10 +555,10 @@ function FeedCampuran({ supabase, editionId }) {
             </dl>
             {open.isMahkamah && (
               <p className="section-note" style={{ marginTop: 14 }}>
-                <b>Dapatan audit (bukan metrik masa nyata):</b> dlm sampel 20 berita Metro
+                <b>Dapatan audit (bukan metrik masa nyata):</b> dalam sampel 20 berita Metro
                 Mutakhir, 2/7 pengesanan &ldquo;mahkamah&rdquo; sebenarnya bukan cerita
-                jenayah (cerita dasar yg sekadar sebut keputusan mahkamah secara prosedur).
-                Risiko false-positive terbukti dlm sampel tu, bukan andaian.
+                jenayah (cerita dasar yang sekadar sebut keputusan mahkamah secara prosedur).
+                Risiko salah padanan ini terbukti dalam sampel itu, bukan andaian.
               </p>
             )}
           </aside>
@@ -573,13 +574,13 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
       <p className="bidang-panel__intro">
         Quick tidak menggunakan AI untuk meneka kategori. Ia bergantung dahulu pada petunjuk yang
         sumber sendiri sudah beri (sumber/URL/tag RSS); kata kunci kandungan hanya
-        digunakan sebagai jalan terakhir apabila petunjuk itu tidak mencukupi (cth. feed
+        digunakan sebagai jalan terakhir apabila petunjuk itu tidak mencukupi (contoh feed
         campuran seperti Metro Mutakhir).
       </p>
 
       <h2 className="bidang-panel__section-title">Pemetaan Sumber</h2>
       <p className="bidang-panel__section-desc">
-        Sumber yang feednya sudah didedikasikan kepada satu kategori -- tiada peraturan diperlukan.
+        Sumber yang feednya sudah didedikasikan kepada satu kategori — tiada peraturan diperlukan.
       </p>
       <PemetaanSumber
         supabase={supabase}
@@ -591,34 +592,34 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
 
       <h2 className="bidang-panel__section-title">Petunjuk RSS/URL</h2>
       <p className="bidang-panel__section-desc">
-        Bila tag RSS, segmen URL atau prefix tajuk sudah cukup jelas -- tiada kata kunci
+        Bila tag RSS, segmen URL atau prefix tajuk sudah cukup jelas — tiada kata kunci
         kandungan terlibat di sini.
       </p>
       <PetunjukRssUrl supabase={supabase} editionId={editionId} />
 
       <h2 className="bidang-panel__section-title">Feed Campuran</h2>
       <p className="bidang-panel__section-desc">
-        Bila petunjuk sumber/RSS/URL di atas tak mencukupi -- kandungan diperiksa sebagai
-        jalan terakhir (cth. Metro Mutakhir).
+        Bila petunjuk sumber/RSS/URL di atas tidak mencukupi — kandungan diperiksa sebagai
+        jalan terakhir (contoh Metro Mutakhir).
       </p>
       <FeedCampuran supabase={supabase} editionId={editionId} />
 
       <h2 className="bidang-panel__section-title">Semua Pelarasan Kategori (pandangan penuh)</h2>
       <p className="bidang-panel__section-desc">
-        Termasuk pelarasan jenis Kata kunci (Feed Campuran) -- tapis &ldquo;Jenis&rdquo; di
-        bawah utk fokus kepada satu jenis.
+        Termasuk pelarasan jenis Kata kunci (Feed Campuran) — tapis &ldquo;Jenis&rdquo; di
+        bawah untuk fokus kepada satu jenis.
       </p>
       <ClassificationRulesList supabase={supabase} />
 
       <h2 className="bidang-panel__section-title">Susunan Edisi</h2>
       <p className="bidang-panel__section-desc">
-        Bila sesuatu kategori patut papar berbeza utk edisi ini (cth. Politik luar negara &rarr; Dunia).
+        Bila sesuatu kategori patut papar berbeza untuk edisi ini (contoh Politik luar negara &rarr; Dunia).
       </p>
       {editionId === 'ms-MY' ? (
         <>
           {editionRulesError && <p className="review-queue__error">{editionRulesError}</p>}
           {editionRules === null && !editionRulesError && (
-            <p className="admin-app__status">Memuatkan...</p>
+            <p className="admin-app__status">Memuatkan…</p>
           )}
           {editionRules !== null && (
             <EditionRulesManager

@@ -40,7 +40,7 @@ export default function ClassificationFlow({ supabase, editionId }) {
       </div>
 
       {error && <p className="review-queue__error">{error}</p>}
-      {rows === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {rows === null && !error && <p className="admin-app__status">Memuatkan…</p>}
 
       {rows !== null && (
         <div style={{ overflowX: 'auto' }}>

@@ -32,10 +32,10 @@ const EDITION_ID = 'ms-MY';
 const CAPACITY = 10;
 
 const COMPOSITION_LABEL = {
-  source_diversity_opportunity: 'Dimasukkan -- gantikan pilihan sumber dominan yang lebih lemah',
-  displaced_for_source_diversity: 'Digantikan -- sumbernya menguasai >50% slot, ada gantian lebih kuat',
-  dominant_event_preserved: 'Dikekalkan -- peristiwa dominan sebenar, tiada gantian cukup kualiti',
-  no_diversity_candidate_available: 'Dikekalkan -- tiada calon sumber lain langsung dlm kategori ini',
+  source_diversity_opportunity: 'Dimasukkan — gantikan pilihan sumber dominan yang lebih lemah',
+  displaced_for_source_diversity: 'Digantikan — sumbernya menguasai >50% slot, ada gantian lebih kuat',
+  dominant_event_preserved: 'Dikekalkan — peristiwa dominan sebenar, tiada gantian cukup kualiti',
+  no_diversity_candidate_available: 'Dikekalkan — tiada calon sumber lain langsung dalam kategori ini',
 };
 
 function runPipeline(group, mode, weights, now) {
@@ -94,17 +94,17 @@ export default function SusunanAkhirPanel({ corpus, error, weights }) {
   }, [corpus, activeField, mode, weights]);
 
   if (error) return <p className="review-queue__error">Ralat memuatkan korpus: {error}</p>;
-  if (!corpus) return <p className="admin-app__status">Memuatkan...</p>;
+  if (!corpus) return <p className="admin-app__status">Memuatkan…</p>;
 
   return (
     <div className="susunan-akhir-panel">
       <p className="bidang-panel__intro">
-        Set akhir 10 berita yang pembaca akan lihat -- guna enjin komposisi editorial SEBENAR (tak diubah).
-        <b> Komposisi TIDAK mengira skor semula dan TIDAK membuat ranking kedua berdasarkan skor</b> -- ia
+        Set akhir 10 berita yang pembaca akan lihat — guna enjin komposisi editorial SEBENAR (tidak diubah).
+        <b> Komposisi TIDAK mengira skor semula dan TIDAK membuat ranking kedua berdasarkan skor</b> — ia
         terima susunan Pemilihan 10
         SEPERTI ADANYA, cuma semak: adakah satu sumber menguasai &gt;50% daripada 10 slot; jika ya, cuba
-        satu pertukaran (calon terlemah sumber dominan itu, gantikan dgn calon sumber lain yang cukup
-        kualiti) -- paling banyak SATU pertukaran, bukan susun semula penuh.
+        satu pertukaran (calon terlemah sumber dominan itu, gantikan dengan calon sumber lain yang cukup
+        kualiti) — paling banyak SATU pertukaran, bukan susun semula penuh.
       </p>
 
       <div className="classification-rules__filters">
@@ -136,7 +136,7 @@ export default function SusunanAkhirPanel({ corpus, error, weights }) {
                   <td>{c.sourceName}</td>
                   <td className="source-table__num">{c.score != null ? c.score.toFixed(1) : '—'}</td>
                   <td><b>{c.status}</b></td>
-                  <td>{c.compositionReason ? COMPOSITION_LABEL[c.compositionReason] : 'Tiada pertukaran -- kekal susunan Pemilihan 10'}</td>
+                  <td>{c.compositionReason ? COMPOSITION_LABEL[c.compositionReason] : 'Tiada pertukaran — kekal susunan Pemilihan 10'}</td>
                 </tr>
               ))}
               {result.droppedOut.map(c => (

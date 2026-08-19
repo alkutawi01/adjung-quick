@@ -54,7 +54,7 @@ export default function EditorialActivityTimeline({ editionId }) {
       <h2 className="activity-timeline__title">Aktiviti Editorial</h2>
 
       {error && <p className="activity-timeline__error">Tidak dapat dimuatkan: {error}</p>}
-      {events === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {events === null && !error && <p className="admin-app__status">Memuatkan…</p>}
       {events !== null && events.length === 0 && (
         <p className="activity-timeline__empty">Tiada aktiviti editorial direkod lagi.</p>
       )}
@@ -79,7 +79,7 @@ export default function EditorialActivityTimeline({ editionId }) {
 
       {hasMore && (
         <button type="button" className="activity-timeline__more" onClick={loadMore} disabled={loadingMore}>
-          {loadingMore ? 'Memuatkan...' : '30 lagi'}
+          {loadingMore ? 'Memuatkan…' : '30 lagi'}
         </button>
       )}
     </section>

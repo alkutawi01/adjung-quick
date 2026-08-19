@@ -37,7 +37,7 @@ const EDITION_ID = 'ms-MY';
 const CAPACITY = 10;
 
 const REASON_LABEL = {
-  source_diversity_preserved: 'Pilihan pertama drpd sumber ini',
+  source_diversity_preserved: 'Pilihan pertama daripada sumber ini',
   source_diversity_discounted: 'Penalti kepelbagaian dikenakan',
 };
 
@@ -67,7 +67,7 @@ export default function PemilihanPanel({ corpus, error, weights }) {
           return { ...s, reasons: s.reasons ?? [] }; // production formula already carries `reasons`
         }
         const s = scoreCandidateV1(c, titles, now, weights);
-        return { ...s, score: s.scoreV1, reasons: [] }; // V1 has no `reasons` field -- selectDiverseCandidates requires the key to exist, never fabricated content
+        return { ...s, score: s.scoreV1, reasons: [] }; // V1 has no `reasons` field — selectDiverseCandidates requires the key to exist, never fabricated content
       });
       // REAL, unmodified production selector -- only the `score` fed in differs.
       const selected = selectDiverseCandidates(scored, remainingCapacity);
@@ -99,13 +99,13 @@ export default function PemilihanPanel({ corpus, error, weights }) {
   }, [corpus, activeField, mode, weights]);
 
   if (error) return <p className="review-queue__error">Ralat memuatkan korpus: {error}</p>;
-  if (!corpus) return <p className="admin-app__status">Memuatkan...</p>;
+  if (!corpus) return <p className="admin-app__status">Memuatkan…</p>;
 
   return (
     <div className="pemilihan-panel">
       <p className="bidang-panel__intro">
-        Bagaimana Nilai Berita diterjemah kepada 10 berita aktif -- guna enjin pemilihan kepelbagaian
-        SEBENAR (tak diubah), skor sahaja berbeza antara mod. Susunan Akhir (pemeriksaan komposisi
+        Bagaimana Nilai Berita diterjemah kepada 10 berita aktif — guna enjin pemilihan kepelbagaian
+        SEBENAR (tidak diubah), skor sahaja berbeza antara mod. Susunan Akhir (pemeriksaan komposisi
         selepas ini) ada di tab berasingan.
       </p>
 
@@ -189,7 +189,7 @@ export default function PemilihanPanel({ corpus, error, weights }) {
           </div>
           <p className="admin-app__status">
             Had maksimum 2 pin serentak setiap kategori dikuatkuasakan pelayan
-            (reviewQueueAdapter.js::submitPinOverride) -- bukan sesuatu panel ini kawal.
+            (reviewQueueAdapter.js::submitPinOverride) — bukan sesuatu panel ini kawal.
           </p>
         </>
       )}
