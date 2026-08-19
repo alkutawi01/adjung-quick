@@ -27,7 +27,7 @@ import EditionRulesManager from './EditionRulesManager.jsx';
 import { getFieldLabel } from '../../../state/editions.js';
 import { getFieldEntryForSubject } from '../../../classification/lib/taxonomy-registry.mjs';
 import { resolveKnownCategory } from './kategoriLabel.js';
-import { addClassificationRule, archiveClassificationRule } from './classificationRulesAdapter.js';
+import { addClassificationRule, archiveClassificationRule, restoreClassificationRule } from './classificationRulesAdapter.js';
 
 // Polish 2/5: self-service form for a source-scoped Kategori override.
 // A classification rule of rule_type='source' SHORT-CIRCUITS the whole
@@ -70,6 +70,53 @@ function TambahPelarasanSumber({ sources, taxonomyFieldCodes, taxonomyFieldLabel
         Semua berita daripada sumber ini akan terus diletakkan dalam kategori yang dipilih,
         mengatasi petunjuk automatik.
       </p>
+      <div className="card__actions">
+        <button type="submit" disabled={!canSubmit}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
+        <button type="button" className="btn--quiet" onClick={onCancel} disabled={busy}>Batal</button>
+      </div>
+    </form>
+  );
+}
+
+// Polish 3/10 -- borang kongsi untuk Petunjuk RSS/URL dan Feed Campuran.
+// Sama struktur seperti TambahPelarasanSumber (corak + kategori sasaran),
+// tetapi medan corak di sini ialah teks bebas (URL/segmen atau frasa
+// kandungan), bukan pilihan sumber tetap. `nasihat` membawa amaran khusus
+// setiap jenis (contoh: elak perkataan terlalu umum untuk kata kunci).
+function TambahPelarasanCorak({ ruleType, patternLabel, patternPlaceholder, nasihat, taxonomyFieldCodes, taxonomyFieldLabels, busy, nextPriority, onAdd, onCancel }) {
+  const [pattern, setPattern] = useState('');
+  const [fieldCode, setFieldCode] = useState('');
+  const canSubmit = pattern.trim() && fieldCode && !busy;
+
+  return (
+    <form
+      className="source-registry__add"
+      onSubmit={e => {
+        e.preventDefault();
+        if (!canSubmit) return;
+        onAdd({ ruleType, pattern: pattern.trim(), fieldCode, priority: nextPriority });
+      }}
+    >
+      <label className="review-card__field">
+        {patternLabel}
+        <input
+          type="text"
+          value={pattern}
+          onChange={e => setPattern(e.target.value)}
+          placeholder={patternPlaceholder}
+          disabled={busy}
+        />
+      </label>
+      <label className="review-card__field">
+        Paparkan dalam
+        <select value={fieldCode} onChange={e => setFieldCode(e.target.value)} disabled={busy}>
+          <option value="">— Pilih kategori —</option>
+          {taxonomyFieldCodes.map((code, i) => (
+            <option key={code} value={code}>{taxonomyFieldLabels[i]}</option>
+          ))}
+        </select>
+      </label>
+      {nasihat && <p className="section-note">{nasihat}</p>}
       <div className="card__actions">
         <button type="submit" disabled={!canSubmit}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
         <button type="button" className="btn--quiet" onClick={onCancel} disabled={busy}>Batal</button>
@@ -200,6 +247,17 @@ function PemetaanSumber({ supabase, editionId, taxonomyFieldCodes, taxonomyField
     return map;
   }, [rules]);
 
+  // Polish 3/10: pelarasan yang telah dinyahaktifkan (status='archived') --
+  // dipaparkan berasingan supaya editor boleh aktifkan semula tanpa
+  // menaip semula pelarasan yang sama.
+  const archivedOverrides = useMemo(() => {
+    const bySource = new Map((sources ?? []).map(s => [s.id, s]));
+    return (rules ?? [])
+      .filter(r => r.rule_type === 'source' && r.status === 'archived')
+      .map(r => ({ rule: r, source: bySource.get(r.pattern) ?? null }))
+      .filter(r => r.source);
+  }, [rules, sources]);
+
   const rows = useMemo(() => (sources ?? []).map(s => ({
     source: s,
     override: overrideBySourceId.get(s.id) ?? null,
@@ -262,7 +320,7 @@ function PemetaanSumber({ supabase, editionId, taxonomyFieldCodes, taxonomyField
                           disabled={busy}
                           onClick={() => runAction(() => archiveClassificationRule(supabase, override.id))}
                         >
-                          Buang pelarasan
+                          Nyahaktifkan
                         </button>
                       )}
                     </td>
@@ -272,6 +330,36 @@ function PemetaanSumber({ supabase, editionId, taxonomyFieldCodes, taxonomyField
             </tbody>
           </table>
         </div>
+      )}
+
+      {!loading && archivedOverrides.length > 0 && (
+        <>
+          <h3 className="bidang-panel__section-title">Pelarasan dinyahaktifkan</h3>
+          <div className="source-table-wrap">
+            <table className="source-table">
+              <thead>
+                <tr><th>Sumber</th><th>Kategori (sebelum dinyahaktifkan)</th><th>Tindakan</th></tr>
+              </thead>
+              <tbody>
+                {archivedOverrides.map(({ rule, source }) => (
+                  <tr key={rule.id}>
+                    <td className="source-table__name">{source.name}</td>
+                    <td>{resolveBidangLabel(editionId, { fieldCode: rule.field_code, subjectCode: rule.subject_code })}</td>
+                    <td>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => runAction(() => restoreClassificationRule(supabase, rule.id))}
+                      >
+                        Aktifkan semula
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {open && (
@@ -316,18 +404,36 @@ function PemetaanSumber({ supabase, editionId, taxonomyFieldCodes, taxonomyField
 // phrase list -- those are Feed Campuran's scope (a later round), kept
 // out so the hierarchy (source-dedicated -> structural evidence ->
 // content fallback) stays legible to an editor reading this screen.
-function PetunjukRssUrl({ supabase, editionId }) {
+function PetunjukRssUrl({ supabase, editionId, taxonomyFieldCodes, taxonomyFieldLabels, userId }) {
   const [rules, setRules] = useState(null);
   const [error, setError] = useState(null);
   const [openRow, setOpenRow] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
-  useEffect(() => {
+  const load = () => {
     setRules(null);
     setError(null);
     fetchClassificationRules(supabase)
       .then(setRules)
       .catch(err => setError(err.message));
-  }, [supabase]);
+  };
+
+  useEffect(load, [supabase]);
+
+  const runAction = async fn => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await fn();
+      load();
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const vocabRows = MS_MY_TOKENS
     .filter(token => SUBJECT_VOCABULARY[token])
@@ -340,7 +446,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
       // milik feed RSS itu sendiri. Ini yang KEDUA.
       jenis: 'Tag RSS / segmen URL',
       corak: token,
-      bidang: resolveBidangLabel(editionId, { subjectCode: SUBJECT_VOCABULARY[token] }),
+      kategori: resolveBidangLabel(editionId, { subjectCode: SUBJECT_VOCABULARY[token] }),
       asal: 'Tetapan asas',
       liputan: 'Hanya item sepadan',
     }));
@@ -350,7 +456,7 @@ function PetunjukRssUrl({ supabase, editionId }) {
     sumber: 'Bernama',
     jenis: 'Prefix tajuk',
     corak: `"${prefix} : ..."`,
-    bidang: resolveBidangLabel(editionId, { subjectCode: subject }),
+    kategori: resolveBidangLabel(editionId, { subjectCode: subject }),
     asal: 'Tetapan asas',
     liputan: 'Hanya item sepadan',
   }));
@@ -359,21 +465,48 @@ function PetunjukRssUrl({ supabase, editionId }) {
     .filter(r => r.rule_type === 'url' && r.status !== 'archived')
     .map(r => ({
       key: `rule-${r.id}`,
+      id: r.id,
       sumber: r.sourceName ?? 'Pelbagai',
       jenis: 'URL (peraturan Admin)',
       corak: r.pattern,
-      bidang: resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code }),
+      kategori: resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code }),
       asal: 'Pelarasan Admin',
       liputan: 'Hanya item sepadan',
+      boleh_nyahaktif: true,
     }));
+
+  const archivedUrlRules = (rules ?? []).filter(r => r.rule_type === 'url' && r.status === 'archived');
 
   const rows = [...vocabRows, ...bernamaRows, ...urlRuleRows];
   const open = rows.find(r => r.key === openRow) ?? null;
 
   return (
     <div className="bidang-pemetaan">
+      {actionError && <p className="review-queue__error">Ralat: {actionError}</p>}
       {error && <p className="review-queue__error">Ralat memuatkan peraturan Admin: {error}</p>}
       {rules === null && !error && <p className="admin-app__status">Memuatkan…</p>}
+
+      {rules !== null && !addOpen && (
+        <button type="button" onClick={() => setAddOpen(true)}>+ Tambah pelarasan URL</button>
+      )}
+      {rules !== null && addOpen && (
+        <TambahPelarasanCorak
+          ruleType="url"
+          patternLabel="Segmen URL"
+          patternPlaceholder="contoh: /sukan/"
+          nasihat="Pelarasan ini terpakai pada mana-mana berita yang URL-nya mengandungi segmen ini, tidak kira sumber."
+          taxonomyFieldCodes={taxonomyFieldCodes}
+          taxonomyFieldLabels={taxonomyFieldLabels}
+          busy={busy}
+          nextPriority={urlRuleRows.length + 1}
+          onCancel={() => setAddOpen(false)}
+          onAdd={payload => runAction(async () => {
+            await addClassificationRule(supabase, { ...payload, editionId, createdBy: userId ?? null });
+            setAddOpen(false);
+          })}
+        />
+      )}
+
       {rules !== null && (
         <div className="source-table-wrap">
           <table className="source-table">
@@ -397,18 +530,46 @@ function PetunjukRssUrl({ supabase, editionId }) {
                   <td>{r.kategori}</td>
                   <td>{r.asal}</td>
                   <td>{r.liputan}</td>
-                  <td><button type="button" onClick={() => setOpenRow(r.key)}>Lihat</button></td>
+                  <td className="source-table__actions">
+                    <button type="button" onClick={() => setOpenRow(r.key)}>Lihat</button>
+                    {r.boleh_nyahaktif && (
+                      <button type="button" disabled={busy} onClick={() => runAction(() => archiveClassificationRule(supabase, r.id))}>
+                        Nyahaktifkan
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      <p className="section-note">
-        Pelarasan baharu (jenis URL) belum boleh ditambah di sini — laluan tulis backend
-        masih terhad kepada sistem sahaja (sama isu macam Pemetaan Sumber di atas). Dicatat
-        sebagai backlog, belum dibetulkan pusingan ini.
-      </p>
+
+      {archivedUrlRules.length > 0 && (
+        <>
+          <h3 className="bidang-panel__section-title">Pelarasan URL dinyahaktifkan</h3>
+          <div className="source-table-wrap">
+            <table className="source-table">
+              <thead>
+                <tr><th>Corak</th><th>Kategori</th><th>Tindakan</th></tr>
+              </thead>
+              <tbody>
+                {archivedUrlRules.map(r => (
+                  <tr key={r.id}>
+                    <td><code>{r.pattern}</code></td>
+                    <td>{resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code })}</td>
+                    <td>
+                      <button type="button" disabled={busy} onClick={() => runAction(() => restoreClassificationRule(supabase, r.id))}>
+                        Aktifkan semula
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {open && (
         <div className="drawer-overlay" onClick={() => setOpenRow(null)}>
@@ -453,25 +614,43 @@ function PetunjukRssUrl({ supabase, editionId }) {
 // docs/prototypes/metro-mutakhir-classification-coverage-analysis-v1.md
 // -- an AUDIT FINDING from a 20-item sample, labelled as such, never
 // presented as a live runtime metric this component computed itself.
-function FeedCampuran({ supabase, editionId }) {
+function FeedCampuran({ supabase, editionId, taxonomyFieldCodes, taxonomyFieldLabels, userId }) {
   const [rules, setRules] = useState(null);
   const [error, setError] = useState(null);
   const [openKey, setOpenKey] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
-  useEffect(() => {
+  const load = () => {
     setRules(null);
     setError(null);
     fetchClassificationRules(supabase)
       .then(setRules)
       .catch(err => setError(err.message));
-  }, [supabase]);
+  };
+
+  useEffect(load, [supabase]);
+
+  const runAction = async fn => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await fn();
+      load();
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const builtInRows = CONTENT_PHRASE_RULES.map(r => ({
     key: `phrase-${r.subject}`,
     sumber: 'Sumber dengan metadata tidak cukup (contoh feed campuran)',
     corak: r.phrases.slice(0, 4).join(', ') + (r.phrases.length > 4 ? `, +${r.phrases.length - 4} lagi` : ''),
     fullPhrases: r.phrases,
-    bidang: resolveBidangLabel(editionId, { subjectCode: r.subject }),
+    kategori: resolveBidangLabel(editionId, { subjectCode: r.subject }),
     kaedah: 'Calon sahaja — tertakluk get keyakinan',
     asal: 'Tetapan asas',
     isMahkamah: r.subject === 'Crime',
@@ -481,14 +660,18 @@ function FeedCampuran({ supabase, editionId }) {
     .filter(r => r.rule_type === 'keyword' && r.status !== 'archived')
     .map(r => ({
       key: `rule-${r.id}`,
+      id: r.id,
       sumber: r.sourceName ?? 'Pelbagai',
       corak: r.pattern,
       fullPhrases: [r.pattern],
-      bidang: resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code }),
+      kategori: resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code }),
       kaedah: 'Fakta admin — keputusan terus (bukan calon)',
       asal: 'Pelarasan Admin',
       isMahkamah: false,
+      boleh_nyahaktif: true,
     }));
+
+  const archivedKeywordRules = (rules ?? []).filter(r => r.rule_type === 'keyword' && r.status === 'archived');
 
   const rows = [...builtInRows, ...adminRows];
   const open = rows.find(r => r.key === openKey) ?? null;
@@ -507,8 +690,31 @@ function FeedCampuran({ supabase, editionId }) {
         (bukan metrik masa nyata).
       </p>
 
+      {actionError && <p className="review-queue__error">Ralat: {actionError}</p>}
       {error && <p className="review-queue__error">Ralat memuatkan peraturan Admin: {error}</p>}
       {rules === null && !error && <p className="admin-app__status">Memuatkan…</p>}
+
+      {rules !== null && !addOpen && (
+        <button type="button" onClick={() => setAddOpen(true)}>+ Tambah peraturan kata kunci</button>
+      )}
+      {rules !== null && addOpen && (
+        <TambahPelarasanCorak
+          ruleType="keyword"
+          patternLabel="Kata kunci / frasa"
+          patternPlaceholder="contoh: waran tangkap"
+          nasihat="Elakkan perkataan terlalu umum (contoh: 'mahkamah' sahaja) — perkataan sedemikian boleh padan cerita yang bukan kategori ini. Guna frasa yang lebih khusus."
+          taxonomyFieldCodes={taxonomyFieldCodes}
+          taxonomyFieldLabels={taxonomyFieldLabels}
+          busy={busy}
+          nextPriority={adminRows.length + 1}
+          onCancel={() => setAddOpen(false)}
+          onAdd={payload => runAction(async () => {
+            await addClassificationRule(supabase, { ...payload, editionId, createdBy: userId ?? null });
+            setAddOpen(false);
+          })}
+        />
+      )}
+
       {rules !== null && (
         <div className="source-table-wrap">
           <table className="source-table">
@@ -530,17 +736,46 @@ function FeedCampuran({ supabase, editionId }) {
                   <td>{r.kategori}</td>
                   <td>{r.kaedah}</td>
                   <td>{r.asal}</td>
-                  <td><button type="button" onClick={() => setOpenKey(r.key)}>Lihat</button></td>
+                  <td className="source-table__actions">
+                    <button type="button" onClick={() => setOpenKey(r.key)}>Lihat</button>
+                    {r.boleh_nyahaktif && (
+                      <button type="button" disabled={busy} onClick={() => runAction(() => archiveClassificationRule(supabase, r.id))}>
+                        Nyahaktifkan
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      <p className="section-note">
-        Peraturan kandungan baharu belum boleh ditambah di sini — laluan tulis backend masih
-        terhad kepada sistem sahaja (backlog sama macam Pemetaan Sumber &amp; Petunjuk RSS/URL).
-      </p>
+
+      {archivedKeywordRules.length > 0 && (
+        <>
+          <h3 className="bidang-panel__section-title">Peraturan kata kunci dinyahaktifkan</h3>
+          <div className="source-table-wrap">
+            <table className="source-table">
+              <thead>
+                <tr><th>Corak</th><th>Kategori</th><th>Tindakan</th></tr>
+              </thead>
+              <tbody>
+                {archivedKeywordRules.map(r => (
+                  <tr key={r.id}>
+                    <td><code>{r.pattern}</code></td>
+                    <td>{resolveBidangLabel(r.edition_id ?? editionId, { fieldCode: r.field_code, subjectCode: r.subject_code })}</td>
+                    <td>
+                      <button type="button" disabled={busy} onClick={() => runAction(() => restoreClassificationRule(supabase, r.id))}>
+                        Aktifkan semula
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {open && (
         <div className="drawer-overlay" onClick={() => setOpenKey(null)}>
@@ -595,14 +830,26 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
         Bila tag RSS, segmen URL atau prefix tajuk sudah cukup jelas — tiada kata kunci
         kandungan terlibat di sini.
       </p>
-      <PetunjukRssUrl supabase={supabase} editionId={editionId} />
+      <PetunjukRssUrl
+        supabase={supabase}
+        editionId={editionId}
+        taxonomyFieldCodes={taxonomyFieldCodes}
+        taxonomyFieldLabels={taxonomyFieldLabels}
+        userId={userId}
+      />
 
       <h2 className="bidang-panel__section-title">Feed Campuran</h2>
       <p className="bidang-panel__section-desc">
         Bila petunjuk sumber/RSS/URL di atas tidak mencukupi — kandungan diperiksa sebagai
         jalan terakhir (contoh Metro Mutakhir).
       </p>
-      <FeedCampuran supabase={supabase} editionId={editionId} />
+      <FeedCampuran
+        supabase={supabase}
+        editionId={editionId}
+        taxonomyFieldCodes={taxonomyFieldCodes}
+        taxonomyFieldLabels={taxonomyFieldLabels}
+        userId={userId}
+      />
 
       <h2 className="bidang-panel__section-title">Semua Pelarasan Kategori (pandangan penuh)</h2>
       <p className="bidang-panel__section-desc">
