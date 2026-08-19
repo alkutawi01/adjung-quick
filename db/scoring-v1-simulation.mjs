@@ -22,7 +22,6 @@ import { scoreCandidateV1, SCORING_V1_WEIGHTS } from '../ranking/scoring-v1-simu
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 const EDITION_ID = 'ms-MY';
-const SAMPLE_TARGET = 200;
 
 async function main() {
   console.log('\n=== SCORING V1 SIMULATION (read-only, ms-MY) ===\n');
@@ -65,9 +64,9 @@ async function main() {
   }
 
   // Sample: every classified story (field_code present, status !=
-  // unclassified), capped near SAMPLE_TARGET, real cross-section of
-  // fields/sources as they exist -- no artificial balancing, since the
-  // point is to see the real corpus's behavior, not a curated one.
+  // unclassified) -- the full real corpus, no artificial balancing or
+  // cap, since Pusingan 12's per-field ranking needs enough stories in
+  // each field to produce a meaningful top 10.
   let candidates = [];
   for (const [clusterId, placement] of placementByStory) {
     if (!placement.field_code) continue;
@@ -86,17 +85,47 @@ async function main() {
       fieldCode: placement.field_code,
     });
   }
-  candidates = candidates.slice(0, SAMPLE_TARGET);
-  console.log(`Sampel: ${candidates.length} berita diklasifikasi merentasi ${new Set(candidates.map(c => c.fieldCode)).size} bidang, ${new Set(candidates.map(c => c.sourceId)).size} sumber.\n`);
+  console.log(`Korpus: ${candidates.length} berita diklasifikasi merentasi ${new Set(candidates.map(c => c.fieldCode)).size} bidang, ${new Set(candidates.map(c => c.sourceId)).size} sumber.\n`);
 
   const now = new Date();
+
+  // Pusingan 12/15: ranking PER BIDANG, sama seperti production sebenar
+  // (state/reducer.js::selectFieldActiveSet dipanggil sekali per bidang
+  // dipilih -- tidak pernah merentasi bidang). Pusingan 11's cross-field
+  // ranking (masih di bawah, dikekalkan untuk overview korpus) dedahkan
+  // corak sebenar TAPI "satu bidang membolot" finding-nya ialah artifak
+  // reka bentuk itu, bukan tingkah laku production -- per-bidang di sini
+  // ialah ujian yang betul-betul sepadan production.
+  const byField = new Map();
+  for (const c of candidates) {
+    if (!byField.has(c.fieldCode)) byField.set(c.fieldCode, []);
+    byField.get(c.fieldCode).push(c);
+  }
+
+  const REPORT_FIELDS = ['politics', 'disaster', 'sports', 'bisnes', 'nasional', 'crime'];
+  console.log('--- TOP 10 PER BIDANG (lama vs V1, ranking BERASINGAN setiap bidang) ---\n');
+  const perFieldResults = new Map();
+  for (const [fieldCode, group] of byField) {
+    const titles = group.map(c => c.title);
+    const oldS = scoreCandidates(group, now).sort((a, b) => b.score - a.score);
+    const newS = group.map(c => scoreCandidateV1(c, titles, now)).sort((a, b) => b.scoreV1 - a.scoreV1);
+    perFieldResults.set(fieldCode, { oldS, newS, group });
+    if (!REPORT_FIELDS.includes(fieldCode)) continue;
+    console.log(`## ${fieldCode} (${group.length} berita)`);
+    console.log('  LAMA top 10:');
+    oldS.slice(0, 10).forEach((c, i) => console.log(`    ${i + 1}. [${c.score.toFixed(0)}] ${truncate(c.title, 55)} (${c.sourceName})`));
+    console.log('  V1 top 10:');
+    newS.slice(0, 10).forEach((c, i) => console.log(`    ${i + 1}. [${c.scoreV1.toFixed(0)}] ${truncate(c.title, 55)} (${c.sourceName})`));
+    console.log('');
+  }
+
+  // Cross-field overview (Pusingan 11's original comparison), kept as a
+  // corpus-wide sanity check only -- NOT how production actually ranks.
   const oldScored = scoreCandidates(candidates, now);
   const allTitles = candidates.map(c => c.title);
   const newScored = candidates.map(c => scoreCandidateV1(c, allTitles, now));
-
   const oldRank = new Map([...oldScored].sort((a, b) => b.score - a.score).map((c, i) => [c.storyId, i + 1]));
   const newRank = new Map([...newScored].sort((a, b) => b.scoreV1 - a.scoreV1).map((c, i) => [c.storyId, i + 1]));
-
   const merged = candidates.map(c => {
     const oldEntry = oldScored.find(s => s.storyId === c.storyId);
     const newEntry = newScored.find(s => s.storyId === c.storyId);
@@ -106,25 +135,92 @@ async function main() {
       newScore: newEntry.scoreV1,
       oldRank: oldRank.get(c.storyId),
       newRank: newRank.get(c.storyId),
-      rankDelta: oldRank.get(c.storyId) - newRank.get(c.storyId), // positive = moved UP (improved) under V1
       breakdownV1: newEntry.breakdownV1,
     };
   });
 
-  const top20New = [...merged].sort((a, b) => a.newRank - b.newRank).slice(0, 20);
-  console.log('--- TOP 20 MENGIKUT SKOR CADANGAN (V1) ---');
-  console.log('Kdd(lama->baru) | Berita | Sumber | Bidang | Skor lama | Skor baharu | Sebab utama\n');
-  for (const c of top20New) {
-    const reason = biggestFactor(c.breakdownV1);
-    console.log(`${c.oldRank}->${c.newRank} | ${truncate(c.title, 60)} | ${c.sourceName} | ${c.fieldCode} | ${c.oldScore.toFixed(1)} | ${c.newScore.toFixed(1)} | ${reason}`);
-  }
-
-  console.log('\n--- SEMAKAN KESALAHAN JELAS ---');
+  console.log('--- SEMAKAN KESALAHAN JELAS (ikhtisar merentasi korpus) ---');
   selfCritique(merged);
 
-  console.log('\n--- DASAR SKOR (Faktor | Berat | Aktif/Tidak | Laras) ---');
+  console.log('\n--- UJIAN SENSITIVITI: BOOST EDITOR ---');
+  boostSensitivity(perFieldResults, now);
+
+  console.log('\n--- UJIAN SENSITIVITI: KEYAKINAN PENGELASAN ---');
+  confidenceSensitivity(perFieldResults, now);
+
+  console.log('\n--- DASAR SKOR SEMASA (Faktor | Berat | Aktif/Tidak | Laras) ---');
   for (const w of SCORING_V1_WEIGHTS) {
     console.log(`${w.faktor} | ${w.berat} | ${w.aktif ? 'Aktif' : 'Tidak aktif'} | ${w.laras}`);
+  }
+}
+
+// Re-scores every candidate with a different boost weight (score minus
+// the default 40 flat, plus the variant), re-ranks PER FIELD, and counts
+// how many boosted stories actually change top-10 membership at each
+// weight -- a real measurement of how much the number matters, not a
+// guess. Only fields with at least one boosted story in the sample are
+// informative; reported regardless so an empty result is visible too.
+function boostSensitivity(perFieldResults, now) {
+  const VARIANTS = [3, 5, 8, 10, 15, 20, 40];
+  const totalBoosted = [...perFieldResults.values()].reduce((sum, { group }) => sum + group.filter(c => c.boosted).length, 0);
+  if (totalBoosted === 0) {
+    console.log('  Tiada berita dgn override boost aktif dalam sampel semasa -- ujian sensitiviti tak dapat dijalankan terhadap data sebenar buat masa ini. Simulasi sintetik di bawah: ambil 1 berita rawak per bidang laporan, tandakan boosted=true secara hipotesis, ukur berapa kedudukan ia naik.\n');
+    for (const [fieldCode, { group }] of perFieldResults) {
+      if (!REPORT_FIELDS_G.includes(fieldCode) || group.length < 5) continue;
+      const titles = group.map(c => c.title);
+      const target = group[Math.floor(group.length / 2)]; // a mid-pack story, not already top
+      const baseRank = group.map(c => scoreCandidateV1(c, titles, now)).sort((a, b) => b.scoreV1 - a.scoreV1).findIndex(c => c.storyId === target.storyId) + 1;
+      console.log(`  Bidang ${fieldCode} -- "${truncate(target.title, 50)}" (kedudukan asal #${baseRank}/${group.length}):`);
+      for (const weight of VARIANTS) {
+        const scored = group.map(c => {
+          const scoredC = scoreCandidateV1(c, titles, now);
+          return { ...scoredC, scoreV1: scoredC.scoreV1 + (c.storyId === target.storyId ? weight : 0) };
+        }).sort((a, b) => b.scoreV1 - a.scoreV1);
+        const newRank = scored.findIndex(c => c.storyId === target.storyId) + 1;
+        console.log(`    +${weight}: #${baseRank} -> #${newRank}${newRank <= 10 ? ' (MASUK TOP 10)' : ''}`);
+      }
+    }
+    return;
+  }
+  for (const [fieldCode, { group }] of perFieldResults) {
+    const boostedInField = group.filter(c => c.boosted);
+    if (boostedInField.length === 0) continue;
+    const titles = group.map(c => c.title);
+    console.log(`  Bidang ${fieldCode} (${boostedInField.length} berita boosted dlm sampel):`);
+    for (const weight of VARIANTS) {
+      const scored = group.map(c => {
+        const base = scoreCandidateV1({ ...c, boosted: false }, titles, now);
+        const boost = c.boosted ? weight : 0;
+        return { ...c, scoreV1: base.scoreV1 + boost };
+      }).sort((a, b) => b.scoreV1 - a.scoreV1);
+      const boostedInTop10 = scored.slice(0, 10).filter(c => c.boosted).length;
+      console.log(`    +${weight}: ${boostedInTop10}/${boostedInField.length} berita boosted masuk top 10`);
+    }
+  }
+}
+
+const REPORT_FIELDS_G = ['politics', 'disaster', 'sports', 'bisnes', 'nasional', 'crime'];
+
+function confidenceSensitivity(perFieldResults, now) {
+  const VARIANTS = [0, 2, 5, 10, 15];
+  for (const fieldCode of ['politics', 'disaster', 'bisnes']) {
+    const entry = perFieldResults.get(fieldCode);
+    if (!entry) continue;
+    const { group } = entry;
+    const titles = group.map(c => c.title);
+    const top10AtWeight = weight => new Set(
+      group.map(c => {
+        const base = scoreCandidateV1({ ...c, classificationConfidence: 0 }, titles, now);
+        return { storyId: c.storyId, scoreV1: base.scoreV1 + (c.classificationConfidence ?? 0) * weight };
+      }).sort((a, b) => b.scoreV1 - a.scoreV1).slice(0, 10).map(c => c.storyId),
+    );
+    const baseline = top10AtWeight(5); // current default weight
+    console.log(`  Bidang ${fieldCode} (bandingkan top 10 setiap x drpd x5 semasa):`);
+    for (const weight of VARIANTS) {
+      const set = top10AtWeight(weight);
+      const changed = [...set].filter(id => !baseline.has(id)).length;
+      console.log(`    x${weight}: ${changed} daripada 10 slot top-10 berubah berbanding x5 semasa`);
+    }
   }
 }
 

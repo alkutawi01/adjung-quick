@@ -114,7 +114,20 @@ export const SCORING_V1_WEIGHTS = [
   { faktor: 'Kebaharuan maklumat (bukan ulangan)', berat: 10, aktif: true, laras: 'penalti tertindih -- lihat duplicationPenalty()' },
   { faktor: 'Kerelevanan kepada edisi', berat: 0, aktif: false, laras: 'BELUM TERSEDIA -- placement bidang itu sendiri SUDAH signal ini' },
   { faktor: 'Keyakinan pengelasan', berat: 5, aktif: true, laras: 'classification_confidence x5, kecil/sekunder (sama falsafah candidate-scoring.mjs)' },
-  { faktor: 'Keutamaan editor (boost)', berat: 40, aktif: true, laras: 'flat +40 bila override boost aktif, sama nilai production' },
+  // Iteration 3 (2026-08-19, Pusingan 12 -- ujian sensitiviti sebenar):
+  // +40 (nilai production lama) DISAHKAN keterlaluan selepas sourceTrust
+  // dinormal ke 0-20 -- julat skor V1 dalam satu bidang jadi jauh lebih
+  // padat (~30-55), jadi +10 SAHAJA sudah cukup lonjakkan berita
+  // pertengahan terus ke #1 dalam hampir setiap bidang diuji. Ini
+  // melanggar prinsip candidate-scoring.mjs SENDIRI: "boost must raise
+  // the CHANCE of selection, never guarantee it... A weight large enough
+  // to always win would make boost a pin in disguise." +8 dipilih --
+  // cukup kuat utk beri kelebihan ketara, tapi tidak menjamin #1 tanpa
+  // mengira apa-apa lagi. BELUM diuji terhadap data boost SEBENAR (sifar
+  // berita boosted wujud dalam sampel semasa) -- ujian di atas guna
+  // simulasi hipotesis sahaja, bukan penggunaan sebenar; laras semula
+  // bila ada override boost sebenar utk diperhatikan.
+  { faktor: 'Keutamaan editor (boost)', berat: 8, aktif: true, laras: 'flat +8 bila override boost aktif -- diturunkan drpd +40 selepas ujian sensitiviti sebenar, lihat komen' },
 ];
 
 // Real, derivable "duplication/reaction" signal: how many OTHER stories
@@ -136,7 +149,11 @@ export function scoreCandidateV1(candidate, allTitles, now = new Date()) {
   const sourceTrust = ((candidate.trustScore ?? 0) / 100) * 20;
   const duplication = duplicationPenalty(candidate, allTitles);
   const confidenceModifier = (candidate.classificationConfidence ?? 0) * 5;
-  const editorialBoost = candidate.boosted ? 40 : 0;
+  // +8, not the old formula's +40 -- see SCORING_V1_WEIGHTS' own comment
+  // (Iteration 3) for why: +40 was confirmed oversized by a real
+  // sensitivity test once sourceTrust was normalized into V1's more
+  // compact score range.
+  const editorialBoost = candidate.boosted ? 8 : 0;
 
   const score = freshness + sourceTrust + duplication + confidenceModifier + editorialBoost;
   return {
