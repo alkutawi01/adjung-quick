@@ -28,9 +28,9 @@ export default function ClassificationProvenance({ classificationMethod, resolve
   if (classificationMethod !== 'admin_rule') {
     return (
       <p className="classification-provenance classification-provenance--classifier">
-        Ditentukan oleh: Classifier
+        Ditentukan oleh: Sistem klasifikasi
         <span className="classification-provenance__detail">
-          Method: {METHOD_LABELS[classificationMethod] ?? classificationMethod ?? 'Tiada'}
+          Kaedah: {METHOD_LABELS[classificationMethod] ?? classificationMethod ?? 'Tiada'}
         </span>
       </p>
     );
@@ -52,9 +52,8 @@ export default function ClassificationProvenance({ classificationMethod, resolve
     <p className="classification-provenance classification-provenance--admin-rule">
       Ditentukan oleh: Peraturan Klasifikasi
       <span className="classification-provenance__detail">Jenis: {RULE_TYPE_LABELS[resolvedRule.rule_type] ?? resolvedRule.rule_type}</span>
-      <span className="classification-provenance__detail">Pattern: {resolvedRule.pattern}</span>
-      <span className="classification-provenance__detail">Priority: {resolvedRule.priority}</span>
-      <span className="classification-provenance__detail">Rule ID: {resolvedRule.id}</span>
+      <span className="classification-provenance__detail">Corak: {resolvedRule.pattern}</span>
+      <span className="classification-provenance__detail">Keutamaan: {resolvedRule.priority}</span>
       {/* Never hidden regardless of the rule's current status — an
           archived rule that decided this story's Kategori in the past
           still shows its full detail, per the locked invariant. */}

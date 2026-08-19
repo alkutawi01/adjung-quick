@@ -14,6 +14,7 @@
 import { canPerformAction, isAdmin } from '../../../db/editor-auth.mjs';
 import { resolveEditorialFilterForStory } from '../../../state/editorialFilterResolver.mjs';
 import { getFieldEntryByLabel } from '../../../classification/lib/taxonomy-registry.mjs';
+import { fetchClassificationRulesByIds } from './classificationRulesAdapter.js';
 
 // reason_code -> display_reason, per docs/review-queue-spec-v1.md's
 // translation table. Only the two v1-supported codes are here — see the
@@ -41,7 +42,11 @@ export async function fetchReviewQueue(supabase, editionId) {
     // `field` added for FASA 3.6.3c: Boost availability depends on which
     // Bidang the story sits in, since the Editorial Ranking Engine (the
     // only consumer of a boost signal) is active per (edition, field).
-    .select('story_id, field, classification_status, classification_confidence')
+    // `classification_method`/`classification_rule` added for
+    // ClassificationProvenance wiring (Admin Console V2) -- both already
+    // real, persisted columns (db/schema-edition-classification.sql),
+    // written by db/classify-production.js since Fasa 3. Not new backend.
+    .select('story_id, field, classification_status, classification_confidence, classification_method, classification_rule')
     .eq('edition_id', editionId)
     .or('classification_status.eq.unclassified,classification_confidence.lt.0.5');
   if (classErr) throw new Error(`fetchReviewQueue: edition_story_classifications — ${classErr.message}`);
@@ -94,6 +99,16 @@ export async function fetchReviewQueue(supabase, editionId) {
   if (overridesErr) throw new Error(`fetchReviewQueue: story_overrides — ${overridesErr.message}`);
   if (sourcesErr) throw new Error(`fetchReviewQueue: sources — ${sourcesErr.message}`);
 
+  // Batch-resolve classification_rule ids -> full rule detail, per
+  // classificationRulesAdapter.js's own N+1-avoidance contract (one query
+  // for the whole queue, not one per story). Only 'admin_rule'-method
+  // stories actually carry a rule id; ClassificationProvenance.jsx treats
+  // a missing Map entry as "rule not found", never throws.
+  const ruleIds = classifications
+    .filter(c => c.classification_method === 'admin_rule')
+    .map(c => c.classification_rule);
+  const ruleById = await fetchClassificationRulesByIds(supabase, ruleIds);
+
   const resolvedIds = new Set(overrides.map(o => o.story_id));
   // Same exclusion productionAdapter.js applies to the reader-facing queue
   // — a story no reader can ever see doesn't belong in the review queue
@@ -125,6 +140,8 @@ export async function fetchReviewQueue(supabase, editionId) {
         publishedAt: canonical.published_at,
         reasonCode,
         displayReason: REASON_DISPLAY[reasonCode],
+        classificationMethod: c.classification_method,
+        resolvedRule: c.classification_method === 'admin_rule' ? (ruleById.get(c.classification_rule) ?? null) : null,
       };
     })
     .filter(Boolean)

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ClassificationProvenance from './ClassificationProvenance.jsx';
 
 // ReviewQueueCard.jsx — Fasa 3.6.2. One card, one story, one decision, per
 // docs/review-queue-ui-implementation-plan-v1.md §4. No "Terima" button in
@@ -28,9 +29,13 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
       <h3 className="review-card__title">{entry.title}</h3>
       <div className="review-card__meta">{entry.sourceName}</div>
       <p className="review-card__reason">
-        <span className="review-card__reason-label">Kenapa muncul: </span>
+        <span className="review-card__reason-label">Sebab perlu semakan: </span>
         {entry.displayReason}
       </p>
+      <ClassificationProvenance
+        classificationMethod={entry.classificationMethod}
+        resolvedRule={entry.resolvedRule}
+      />
 
       {composing === null && (
         <div className="review-card__actions">
