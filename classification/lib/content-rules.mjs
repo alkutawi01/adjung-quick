@@ -38,6 +38,18 @@ const PHRASE_RULES = [
   // Real evidence: "Wanita perlu dilibatkan dalam agenda perubahan iklim"
   // returned zero candidates pre-fix.
   { subject: 'Environment', phrases: ['perubahan iklim', 'climate change', 'pencemaran', 'pollution', 'kualiti udara', 'air quality'] },
+  // Education — NEW Polish 4/10 (2026-08-19), per ChatGPT's classification
+  // audit instruction: Pendidikan had ZERO content-rule phrases (and zero
+  // classified stories in the live ms-MY corpus) despite this subject
+  // having its own taxonomy field (taxonomy-registry.mjs's 'education').
+  // Real evidence: pulled 16 production titles containing sekolah/
+  // universiti/pelajar/etc from the live corpus during this audit — every
+  // one landed in Nasional/Sukan/Hiburan/Jenayah by SOURCE, never by
+  // content, because nothing here matched them. Phrases below are the
+  // specific, unambiguous terms from that real sample (not invented) --
+  // deliberately excludes broader/riskier terms like 'kolej'/'akademia'
+  // that weren't directly evidenced this round.
+  { subject: 'Education', phrases: ['sekolah', 'universiti', 'pelajar', 'peperiksaan', 'SPM', 'STPM', 'UPSR', 'kementerian pendidikan'] },
 ];
 
 // Bug found 2026-08-13 (live, post-launch): some sources (e.g.
