@@ -80,7 +80,16 @@ export const PHRASE_RULES = [
   // -- too generic a single word to trust long-term (ChatGPT's call);
   // more specific corporate-earnings phrasing is a follow-up audit.
   { subject: 'Economy', phrases: ['inflasi', 'kdnk', 'kadar faedah', 'ringgit'] },
-  { subject: 'Business', phrases: ['bursa malaysia', 'saham'] },
+  // Business's corporate-earnings follow-up audit (2026-08-19), per
+  // ChatGPT's exact target: "Samsung catat untung 20 trilion won" must
+  // stay Business, not fall to Dunia. Candidates audited against the
+  // full 691-story corpus: 'catat untung' (2/2 true), 'keuntungan' (4/5
+  // clearly true, 1 plausible-but-indirect -- gold futures profit
+  // context, not a hard false positive like 'ringgit''s Aliff Syukri
+  // case), 'catat hasil' (1/1 true, "LVG catat hasil tambahan RM817
+  // juta"). 'untung bersih'/'rekod keuntungan'/'hasil syarikat' had ZERO
+  // matches in this corpus -- dropped, no evidence to justify them.
+  { subject: 'Business', phrases: ['bursa malaysia', 'saham', 'catat untung', 'keuntungan', 'catat hasil'] },
 ];
 
 // Bug found 2026-08-13 (live, post-launch): some sources (e.g.
