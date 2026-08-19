@@ -41,6 +41,24 @@ export const SUBJECT_CONFIDENCE_OVERRIDES = {
   Health: 0.35,
 };
 
+// Per-edition + per-subject override — NEW Polish 4B (2026-08-19). Same
+// exact gap as SUBJECT_CONFIDENCE_OVERRIDES above (a single Tier 5 hit
+// at 0.4 can't clear the 0.6 default), found via the RTM Ekonomi
+// in-memory simulation ("Samsung catat untung..." -- real Tier 5
+// evidence, still fell to Dunia). Deliberately EDITION-SCOPED (not added
+// to the global SUBJECT_CONFIDENCE_OVERRIDES above) because the evidence
+// gap is specific to ms-MY mainstream sources having no dedicated
+// /bisnes/ URL-desk structure to corroborate via Tier 2/3 -- en-global/
+// ar-global's Business/Economy sources (BBC/Guardian/Al Jazeera) DO have
+// that structural evidence and clear 0.6 fine already, so a global
+// override would needlessly loosen those editions too.
+export const EDITION_SUBJECT_CONFIDENCE_OVERRIDES = {
+  'ms-MY': {
+    Business: 0.35,
+    Economy: 0.35,
+  },
+};
+
 export function policyForEdition(edition, thresholdOverride) {
   const base = { ...DEFAULT_CONFIDENCE_POLICY, ...(EDITION_CONFIDENCE_POLICY_OVERRIDES[edition] ?? {}) };
   if (thresholdOverride != null) base.min_subject_confidence = thresholdOverride;
@@ -52,10 +70,17 @@ export function policyForEdition(edition, thresholdOverride) {
 // drive a DEFAULT placement. Returns { pass: true } or { pass: false,
 // action }. The candidate itself is never mutated or discarded by this
 // check — the caller decides what 'fail' means.
+//
+// Precedence (Polish 4B): edition+subject override -> global subject
+// override -> edition/default threshold. DEFAULT_CONFIDENCE_POLICY.
+// min_subject_confidence (0.6) itself is UNCHANGED -- per ChatGPT's
+// explicit instruction, only these two override layers move.
 export function checkConfidenceGate(edition, topSubjectCandidate, thresholdOverride) {
   const policy = policyForEdition(edition, thresholdOverride);
   if (!topSubjectCandidate) return { pass: true, policy };
-  const effectiveThreshold = SUBJECT_CONFIDENCE_OVERRIDES[topSubjectCandidate.value] ?? policy.min_subject_confidence;
+  const effectiveThreshold = EDITION_SUBJECT_CONFIDENCE_OVERRIDES[edition]?.[topSubjectCandidate.value]
+    ?? SUBJECT_CONFIDENCE_OVERRIDES[topSubjectCandidate.value]
+    ?? policy.min_subject_confidence;
   if (topSubjectCandidate.confidence >= effectiveThreshold) return { pass: true, policy };
   return { pass: false, action: policy.low_confidence_action, policy };
 }
