@@ -23,7 +23,7 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
-import { assertWriteAllowed, evaluateDestructiveRebuildGuard } from './production-write-guard.mjs';
+import { assertWriteAllowed } from './production-write-guard.mjs';
 import { fetchAllSourcesForIngestion } from './source-registry-adapter.mjs';
 import {
   computeProtectedStoryIds,
@@ -56,6 +56,29 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
 
+// Adversarial-review fix (Polish 6B.1): saved_stories/history_entries and
+// story_clusters_staging reads that touch personal-state preservation must
+// never rely on PostgREST's default row-return cap. db/daily-observation.mjs
+// already hit this exact cap on these exact tables and works around it with
+// an identical range()-chunked pattern (selectAllChunked, PAGE=1000) -- an
+// unpaginated read here would silently truncate protectedStoryIds at scale,
+// reopening the dangling-FK bug this whole feature exists to close.
+const CHUNK_PAGE = 1000;
+async function selectAllChunked(table, columns, applyFilter) {
+  const rows = [];
+  let from = 0;
+  while (true) {
+    let q = supabase.from(table).select(columns);
+    if (applyFilter) q = applyFilter(q);
+    const { data, error } = await q.range(from, from + CHUNK_PAGE - 1);
+    if (error) return { data: null, error };
+    rows.push(...data);
+    if (data.length < CHUNK_PAGE) break;
+    from += CHUNK_PAGE;
+  }
+  return { data: rows, error: null };
+}
+
 async function main() {
   // Per docs/production-write-guard-v1.md: fails immediately, before any
   // network call or write, if DATABASE_ENV isn't explicitly set safe.
@@ -85,8 +108,8 @@ async function main() {
   // --- Polish 6B.1 step B: baca protected story IDs (SELEPAS cleanup A,
   // guna nowIso sama). Fail closed pada ralat. ---
   const [savedRes, historyRes] = await Promise.all([
-    supabase.from('saved_stories').select('story_id').gt('expires_at', nowIso),
-    supabase.from('history_entries').select('story_id').gt('expires_at', nowIso),
+    selectAllChunked('saved_stories', 'story_id', q => q.gt('expires_at', nowIso)),
+    selectAllChunked('history_entries', 'story_id', q => q.gt('expires_at', nowIso)),
   ]);
   if (savedRes.error) { console.error('baca saved_stories gagal:', savedRes.error); process.exit(1); }
   if (historyRes.error) { console.error('baca history_entries gagal:', historyRes.error); process.exit(1); }
@@ -285,8 +308,10 @@ async function main() {
   // relative to what was actually computed, not just non-zero. A staging
   // set that silently under-populated (a partial insert that still
   // returned no error, or a logic bug) must never get promoted. ---
-  const { count: stagedClusterCount } = await supabase.from('story_clusters_staging').select('*', { count: 'exact', head: true });
-  const { count: stagedItemCount } = await supabase.from('rss_items_staging').select('*', { count: 'exact', head: true });
+  const { count: stagedClusterCount, error: stagedClusterCountErr } = await supabase.from('story_clusters_staging').select('*', { count: 'exact', head: true });
+  if (stagedClusterCountErr) { console.error('baca kiraan story_clusters_staging gagal:', stagedClusterCountErr); process.exit(1); }
+  const { count: stagedItemCount, error: stagedItemCountErr } = await supabase.from('rss_items_staging').select('*', { count: 'exact', head: true });
+  if (stagedItemCountErr) { console.error('baca kiraan rss_items_staging gagal:', stagedItemCountErr); process.exit(1); }
   const expectedClusterCount = labRankedQueue.length + toCarryForward.length;
   const expectedItemCount = dedupedItemRows.length + carriedItemCount;
   const stagingValid = stagedClusterCount === expectedClusterCount && stagedItemCount === expectedItemCount;
@@ -303,8 +328,7 @@ async function main() {
 
   // --- Polish 6B.1 step E.1: every protected story ID must be present in
   // staging (fresh OR carried forward) before swap is ever attempted. ---
-  const { data: stagingClusterRows, error: stagingClusterIdsErr } = await supabase
-    .from('story_clusters_staging').select('id');
+  const { data: stagingClusterRows, error: stagingClusterIdsErr } = await selectAllChunked('story_clusters_staging', 'id');
   if (stagingClusterIdsErr) { console.error('baca story_clusters_staging (protected check) gagal:', stagingClusterIdsErr); process.exit(1); }
   const stagingClusterIds = new Set(stagingClusterRows.map(r => r.id));
   const stillMissing = findStillMissingProtected(protectedStoryIds, stagingClusterIds);
@@ -334,20 +358,32 @@ async function main() {
   console.log('✓ Swap committed. Previous generation preserved as *_old (manual drop only — see db/drop-ingestion-old-tables.mjs).\n');
 
   // --- Verification: exact parity against Lab, now querying the
-  // just-promoted live tables (same table names the reader queries). ---
+  // just-promoted live tables (same table names the reader queries).
+  // Adversarial-review fix (Polish 6B.1): this block used to compare
+  // against labRankedQueue.length/dedupedItemRows.length (fresh-only
+  // counts). Once the swap promotes staging, the live tables legitimately
+  // also contain carry-forward rows -- comparing against the fresh-only
+  // baseline would ALWAYS report a false MISMATCH (and suggest a rollback
+  // that would discard the very data carry-forward exists to protect)
+  // whenever any protected story was carried forward. Reuse the same
+  // expectedClusterCount/expectedItemCount the pre-swap staging check
+  // already validated. The top-score query also excludes
+  // workspace_state='expired' -- a carried-forward story keeps its
+  // original frozen score and must never be reported as the "top" live
+  // story in this diagnostic. ---
   const { count: dbClusterCount } = await supabase.from('story_clusters').select('*', { count: 'exact', head: true });
   const { count: dbItemCount } = await supabase.from('rss_items').select('*', { count: 'exact', head: true });
-  const { data: topRow } = await supabase.from('story_clusters').select('id, editorial_score, topic').order('editorial_score', { ascending: false }).limit(1).single();
-  const { data: top5 } = await supabase.from('story_clusters').select('id, editorial_score, topic').order('editorial_score', { ascending: false }).limit(5);
+  const { data: topRow } = await supabase.from('story_clusters').select('id, editorial_score, topic').neq('workspace_state', 'expired').order('editorial_score', { ascending: false }).limit(1).single();
+  const { data: top5 } = await supabase.from('story_clusters').select('id, editorial_score, topic').neq('workspace_state', 'expired').order('editorial_score', { ascending: false }).limit(5);
 
   console.log('=== STREAM A — PRODUCTION VERIFICATION (post-swap) ===\n');
-  const clusterMatch = labRankedQueue.length === dbClusterCount;
-  const itemMatch = dedupedItemRows.length === dbItemCount;
+  const clusterMatch = expectedClusterCount === dbClusterCount;
+  const itemMatch = expectedItemCount === dbItemCount;
   const scoreMatch = Number(labRankedQueue[0].editorialScore) === Number(topRow.editorial_score);
 
-  console.log(`Clusters:  Lab=${labRankedQueue.length}  Supabase=${dbClusterCount}  ${clusterMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}`);
-  console.log(`RSS items: staged=${dedupedItemRows.length}  Supabase=${dbItemCount}  ${itemMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}  (raw fetch: ${allItems.length}, engine+ID dedup applied)`);
-  console.log(`Top score: Lab=${labRankedQueue[0].editorialScore}  Supabase=${topRow.editorial_score}  ${scoreMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}`);
+  console.log(`Clusters:  expected=${expectedClusterCount} (fresh=${labRankedQueue.length} + carry-forward=${toCarryForward.length})  Supabase=${dbClusterCount}  ${clusterMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}`);
+  console.log(`RSS items: expected=${expectedItemCount} (fresh=${dedupedItemRows.length} + carry-forward=${carriedItemCount})  Supabase=${dbItemCount}  ${itemMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}  (raw fetch: ${allItems.length}, engine+ID dedup applied)`);
+  console.log(`Top score (excl. expired carry-forward): Lab=${labRankedQueue[0].editorialScore}  Supabase=${topRow.editorial_score}  ${scoreMatch ? '✓ EXACT MATCH' : '✗ MISMATCH'}`);
 
   console.log('\nTop 5 (Supabase, real Ranked Queue query):');
   top5.forEach((r, i) => console.log(`  ${i + 1}. [${r.editorial_score}] ${r.topic} — ${r.id}`));
