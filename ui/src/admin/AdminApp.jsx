@@ -475,7 +475,7 @@ function ReviewQueue({ userId, role }) {
 
       {activeGroup === 'nilai' && (
         <section className="editorial-desk__section">
-          <ValueRankingPanel />
+          <ValueRankingPanel supabase={adminSupabase} role={role} userId={userId} />
         </section>
       )}
 

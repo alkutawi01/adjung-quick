@@ -12,7 +12,14 @@ import { scoreCandidates } from '../ranking/candidate-scoring.mjs';
 import { selectDiverseCandidates } from '../ranking/diversity-selection.mjs';
 import { applyEditorialComposition } from '../ranking/editorial-composition.mjs';
 
-function clusterToCandidate(clusterEntry) {
+// Exported Pusingan 11/15 (2026-08-19, admin Nilai & Susunan panel) --
+// same function, no behavior change. The admin panel needs to build the
+// identical candidate shape to call scoreCandidates/selectDiverseCandidates/
+// applyEditorialComposition itself (to show the intermediate stages this
+// module's own selectEditorialActiveSet() collapses into one return
+// value) -- exporting this avoids a second, potentially-drifting copy of
+// the same mapping living in ui/src/admin/.
+export function clusterToCandidate(clusterEntry) {
   return {
     storyId: clusterEntry.clusterKey,
     title: clusterEntry.canonical.title,
