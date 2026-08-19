@@ -18,42 +18,122 @@
 // No new backend, no new mutations. All 3 sections reuse existing,
 // already-wired components/adapters unchanged.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { fetchAllSourcesForIngestion } from '../../../db/source-registry-adapter.mjs';
+import { fetchClassificationRules } from './classificationRulesAdapter.js';
 import ClassificationRulesList from './ClassificationRulesList.jsx';
 import EditionRulesManager from './EditionRulesManager.jsx';
 
+// Pemetaan Sumber -- Round 4/15 (2026-08-19). Traced before building:
+// classify-production.js's real precedence is Admin Classification Rule
+// (rule_type='source', matched by source id) SHORT-CIRCUITS everything
+// below it, including the built-in knownCategory/desk-vocabulary default
+// (classification/edition-classification.mjs's classifyForEdition(),
+// confirmed by reading the code, not assumed). So "Tetapan asas" here is
+// literally sources.known_category (or "Umum" when unset, meaning the
+// source itself has no field dedication and relies on Bidang's other
+// two tiers -- URL/RSS petunjuk or content-rule fallback); "Pelarasan
+// Admin" is a matching classification_rules row.
+//
+// Write path checked and found NOT browser-safe: db/schema-classification-
+// rules-rpc-v1.sql grants add/archive/restore_classification_rule to
+// service_role ONLY (never `authenticated`) -- unlike edition_rules' RPCs,
+// which were specifically patched for browser/admin auth. No "Tambah
+// pelarasan" action is offered here; the gap is stated plainly instead of
+// papered over with a button that would fail or, worse, silently need a
+// secret key this app must never hold.
 function PemetaanSumber({ supabase }) {
   const [sources, setSources] = useState(null);
-  const [error, setError] = useState(null);
+  const [sourcesError, setSourcesError] = useState(null);
+  const [rules, setRules] = useState(null);
+  const [rulesError, setRulesError] = useState(null);
+  const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
     setSources(null);
-    setError(null);
+    setSourcesError(null);
     fetchAllSourcesForIngestion(supabase)
       .then(setSources)
-      .catch(err => setError(err.message));
+      .catch(err => setSourcesError(err.message));
+    setRules(null);
+    setRulesError(null);
+    fetchClassificationRules(supabase)
+      .then(setRules)
+      .catch(err => setRulesError(err.message));
   }, [supabase]);
 
-  const mapped = (sources ?? []).filter(s => s.knownCategory);
+  // Admin override lookup: an ACTIVE classification_rules row of
+  // rule_type='source' whose pattern is this source's id.
+  const overrideBySourceId = useMemo(() => {
+    const map = new Map();
+    for (const r of rules ?? []) {
+      if (r.rule_type === 'source' && r.status !== 'archived') map.set(r.pattern, r);
+    }
+    return map;
+  }, [rules]);
+
+  const rows = useMemo(() => (sources ?? []).map(s => ({
+    source: s,
+    override: overrideBySourceId.get(s.id) ?? null,
+  })), [sources, overrideBySourceId]);
+
+  const loading = sources === null || rules === null;
+  const error = sourcesError || rulesError;
+  const open = rows.find(r => r.source.id === openId) ?? null;
 
   return (
     <div className="bidang-pemetaan">
-      {error && <p className="review-queue__error">Ralat memuatkan sumber: {error}</p>}
-      {sources === null && !error && <p className="admin-app__status">Memuatkan...</p>}
-      {sources !== null && (
-        <ul className="bidang-pemetaan__list">
-          {mapped.map(s => (
-            <li key={s.id} className="bidang-pemetaan__row">
-              <span className="bidang-pemetaan__source">{s.name}</span>
-              <span className="bidang-pemetaan__arrow">&rarr;</span>
-              <span className="bidang-pemetaan__field">{s.knownCategory}</span>
-            </li>
-          ))}
-          {mapped.length === 0 && (
-            <p className="review-queue__empty">Tiada sumber dgn pemetaan bidang khusus dijumpai.</p>
-          )}
-        </ul>
+      {error && <p className="review-queue__error">Ralat memuatkan pemetaan: {error}</p>}
+      {loading && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {!loading && (
+        <div className="source-table-wrap">
+          <table className="source-table">
+            <thead>
+              <tr>
+                <th>Sumber</th>
+                <th>Bidang</th>
+                <th>Asal keputusan</th>
+                <th>Tindakan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ source, override }) => {
+                const fieldLabel = override
+                  ? (override.subject_code ?? override.field_code ?? '—')
+                  : (source.knownCategory ?? 'Umum (ditentukan melalui petunjuk berita)');
+                return (
+                  <tr key={source.id}>
+                    <td className="source-table__name">{source.name}</td>
+                    <td>{fieldLabel}</td>
+                    <td>{override ? 'Pelarasan Admin' : 'Tetapan asas'}</td>
+                    <td><button type="button" onClick={() => setOpenId(source.id)}>Lihat</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {open && (
+        <div className="drawer-overlay" onClick={() => setOpenId(null)}>
+          <aside className="drawer" onClick={e => e.stopPropagation()}>
+            <button type="button" className="drawer__close" onClick={() => setOpenId(null)}>Tutup</button>
+            <h3 className="drawer__title">{open.source.name} &mdash; Pemetaan Bidang</h3>
+            <dl className="drawer__fields">
+              <dt>Tetapan asas</dt>
+              <dd>{open.source.knownCategory ?? 'Umum (ditentukan melalui petunjuk berita)'}</dd>
+              <dt>Pelarasan Admin</dt>
+              <dd>{open.override ? (open.override.subject_code ?? open.override.field_code) : 'Tiada'}</dd>
+            </dl>
+            <p className="section-note" style={{ marginTop: 14 }}>
+              Tambah/ubah pelarasan belum tersedia di sini -- laluan tulis backend
+              (classification_rules RPC) masih terhad kepada service_role sahaja, bukan
+              sesi admin biasa. Perlu dibetulkan di backend dahulu (macam edition_rules
+              dahulu) sebelum boleh disambung dgn selamat.
+            </p>
+          </aside>
+        </div>
       )}
     </div>
   );
