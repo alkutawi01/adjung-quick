@@ -46,6 +46,22 @@ const MS_MY_TOKENS = [
 // function, not the raw map -- values verified to match that file exactly.
 const BERNAMA_PREFIX_SUBJECTS = { business: 'Business', sports: 'Sports', sukan: 'Sports' };
 
+// content-rules.mjs's real PHRASE_RULES (Tier 5, "deliberately minimal"
+// per that file's own header) -- hand-copied here since PHRASE_RULES
+// itself isn't exported (only extractContentEvidence() is), and this
+// stays UI-only rather than touching classifier code just to add an
+// export. Kept in sync by hand against the real file, verified this
+// round -- ms-MY/EN phrases only shown (Arabic phrases omitted, matches
+// Fasa 4's ms-MY-only scope).
+const CONTENT_PHRASE_RULES = [
+  { subject: 'Crime', phrases: ['mahkamah', 'didakwa', 'waran tangkap', 'ditahan', 'SPRM', 'dipenjara', 'court', 'charged', 'arrested', 'jailed', 'sentenced'] },
+  { subject: 'Disaster', phrases: ['gempa bumi', 'gempa', 'earthquake', 'banjir besar', 'banjir', 'flood', 'kapal karam', 'tanah runtuh', 'landslide', 'jerebu', 'haze', 'kebakaran hutan', 'wildfire', 'ribut', 'storm', 'kemarau', 'drought'] },
+  { subject: 'Politics', phrases: ['parlimen', 'ahli parlimen', 'menteri', 'parti politik', 'PRU', 'parliament', 'minister', 'election'] },
+  { subject: 'Sports', phrases: ['bola sepak', 'football', 'olympics', 'piala'] },
+  { subject: 'Health', phrases: ['hospital', 'penyakit', 'vaksin', 'disease', 'vaccine', 'wabak', 'outbreak'] },
+  { subject: 'Environment', phrases: ['perubahan iklim', 'climate change', 'pencemaran', 'pollution', 'kualiti udara', 'air quality'] },
+];
+
 // Pemetaan Sumber -- Round 4/15 (2026-08-19). Traced before building:
 // classify-production.js's real precedence is Admin Classification Rule
 // (rule_type='source', matched by source id) SHORT-CIRCUITS everything
@@ -292,6 +308,144 @@ function PetunjukRssUrl({ supabase, editionId }) {
   );
 }
 
+// Feed Campuran -- Round 6/15 (2026-08-19). Traced content-rules.mjs +
+// story-understanding.mjs before building: a content-rule phrase hit is
+// NOT a direct keyword->field mapping. extractContentEvidence() returns
+// hits which story-understanding.mjs pushes into subjectHits, combined
+// via aggregate()'s noisy-OR across ALL evidence tiers into ranked
+// subject_candidates -- Tier 5 (content) is the WEAKEST/last tier, one
+// input among several, gated by classification-confidence-policy
+// afterwards (classifyForEdition() only calls a story "classified" once
+// confidence clears its threshold; otherwise it lands in Semakan as
+// low-confidence). This component's copy reflects "calon, tertakluk
+// keyakinan" throughout -- never "kata X = terus bidang Y".
+//
+// classification_rules rows with rule_type='keyword' ARE a direct/
+// deterministic admin fact (per that table's own design, same as type=
+// 'source'/'url') -- shown separately as "Pelarasan Admin", not
+// conflated with the probabilistic built-in phrase rules above.
+//
+// Metro Mutakhir's real coverage numbers (0% Layer-1, 30% resolved by
+// the Crime phrases, 10% false-positive risk on "mahkamah") come from
+// docs/prototypes/metro-mutakhir-classification-coverage-analysis-v1.md
+// -- an AUDIT FINDING from a 20-item sample, labelled as such, never
+// presented as a live runtime metric this component computed itself.
+function FeedCampuran({ supabase, editionId }) {
+  const [rules, setRules] = useState(null);
+  const [error, setError] = useState(null);
+  const [openKey, setOpenKey] = useState(null);
+
+  useEffect(() => {
+    setRules(null);
+    setError(null);
+    fetchClassificationRules(supabase)
+      .then(setRules)
+      .catch(err => setError(err.message));
+  }, [supabase]);
+
+  const builtInRows = CONTENT_PHRASE_RULES.map(r => ({
+    key: `phrase-${r.subject}`,
+    sumber: 'Sumber dengan metadata tak cukup (cth. feed campuran)',
+    corak: r.phrases.slice(0, 4).join(', ') + (r.phrases.length > 4 ? `, +${r.phrases.length - 4} lagi` : ''),
+    fullPhrases: r.phrases,
+    bidang: getFieldLabel(editionId, r.subject),
+    kaedah: 'Calon sahaja -- tertakluk get keyakinan',
+    asal: 'Tetapan asas',
+    isMahkamah: r.subject === 'Crime',
+  }));
+
+  const adminRows = (rules ?? [])
+    .filter(r => r.rule_type === 'keyword' && r.status !== 'archived')
+    .map(r => ({
+      key: `rule-${r.id}`,
+      sumber: r.sourceName ?? 'Pelbagai',
+      corak: r.pattern,
+      fullPhrases: [r.pattern],
+      bidang: getFieldLabel(r.edition_id ?? editionId, r.field_code ?? r.subject_code),
+      kaedah: 'Fakta admin -- keputusan terus (bukan calon)',
+      asal: 'Pelarasan Admin',
+      isMahkamah: false,
+    }));
+
+  const rows = [...builtInRows, ...adminRows];
+  const open = rows.find(r => r.key === openKey) ?? null;
+
+  return (
+    <div className="bidang-pemetaan">
+      <p className="section-note">
+        Mental model: petunjuk sumber/RSS tak cukup &rarr; sistem semak kandungan &rarr; rule
+        hasilkan CALON bidang &rarr; sistem tentukan sama ada keyakinan cukup utk klasifikasi
+        terus, atau berita masuk Perlu Semakan. Bukan &ldquo;ada kata X = terus bidang Y&rdquo;.
+      </p>
+      <p className="section-note">
+        Contoh feed campuran sebenar: Metro Mutakhir -- 0% item ada metadata struktur (Lapisan
+        1), rule Jenayah di bawah selesaikan ~30% sampel dgn betul. Angka daripada kajian audit
+        20 item (bukan metrik masa nyata) -- lihat
+        docs/prototypes/metro-mutakhir-classification-coverage-analysis-v1.md.
+      </p>
+
+      {error && <p className="review-queue__error">Ralat memuatkan peraturan Admin: {error}</p>}
+      {rules === null && !error && <p className="admin-app__status">Memuatkan...</p>}
+      {rules !== null && (
+        <div className="source-table-wrap">
+          <table className="source-table">
+            <thead>
+              <tr>
+                <th>Sumber</th>
+                <th>Corak kandungan</th>
+                <th>Bidang</th>
+                <th>Kaedah</th>
+                <th>Asal</th>
+                <th>Tindakan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.key}>
+                  <td>{r.sumber}</td>
+                  <td><code>{r.corak}</code></td>
+                  <td>{r.bidang}</td>
+                  <td>{r.kaedah}</td>
+                  <td>{r.asal}</td>
+                  <td><button type="button" onClick={() => setOpenKey(r.key)}>Lihat</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="section-note">
+        Peraturan kandungan baharu belum boleh ditambah di sini -- laluan tulis
+        classification_rules RPC masih terhad kepada service_role sahaja (backlog sama
+        macam Pemetaan Sumber &amp; Petunjuk RSS/URL).
+      </p>
+
+      {open && (
+        <div className="drawer-overlay" onClick={() => setOpenKey(null)}>
+          <aside className="drawer" onClick={e => e.stopPropagation()}>
+            <button type="button" className="drawer__close" onClick={() => setOpenKey(null)}>Tutup</button>
+            <h3 className="drawer__title">Peraturan kandungan</h3>
+            <dl className="drawer__fields">
+              <dt>Semua corak</dt><dd>{open.fullPhrases.join(', ')}</dd>
+              <dt>Bidang (calon)</dt><dd>{open.bidang}</dd>
+              <dt>Kaedah</dt><dd>{open.kaedah}</dd>
+              <dt>Asal</dt><dd>{open.asal}</dd>
+            </dl>
+            {open.isMahkamah && (
+              <p className="section-note" style={{ marginTop: 14 }}>
+                <b>Dapatan audit (bukan metrik masa nyata):</b> dlm sampel 20 berita Metro
+                Mutakhir, 2/7 pengesanan &ldquo;mahkamah&rdquo; sebenarnya bukan cerita
+                jenayah (cerita dasar yg sekadar sebut keputusan mahkamah secara prosedur).
+                Risiko false-positive terbukti dlm sampel tu, bukan andaian.
+              </p>
+            )}
+          </aside>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BidangPanel({ supabase, editionId, editionLabel, editionRules, editionRulesError, editionRulesBusy, onAddEditionRule, onArchiveEditionRule, onRestoreEditionRule, taxonomyFieldCodes, taxonomyFieldLabels }) {
   return (
     <div className="bidang-panel">
@@ -314,6 +468,13 @@ export default function BidangPanel({ supabase, editionId, editionLabel, edition
         kandungan terlibat di sini.
       </p>
       <PetunjukRssUrl supabase={supabase} editionId={editionId} />
+
+      <h2 className="bidang-panel__section-title">Feed Campuran</h2>
+      <p className="bidang-panel__section-desc">
+        Bila petunjuk sumber/RSS/URL di atas tak mencukupi -- kandungan diperiksa sebagai
+        jalan terakhir (cth. Metro Mutakhir).
+      </p>
+      <FeedCampuran supabase={supabase} editionId={editionId} />
 
       <h2 className="bidang-panel__section-title">Semua peraturan (pandangan penuh)</h2>
       <p className="bidang-panel__section-desc">
