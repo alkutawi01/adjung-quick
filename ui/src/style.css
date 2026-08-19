@@ -1025,16 +1025,32 @@ body {
 .source-registry__note, .bidang-panel__intro, .bidang-panel__section-desc {
   font-size: 0.8rem; color: var(--ink-muted); margin: 0 0 12px; line-height: 1.5;
 }
-.source-registry__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.source-registry__summary { font-size: 0.85rem; color: var(--ink-muted); margin: 0 0 10px; font-variant-numeric: tabular-nums; }
+.source-registry__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .source-registry__row {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
-  font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid var(--hairline);
+  padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 0.82rem;
 }
+.source-registry__row-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .source-registry__row--inactive { color: var(--ink-faint); }
 .source-registry__name { font-weight: 500; }
 .source-registry__url { color: var(--ink-faint); font-size: 0.78rem; }
 .source-registry__meta { color: var(--ink-muted); font-size: 0.78rem; }
-.source-registry__status { font-size: 0.78rem; margin-left: auto; }
+.source-registry__status { font-size: 0.72rem; padding: 1px 7px; border-radius: 999px; }
+.source-registry__status--active { background: rgba(75, 122, 82, 0.12); color: #4b7a52; }
+.source-registry__status--disabled, .source-registry__status--archived { background: var(--hairline); color: var(--ink-muted); }
+.source-registry__details {
+  margin-top: 6px; padding: 8px 10px; background: var(--surface, #fff);
+  border: 1px dashed var(--hairline); border-radius: 4px;
+  font-size: 0.78rem; color: var(--ink-muted); display: flex; flex-direction: column; gap: 3px;
+}
+.source-registry__add {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+.source-registry__add input, .source-registry__add select {
+  font-size: 0.85rem; padding: 5px 8px; border: 1px solid var(--hairline);
+  border-radius: 4px; background: var(--paper); color: var(--ink);
+}
 
 .bidang-panel__section-title { font-size: 0.9rem; color: var(--accent); margin: 20px 0 4px; font-weight: normal; }
 .bidang-pemetaan__list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }

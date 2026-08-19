@@ -417,7 +417,7 @@ function ReviewQueue({ userId, role }) {
 
       {activeGroup === 'sumber' && (
         <section className="editorial-desk__section">
-          <SourceRegistryPanel supabase={adminSupabase} />
+          <SourceRegistryPanel supabase={adminSupabase} role={role} userId={userId} />
         </section>
       )}
 
