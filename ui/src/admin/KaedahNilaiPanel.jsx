@@ -11,7 +11,7 @@
 // here is a pure, in-browser recompute (scoreCandidateV1's optional
 // `weights` argument, Pusingan 13's own addition, backward-compatible
 // with Pusingan 12's Node script) -- zero DB writes anywhere in this file.
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { scoreCandidates } from '../../../ranking/candidate-scoring.mjs';
 import { scoreCandidateV1, SCORING_V1_WEIGHTS, DEFAULT_SCORING_V1_WEIGHTS } from '../../../ranking/scoring-v1-simulation.mjs';
 import { getFieldLabel } from '../../../state/editions.js';
