@@ -154,5 +154,19 @@ export async function fetchAllSourcesForIngestion(supabase) {
     sourceType: r.source_type ?? undefined,
     excludePatterns: r.exclude_patterns ? r.exclude_patterns.map(parseExcludePattern) : undefined,
     extraCa: r.extra_ca ?? undefined,
+    // ChatGPT catch (2026-08-19, Polish 6B.1 review): these 6 columns
+    // exist on live `sources` but were silently dropped here, so the
+    // ingestion mirror into sources_staging never carried them --
+    // sources_staging.created_at/updated_at DEFAULT now(), so the very
+    // first real swap would have overwritten every source's real
+    // creation/update time and nulled out coverage/last_success_at/
+    // last_failure_at/last_failure_reason on promotion. Carried through
+    // exactly, no recomputation.
+    coverage: r.coverage ?? undefined,
+    lastSuccessAt: r.last_success_at ?? undefined,
+    lastFailureAt: r.last_failure_at ?? undefined,
+    lastFailureReason: r.last_failure_reason ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
   }));
 }

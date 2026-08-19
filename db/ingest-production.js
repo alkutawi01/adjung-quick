@@ -174,6 +174,19 @@ async function main() {
     source_type: s.sourceType ?? null,
     exclude_patterns: s.excludePatterns ? s.excludePatterns.map(String) : null,
     extra_ca: s.extraCa ?? null,
+    // ChatGPT catch (2026-08-19): sources_staging has these columns too
+    // (coverage/last_success_at/last_failure_at/last_failure_reason with
+    // no default, created_at/updated_at DEFAULT now()) -- omitting them
+    // here means a real swap would silently null the operational fields
+    // and reset every source's created_at/updated_at to ingestion time.
+    // Carried through exactly from the live row read earlier, never
+    // recomputed.
+    coverage: s.coverage ?? null,
+    last_success_at: s.lastSuccessAt ?? null,
+    last_failure_at: s.lastFailureAt ?? null,
+    last_failure_reason: s.lastFailureReason ?? null,
+    created_at: s.createdAt,
+    updated_at: s.updatedAt,
   }));
   const { error: sourcesErr } = await supabase.from('sources_staging').insert(sourceRows);
   if (sourcesErr) { console.error('sources_staging insert failed:', sourcesErr); process.exit(1); }
@@ -257,10 +270,11 @@ async function main() {
   let carriedItemCount = 0;
 
   if (toCarryForward.length > 0) {
-    const { data: liveClusters, error: liveClustersErr } = await supabase
-      .from('story_clusters')
-      .select('*')
-      .in('id', toCarryForward);
+    // ChatGPT catch (2026-08-19): an unpaginated .in('id', toCarryForward)
+    // is still subject to PostgREST's default row-return cap once the
+    // cluster count is large -- reuse selectAllChunked so this scales the
+    // same way the protected-ID reads already do.
+    const { data: liveClusters, error: liveClustersErr } = await selectAllChunked('story_clusters', '*', q => q.in('id', toCarryForward));
     if (liveClustersErr) { console.error('baca live story_clusters (carry-forward) gagal:', liveClustersErr); process.exit(1); }
 
     for (const id of toCarryForward) {
@@ -269,10 +283,12 @@ async function main() {
         carryForwardErrors.push(`carry-forward gagal: protected story "${id}" tiada langsung dalam story_clusters LIVE (data tercicir/corrupt).`);
         continue;
       }
-      const { data: liveItems, error: liveItemsErr } = await supabase
-        .from('rss_items')
-        .select('*')
-        .eq('cluster_id', id);
+      // Same reasoning: a single unpaginated .eq('cluster_id', id) select
+      // could silently truncate a cluster's item set once it legitimately
+      // exceeds the row cap -- and if the representative happened to land
+      // in the first page, the earlier validateCarryForwardCluster() check
+      // would pass despite older items actually being lost.
+      const { data: liveItems, error: liveItemsErr } = await selectAllChunked('rss_items', '*', q => q.eq('cluster_id', id));
       if (liveItemsErr) { console.error(`baca live rss_items (carry-forward, cluster ${id}) gagal:`, liveItemsErr); process.exit(1); }
 
       const errs = validateCarryForwardCluster({ liveCluster, liveItems, stagingSourceIds });
