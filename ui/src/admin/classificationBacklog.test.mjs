@@ -18,7 +18,7 @@ import { fileURLToPath } from 'url';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { fetchClassificationBacklog } from './reviewQueueAdapter.js';
+import { fetchClassificationBacklog, fetchOldGenerationStatus } from './reviewQueueAdapter.js';
 
 let passed = 0, failed = 0;
 function assert(label, cond, detail = '') {
@@ -45,12 +45,19 @@ function makeQuery(data, error = null, onOrder) {
   const q = { select: () => q, order: (col) => { if (onOrder) onOrder(col); return q; }, range: () => q, then: (resolve, reject) => Promise.resolve({ data, error }).then(resolve, reject) };
   return q;
 }
-function fakeSupabase({ story_clusters = [], edition_story_classifications = [] }) {
+function fakeSupabase({ story_clusters = [], edition_story_classifications = [], rpcResults = {} }) {
   const tables = { story_clusters, edition_story_classifications };
   const orderCalls = [];
+  const rpcCalls = [];
   const client = {
     from(table) { return makeQuery(tables[table] ?? [], null, (col) => orderCalls.push({ table, col })); },
+    rpc(name, params) {
+      rpcCalls.push({ name, params });
+      if (!(name in rpcResults)) throw new Error(`fakeSupabase: unexpected rpc "${name}"`);
+      return Promise.resolve(rpcResults[name]);
+    },
     _orderCalls: orderCalls,
+    _rpcCalls: rpcCalls,
   };
   return client;
 }
@@ -153,6 +160,30 @@ function fakeSupabase({ story_clusters = [], edition_story_classifications = [] 
     result.backlogCount === totalClusters - classified.length);
 }
 
+// --- fetchOldGenerationStatus() (Polish 9D-2): a thin RPC wrapper --
+// proves it calls the real RPC name, forwards the boolean result
+// correctly (including the false/no-old-generation case, not just the
+// interesting true case), and turns an RPC error into a real thrown
+// Error rather than swallowing it. ---
+{
+  const client = fakeSupabase({ rpcResults: { check_old_generation_exists: { data: true, error: null } } });
+  const result = await fetchOldGenerationStatus(client);
+  assert('calls the real RPC name exactly once', client._rpcCalls.length === 1 && client._rpcCalls[0].name === 'check_old_generation_exists');
+  assert('oldGenerationExists: true is forwarded correctly', result.oldGenerationExists === true);
+}
+{
+  const client = fakeSupabase({ rpcResults: { check_old_generation_exists: { data: false, error: null } } });
+  const result = await fetchOldGenerationStatus(client);
+  assert('oldGenerationExists: false is forwarded correctly, not defaulted to true or truthy-coerced', result.oldGenerationExists === false);
+}
+{
+  const client = fakeSupabase({ rpcResults: { check_old_generation_exists: { data: null, error: { message: 'permission denied' } } } });
+  let threw = false, message = '';
+  try { await fetchOldGenerationStatus(client); }
+  catch (err) { threw = true; message = err.message; }
+  assert('an RPC-level error is re-thrown as a real JS Error, not swallowed', threw && /permission denied/.test(message));
+}
+
 // --- AdminDigest.jsx render tests. ---
 const digestUrl = new URL('./AdminDigest.jsx', import.meta.url);
 const tmpUrl = new URL('./.classificationBacklog.compiled.tmp.mjs', import.meta.url);
@@ -173,8 +204,8 @@ const cleanDigest = {
   hasYesterdayComparison: true, failedSourcesToday: null, activeOverridesToday: null,
   trend: { storiesProcessed: '', reviewQueue: '', failedSources: null, activeOverrides: null },
 };
-const render = (digest, classificationBacklog, classificationBacklogError = null) => renderToStaticMarkup(
-  React.createElement(AdminDigest, { digest, error: null, classificationBacklog, classificationBacklogError, onOpenQueue() {} }),
+const render = (digest, classificationBacklog, classificationBacklogError = null, oldGenerationStatus = null, oldGenerationStatusError = null) => renderToStaticMarkup(
+  React.createElement(AdminDigest, { digest, error: null, classificationBacklog, classificationBacklogError, oldGenerationStatus, oldGenerationStatusError, onOpenQueue() {} }),
 );
 
 {
@@ -217,6 +248,48 @@ const render = (digest, classificationBacklog, classificationBacklogError = null
   assert('an error carries the attention style, same as a real backlog',
     /digest__row--attention[^>]*>\s*<dt>Klasifikasi tertunggak/.test(html.replace(/\s+/g, ' ')));
   assert('a fetch error SUPPRESSES the all-clear banner -- "unverified" is not "verified zero"',
+    !/Tiada apa-apa perlu perhatian hari ini/.test(html));
+}
+
+// --- Polish 9D-2: the _old generation indicator, same loading/verified/
+// error state shape as classificationBacklog above, proven independently. ---
+{
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, null);
+  assert('oldGenerationStatus=null (still loading) -> the row is not rendered at all',
+    !/Generasi lama/.test(html));
+  assert('while loading, an otherwise-clean digest still shows the all-clear banner',
+    /Tiada apa-apa perlu perhatian hari ini/.test(html));
+}
+{
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, { oldGenerationExists: false });
+  assert('a verified "no old generation" renders the row showing "Tiada"',
+    /Generasi lama/.test(html) && /<dd>Tiada<\/dd>/.test(html));
+  assert('a verified false does not carry the attention style',
+    !/digest__row--attention[^>]*>\s*<dt>Generasi lama/.test(html.replace(/\s+/g, ' ')));
+  assert('an otherwise-clean digest with a verified false old-generation status still shows all-clear',
+    /Tiada apa-apa perlu perhatian hari ini/.test(html));
+}
+{
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, { oldGenerationExists: true });
+  assert('a real old generation shows the warning, in plain non-technical language (no backend script name -- Izzat is not a developer)',
+    /Wujud/.test(html) && !/\.mjs/.test(html));
+  assert('a real old generation carries the attention style',
+    /digest__row--attention[^>]*>\s*<dt>Generasi lama/.test(html.replace(/\s+/g, ' ')));
+  // The exact scenario this indicator exists to prevent: nothing else in
+  // the digest is a problem, but a stale _old sitting there will fail the
+  // NEXT ingestion attempt -- this must not read as "all clear".
+  assert('a real old generation SUPPRESSES the all-clear banner even though every other field is clean',
+    !/Tiada apa-apa perlu perhatian hari ini/.test(html));
+}
+{
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, null, 'connection refused');
+  assert('a fetch error DOES render the row (unlike plain loading, which hides it)',
+    /Generasi lama/.test(html));
+  assert('the row states the fetch could not be verified, not a fabricated status',
+    /Tidak dapat disahkan/.test(html) && /connection refused/.test(html));
+  assert('an error carries the attention style, same as a real old generation',
+    /digest__row--attention[^>]*>\s*<dt>Generasi lama/.test(html.replace(/\s+/g, ' ')));
+  assert('a fetch error SUPPRESSES the all-clear banner -- "unverified" is not "verified absent"',
     !/Tiada apa-apa perlu perhatian hari ini/.test(html));
 }
 

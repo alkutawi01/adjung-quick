@@ -5,7 +5,7 @@
 // hunting for problems, the system states what matters. Read-only — it
 // creates no editorial state, so it needs no confirm/reason flow.
 
-export default function AdminDigest({ digest, error, classificationBacklog, classificationBacklogError, onOpenQueue }) {
+export default function AdminDigest({ digest, error, classificationBacklog, classificationBacklogError, oldGenerationStatus, oldGenerationStatusError, onOpenQueue }) {
   if (error) {
     return (
       <section className="digest">
@@ -40,7 +40,14 @@ export default function AdminDigest({ digest, error, classificationBacklog, clas
   // whether there is a backlog, so it must not claim all-clear either --
   // "unverified" is not the same fact as "verified zero".
   const backlogCount = classificationBacklog?.backlogCount ?? 0;
-  const allClear = needsAttention === 0 && actionsToday.length === 0 && backlogCount === 0 && !classificationBacklogError;
+  // Polish 9D-2 (docs/polish-9-audit-v1.md, risk #2): same "must never
+  // silently read as all-clear while unverified" discipline as
+  // classificationBacklog above — a stale *_old generation blocks the
+  // NEXT ingestion attempt, so this panel staying quiet about it would
+  // reproduce the exact blind spot this whole indicator exists to close.
+  const oldGenerationExists = oldGenerationStatus?.oldGenerationExists ?? false;
+  const allClear = needsAttention === 0 && actionsToday.length === 0 && backlogCount === 0
+    && !classificationBacklogError && !oldGenerationExists && !oldGenerationStatusError;
 
   return (
     <section className="digest">
@@ -95,6 +102,28 @@ export default function AdminDigest({ digest, error, classificationBacklog, clas
               {backlogCount === 0
                 ? '0'
                 : `${backlogCount} berita belum melalui pengelasan`}
+            </dd>
+          </div>
+        )}
+
+        {/* Polish 9D-2: proactive warning, not auto-fixed — a stale *_old
+            generation is normal between ingestions (every successful swap
+            leaves one behind on purpose, as a rollback safety net) and
+            only becomes a problem at the NEXT ingestion attempt. Surfacing
+            it here lets an editor run the cleanup ahead of time instead of
+            discovering it as a failed ingestion. */}
+        {oldGenerationStatusError ? (
+          <div className="digest__row digest__row--attention">
+            <dt>Generasi lama (_old)</dt>
+            <dd>Tidak dapat disahkan: {oldGenerationStatusError}</dd>
+          </div>
+        ) : oldGenerationStatus !== null && (
+          <div className={`digest__row${oldGenerationExists ? ' digest__row--attention' : ''}`}>
+            <dt>Generasi lama (_old)</dt>
+            <dd>
+              {oldGenerationExists
+                ? 'Wujud — pembersihan diperlukan sebelum kandungan baharu boleh dimasukkan'
+                : 'Tiada'}
             </dd>
           </div>
         )}

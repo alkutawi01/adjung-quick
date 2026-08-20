@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, fetchDigest, fetchClassificationBacklog, submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, fetchClassificationBacklog, fetchOldGenerationStatus, submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
 import FilterRuleEffect from './FilterRuleEffect.jsx';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
@@ -157,6 +157,8 @@ function ReviewQueue({ userId, role }) {
   const [digestError, setDigestError] = useState(null);
   const [classificationBacklog, setClassificationBacklog] = useState(null);
   const [classificationBacklogError, setClassificationBacklogError] = useState(null);
+  const [oldGenerationStatus, setOldGenerationStatus] = useState(null);
+  const [oldGenerationStatusError, setOldGenerationStatusError] = useState(null);
   // Polish 4A (2026-08-19): navigasi kini berasaskan URL sebenar (History
   // API, ui/src/admin/adminRouter.js) -- bukan lagi activeGroup/
   // activeSection/nilaiTab tiga lapisan berasingan. `pathname` diselaraskan
@@ -311,6 +313,16 @@ function ReviewQueue({ userId, role }) {
       .catch(err => { console.warn('fetchClassificationBacklog:', err.message); setClassificationBacklogError(err.message); });
   }, []);
 
+  // Polish 9D-2: same posture as classificationBacklog above — a global
+  // system-health fact (not edition-scoped), fetched once, and a fetch
+  // FAILURE must render as its own visible "unverified" state, never
+  // silently collapse into "still loading" or "no old generation".
+  useEffect(() => {
+    fetchOldGenerationStatus(adminSupabase)
+      .then(setOldGenerationStatus)
+      .catch(err => { console.warn('fetchOldGenerationStatus:', err.message); setOldGenerationStatusError(err.message); });
+  }, []);
+
   const resolve = async (storyId, action) => {
     setBusyStoryId(storyId);
     try {
@@ -374,6 +386,8 @@ function ReviewQueue({ userId, role }) {
               error={digestError}
               classificationBacklog={classificationBacklog}
               classificationBacklogError={classificationBacklogError}
+              oldGenerationStatus={oldGenerationStatus}
+              oldGenerationStatusError={oldGenerationStatusError}
               onOpenQueue={() => goTo('/admin/berita/semakan')}
             />
           )}

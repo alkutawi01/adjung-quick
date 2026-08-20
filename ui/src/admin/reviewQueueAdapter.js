@@ -618,6 +618,23 @@ export async function fetchClassificationBacklog(supabase) {
   return { liveClusterCount: live.length, backlogCount };
 }
 
+// Polish 9D-2 (docs/polish-9-audit-v1.md, risk #2): swap_ingestion_staging()
+// refuses to run while a previous *_old generation is still un-dropped —
+// correct behavior, but the refusal was only ever discoverable AFTER a
+// human attempted ingestion, which is exactly why db/drop-ingestion-old-
+// tables.mjs had to be run twice mid-session the night this was found.
+// Surfaces the same fact proactively in Admin Ringkasan, via
+// check_old_generation_exists() (db/schema-old-generation-check-rpc-v1.sql)
+// — a SECURITY DEFINER RPC returning only a boolean, not a table-level
+// grant, since *_old is created/dropped dynamically and this project's
+// "Automatically expose new tables OFF" posture means a dynamically-
+// renamed table's grants can't be trusted to exist reliably.
+export async function fetchOldGenerationStatus(supabase) {
+  const { data, error } = await supabase.rpc('check_old_generation_exists');
+  if (error) throw new Error(`fetchOldGenerationStatus: ${error.message}`);
+  return { oldGenerationExists: data === true };
+}
+
 function startOfLocalDayIso() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);

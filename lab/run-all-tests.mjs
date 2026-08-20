@@ -71,6 +71,7 @@ const TEST_FILES = [
   'db/pagination-order-static-audit.test.mjs',
   'classification/rtm-url-vocabulary.test.mjs',
   'db/drop-old-tables-snapshot-precondition.test.mjs',
+  'db/old-generation-check-rpc-static-audit.test.mjs',
 ];
 // NOTE: db/daily-observation.mjs and db/snapshot-production.mjs are
 // standalone CLI scripts (real Supabase client at module load, network
