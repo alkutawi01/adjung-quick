@@ -118,6 +118,20 @@ Jadi ni **gap kandungan sahaja** (senarai frasa tapis Arab belum wujud),
 BUKAN kerja seni bina — sama kelas dengan gap `edition_rules` en/ar
 (A5). Perlu diauthor bila edisi Arab dilancar.
 
+**Rekod keputusan** (bahasa tepat yang ChatGPT minta direkod, supaya
+komen kod lama "LOCKED v1 merge, editorial choice not unanimous
+evidence" — yang akan jadi bercanggah selepas Phase 1B — tidak buat
+sesiapa di masa depan cuba gabung semula andaikan ini keputusan asal):
+
+> **Decision**: ar-global Culture and Entertainment are intentionally
+> separate. **Reason**: Editorial decision by Izzat. Unlike ms-MY, this
+> is not a temporary merged taxonomy.
+
+**Status pelaksanaan (Global Phase 1B, 2026-08-21)**: kod (fallback
+`taxonomy-registry.mjs`) dah dikemas kini, push `cff3f0f`. Baris DB
+`taxonomy_fields` production BELUM ditulis — tunggu kelulusan/tindakan
+Izzat sendiri (lihat arahan SQL di bawah).
+
 ### B2. Ekonomi vs Bisnes untuk ms-MY — gabung atau asing?
 
 **KEPUTUSAN: ASING**, kecuali kedua-dua kategori sebenarnya cuma ada
@@ -125,6 +139,12 @@ sikit berita (dalam kes tu kekal gabung supaya tak ada kategori kosong/
 nipis). Ambang "sikit" tak ditetapkan sebagai nombor sekarang — ni
 keputusan operasi masa pelaksanaan (semak volum sebenar bila nak
 laksana), bukan keputusan seni bina.
+
+**Status audit (Global Phase 1A, 2026-08-21)**: data production sebenar
+— 37 Business, 28 Economy (57/43), dua-dua substansial. ChatGPT pilih
+TANGGUH kunci sehingga 3-5 kitaran ingestion tambahan (elak keputusan
+taxonomy kekal atas snapshot satu hari) — bukan tolak split, cuma
+tunggu trend disahkan.
 
 ### B3. Edition Relevance Layer — perlu wujud atau tidak?
 
