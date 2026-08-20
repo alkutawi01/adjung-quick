@@ -65,13 +65,28 @@ async function withRetry(label, fn, attempts = 3) {
   throw lastError;
 }
 
-async function selectAllChunked(table, columns) {
+// Polish 9A (docs/p0-classification-backlog-incident-v1.md, adversarial
+// review): range()/offset pagination across separate HTTP requests has no
+// ordering guarantee unless the query itself specifies one — a row could
+// theoretically be skipped or duplicated at a page boundary if the
+// table's physical/plan order shifts between two round-trips. orderBy
+// names the column(s) that make each table's row identity total and
+// stable — always its real PRIMARY KEY, never picked arbitrarily. This
+// was the SAME selectAllChunked pattern already hardened in
+// classify-production.js/ingest-production.js/reviewQueueAdapter.js — the
+// adversarial review that found P0-B.2's original gap missed this file
+// and snapshot-production.mjs the first time; per CLAUDE.md's "same
+// tier/pattern must be treated uniformly" rule, both are fixed together.
+async function selectAllChunked(table, columns, orderBy = 'id') {
+  const orderCols = Array.isArray(orderBy) ? orderBy : [orderBy];
   return withRetry(table, async () => {
     const rows = [];
     let from = 0;
     const PAGE = 1000;
     while (true) {
-      const { data, error } = await supabase.from(table).select(columns).range(from, from + PAGE - 1);
+      let q = supabase.from(table).select(columns);
+      for (const col of orderCols) q = q.order(col, { ascending: true });
+      const { data, error } = await q.range(from, from + PAGE - 1);
       if (error) throw new Error(`${table}: ${error.message}`);
       rows.push(...data);
       if (data.length < PAGE) break;
@@ -89,16 +104,17 @@ function countBy(rows, key) {
 
 async function gatherMetrics() {
   const [sources, clusters, items, placements, saved, history, activeOverrides] = await Promise.all([
-    selectAllChunked('sources', 'id, name, status'),
-    selectAllChunked('story_clusters', 'id'),
-    selectAllChunked('rss_items', 'id, source_id, published_at'),
+    selectAllChunked('sources', 'id, name, status', 'id'),
+    selectAllChunked('story_clusters', 'id', 'id'),
+    selectAllChunked('rss_items', 'id, source_id, published_at', 'id'),
     // `classification_confidence` added for FASA 4.1's operational_snapshots
     // review_queue_count — needs the same low-confidence predicate
     // ui/src/admin/reviewQueueAdapter.js's fetchReviewQueue() uses, not
-    // just classification_status.
-    selectAllChunked('edition_story_classifications', 'story_id, edition_id, field, classification_status, classification_confidence'),
-    selectAllChunked('saved_stories', 'id'),
-    selectAllChunked('history_entries', 'id'),
+    // just classification_status. Ordered by its real COMPOSITE primary
+    // key (story_id, edition_id) — story_id alone repeats across rows.
+    selectAllChunked('edition_story_classifications', 'story_id, edition_id, field, classification_status, classification_confidence', ['story_id', 'edition_id']),
+    selectAllChunked('saved_stories', 'id', 'id'),
+    selectAllChunked('history_entries', 'id', 'id'),
     // FASA 4.1: active, unexpired overrides — mirrors the same
     // active=true AND expires_at>now() definition used everywhere else
     // this phase (the view, fetchReviewQueue, fetchDigest).

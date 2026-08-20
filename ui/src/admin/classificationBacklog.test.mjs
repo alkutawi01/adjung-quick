@@ -37,13 +37,22 @@ console.log('\nCLASSIFICATION BACKLOG INDICATOR — adapter + panel (Polish P0-B
 // well under one page, so a single .range() call returning the full set
 // is realistic -- the chunking LOOP itself is exercised for real against
 // production data, not re-simulated with a fake multi-page dataset here.
-function makeQuery(data, error = null) {
-  const q = { select: () => q, range: () => q, then: (resolve, reject) => Promise.resolve({ data, error }).then(resolve, reject) };
+// Polish 9A: .order() is a no-op here (single-page fixtures don't need
+// real ordering to produce the right result) but MUST exist and be
+// chainable, matching the real client's shape -- selectAllChunked() now
+// calls .order() before .range() unconditionally.
+function makeQuery(data, error = null, onOrder) {
+  const q = { select: () => q, order: (col) => { if (onOrder) onOrder(col); return q; }, range: () => q, then: (resolve, reject) => Promise.resolve({ data, error }).then(resolve, reject) };
   return q;
 }
 function fakeSupabase({ story_clusters = [], edition_story_classifications = [] }) {
   const tables = { story_clusters, edition_story_classifications };
-  return { from(table) { return makeQuery(tables[table] ?? []); } };
+  const orderCalls = [];
+  const client = {
+    from(table) { return makeQuery(tables[table] ?? [], null, (col) => orderCalls.push({ table, col })); },
+    _orderCalls: orderCalls,
+  };
+  return client;
 }
 
 {
@@ -73,6 +82,18 @@ function fakeSupabase({ story_clusters = [], edition_story_classifications = [] 
     result.backlogCount === 3);
   assert('a cluster classified under a DIFFERENT edition only still counts as classified (b is not backlog)',
     result.backlogCount === 3); // would be 4 if per-edition scoping leaked in
+
+  // Polish 9A: story_clusters' real PK is 'id'; edition_story_classifications'
+  // real PK is the COMPOSITE (story_id, edition_id) -- story_id alone
+  // repeats across rows (one story, one row per eligible edition), so it
+  // isn't a total order on its own. Both columns of the composite must be
+  // ordered, not just the first, or two separate page requests could
+  // disagree on row order at the boundary.
+  assert('story_clusters is read ordered by its real primary key (id)',
+    client._orderCalls.some(c => c.table === 'story_clusters' && c.col === 'id'));
+  assert('edition_story_classifications is read ordered by BOTH halves of its composite primary key (story_id, edition_id)',
+    client._orderCalls.some(c => c.table === 'edition_story_classifications' && c.col === 'story_id')
+    && client._orderCalls.some(c => c.table === 'edition_story_classifications' && c.col === 'edition_id'));
 }
 {
   // All live clusters classified -> genuinely zero, not a default/fallback zero.
@@ -111,6 +132,7 @@ function fakeSupabase({ story_clusters = [], edition_story_classifications = [] 
       const source = table === 'story_clusters' ? allClusters : classified;
       const q = {
         select: () => q,
+        order: () => q,
         range(from, to) {
           if (table === 'story_clusters') clusterCalls++; else classifiedCalls++;
           return { then: (resolve) => resolve({ data: source.slice(from, to + 1), error: null }) };

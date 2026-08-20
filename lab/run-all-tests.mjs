@@ -68,7 +68,14 @@ const TEST_FILES = [
   'db/classify-production-p0b.test.mjs',
   'ui/src/admin/classificationBacklog.test.mjs',
   'db/ingest-classify-hook-static-audit.test.mjs',
+  'db/pagination-order-static-audit.test.mjs',
 ];
+// NOTE: db/daily-observation.mjs and db/snapshot-production.mjs are
+// standalone CLI scripts (real Supabase client at module load, network
+// I/O in main()) with no dedicated functional test file of their own,
+// same posture as ingest-production.js — their selectAllChunked() .order()
+// wiring is covered by the static audit above (db/pagination-order-
+// static-audit.test.mjs), not by importing/running these files directly.
 
 const results = [];
 for (const file of TEST_FILES) {

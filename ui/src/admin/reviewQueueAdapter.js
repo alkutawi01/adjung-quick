@@ -562,12 +562,26 @@ export async function fetchDigest(supabase, editionId) {
 // the only caller on this side of the app and the two functions already
 // take their table name as a parameter (no divergent hardcoded logic to
 // keep in sync, just the loop shape).
+// Polish 9A (docs/p0-classification-backlog-incident-v1.md): range()/offset
+// pagination across separate HTTP requests has no ordering guarantee
+// unless the query itself specifies one -- a row could theoretically be
+// skipped or duplicated at a page boundary if the table's physical/plan
+// order shifts between two round-trips. orderBy names the column(s) that
+// make each table's row identity total and stable -- always its real
+// PRIMARY KEY (story_clusters.id; edition_story_classifications' actual
+// PK is the COMPOSITE (story_id, edition_id), so that call orders by both
+// — story_id alone repeats across rows and isn't a total order on its
+// own), never picked arbitrarily. Accepts a single column name or an
+// array for a composite key.
 const CHUNK_PAGE = 1000;
-async function selectAllChunked(supabase, table, columns) {
+async function selectAllChunked(supabase, table, columns, orderBy = 'id') {
+  const orderCols = Array.isArray(orderBy) ? orderBy : [orderBy];
   const rows = [];
   let from = 0;
   while (true) {
-    const { data, error } = await supabase.from(table).select(columns).range(from, from + CHUNK_PAGE - 1);
+    let q = supabase.from(table).select(columns);
+    for (const col of orderCols) q = q.order(col, { ascending: true });
+    const { data, error } = await q.range(from, from + CHUNK_PAGE - 1);
     if (error) return { data: null, error };
     rows.push(...data);
     if (data.length < CHUNK_PAGE) break;
@@ -591,8 +605,8 @@ export async function fetchClassificationBacklog(supabase) {
   // small local equivalent lives here rather than reaching across module
   // boundaries for one function.
   const [clustersRes, classifiedRes] = await Promise.all([
-    selectAllChunked(supabase, 'story_clusters', 'id, workspace_state'),
-    selectAllChunked(supabase, 'edition_story_classifications', 'story_id'),
+    selectAllChunked(supabase, 'story_clusters', 'id, workspace_state', 'id'),
+    selectAllChunked(supabase, 'edition_story_classifications', 'story_id', ['story_id', 'edition_id']),
   ]);
   if (clustersRes.error) throw new Error(`fetchClassificationBacklog: story_clusters — ${clustersRes.error.message}`);
   if (classifiedRes.error) throw new Error(`fetchClassificationBacklog: edition_story_classifications — ${classifiedRes.error.message}`);

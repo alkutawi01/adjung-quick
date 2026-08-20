@@ -60,12 +60,24 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistS
 // Parameterized by client (not a module-level singleton) for the same
 // reason computeClassificationRows() itself is: ingest-production.js calls
 // this with its own already-open client, never a second connection.
+// Polish 9A (docs/p0-classification-backlog-incident-v1.md): range()/offset
+// pagination across SEPARATE HTTP requests has no ordering guarantee unless
+// the query itself specifies one -- Postgres is free to return rows in
+// physical/plan order, which can shift between two round-trips if the
+// table is touched (e.g. an autovacuum, or a concurrent write) between
+// them, silently skipping or duplicating a row at the page boundary.
+// orderBy names the column(s) that make each table's row identity total
+// and stable -- always its real PRIMARY KEY (verified against db/schema.sql
+// for each call site below), never picked arbitrarily.
 const CHUNK_PAGE = 1000;
-async function selectAllChunked(client, table, columns) {
+async function selectAllChunked(client, table, columns, orderBy = 'id') {
+  const orderCols = Array.isArray(orderBy) ? orderBy : [orderBy];
   const rows = [];
   let from = 0;
   while (true) {
-    const { data, error } = await client.from(table).select(columns).range(from, from + CHUNK_PAGE - 1);
+    let q = client.from(table).select(columns);
+    for (const col of orderCols) q = q.order(col, { ascending: true });
+    const { data, error } = await q.range(from, from + CHUNK_PAGE - 1);
     if (error) return { data: null, error };
     rows.push(...data);
     if (data.length < CHUNK_PAGE) break;
@@ -133,8 +145,8 @@ export async function computeClassificationRows(client) {
   // the first page rather than error, so this corpus growing past ~1000
   // rows would fail SILENTLY without this.
   const [{ data: clusters, error: cErr }, { data: items, error: iErr }] = await Promise.all([
-    selectAllChunked(client, 'story_clusters', 'id, topic, workspace_state'),
-    selectAllChunked(client, 'rss_items', 'id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at, language'),
+    selectAllChunked(client, 'story_clusters', 'id, topic, workspace_state', 'id'),
+    selectAllChunked(client, 'rss_items', 'id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at, language', 'id'),
   ]);
   if (cErr) throw new Error(`story_clusters — ${cErr.message}`);
   if (iErr) throw new Error(`rss_items — ${iErr.message}`);

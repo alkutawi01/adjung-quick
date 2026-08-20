@@ -49,14 +49,26 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistS
 // retry). Hit repeatedly on 2026-08-13, including mid-launch.
 const TRANSIENT_PATTERNS = [/JWT issued at future/i, /fetch failed/i];
 
-async function selectAllChunked(table, columns, attempts = 3) {
+// Polish 9A (docs/p0-classification-backlog-incident-v1.md, adversarial
+// review): range()/offset pagination across separate HTTP requests has no
+// ordering guarantee unless the query itself specifies one — a row could
+// theoretically be skipped or duplicated at a page boundary if the
+// table's physical/plan order shifts between two round-trips. Especially
+// relevant here: this is a BACKUP/disaster-recovery snapshot — a silently
+// dropped row here is a silent hole in the one artifact meant to make
+// data recoverable. orderBy names the column(s) that make each table's
+// row identity total and stable — always its real PRIMARY KEY.
+async function selectAllChunked(table, columns, attempts = 3, orderBy = 'id') {
+  const orderCols = Array.isArray(orderBy) ? orderBy : [orderBy];
   for (let i = 1; i <= attempts; i++) {
     try {
       const rows = [];
       let from = 0;
       const PAGE = 1000;
       while (true) {
-        const { data, error } = await supabase.from(table).select(columns).range(from, from + PAGE - 1);
+        let q = supabase.from(table).select(columns);
+        for (const col of orderCols) q = q.order(col, { ascending: true });
+        const { data, error } = await q.range(from, from + PAGE - 1);
         if (error) throw new Error(`${table}: ${error.message}`);
         rows.push(...data);
         if (data.length < PAGE) break;
@@ -76,17 +88,20 @@ async function main() {
   mkdirSync(SNAPSHOT_DIR, { recursive: true });
 
   const [sources, storyClusters, rssItems, placements, savedStories, historyEntries] = await Promise.all([
-    selectAllChunked('sources', 'id, name, url, language, trust_score'),
-    selectAllChunked('story_clusters', 'id, topic, editorial_score, workspace_state'),
-    selectAllChunked('rss_items', 'id, source_id, cluster_id, title, description, link, language, published_at, categories, source_known_category'),
-    selectAllChunked('edition_story_classifications', 'story_id, edition_id, field, classification_status, classification_confidence, classification_method, classification_rule, ruleset_version'),
+    selectAllChunked('sources', 'id, name, url, language, trust_score', 3, 'id'),
+    selectAllChunked('story_clusters', 'id, topic, editorial_score, workspace_state', 3, 'id'),
+    selectAllChunked('rss_items', 'id, source_id, cluster_id, title, description, link, language, published_at, categories, source_known_category', 3, 'id'),
+    // Ordered by its real COMPOSITE primary key (story_id, edition_id) --
+    // story_id alone repeats across rows (one story, one row per eligible
+    // edition), so it isn't a total order on its own.
+    selectAllChunked('edition_story_classifications', 'story_id, edition_id, field, classification_status, classification_confidence, classification_method, classification_rule, ruleset_version', 3, ['story_id', 'edition_id']),
     // Added 2026-08-13 per docs/restore-rehearsal-v1.md's found gap: the
     // Identity Layer's own user data tables were never covered by this
     // snapshot — harmless while both are empty (no real users yet), but
     // would silently lose real readers' saved stories/history with no
     // recovery path once they aren't.
-    selectAllChunked('saved_stories', 'id, user_id, story_id, saved_at, expires_at'),
-    selectAllChunked('history_entries', 'id, user_id, story_id, released_at, expires_at'),
+    selectAllChunked('saved_stories', 'id, user_id, story_id, saved_at, expires_at', 3, 'id'),
+    selectAllChunked('history_entries', 'id, user_id, story_id, released_at, expires_at', 3, 'id'),
   ]);
 
   const snapshot = {

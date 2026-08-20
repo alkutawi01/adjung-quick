@@ -64,13 +64,23 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 // an identical range()-chunked pattern (selectAllChunked, PAGE=1000) -- an
 // unpaginated read here would silently truncate protectedStoryIds at scale,
 // reopening the dangling-FK bug this whole feature exists to close.
+// Polish 9A (docs/p0-classification-backlog-incident-v1.md): range()/offset
+// pagination across separate HTTP requests has no ordering guarantee
+// unless the query itself specifies one -- a row could theoretically be
+// skipped or duplicated at a page boundary if the table's physical/plan
+// order shifts between two round-trips. orderBy names the column that
+// makes each table's row identity total and stable -- always its real
+// PRIMARY KEY (every call site below uses 'id', confirmed against
+// db/schema.sql and db/schema-identity.sql for each table), never picked
+// arbitrarily.
 const CHUNK_PAGE = 1000;
-async function selectAllChunked(table, columns, applyFilter) {
+async function selectAllChunked(table, columns, applyFilter, orderBy = 'id') {
   const rows = [];
   let from = 0;
   while (true) {
     let q = supabase.from(table).select(columns);
     if (applyFilter) q = applyFilter(q);
+    q = q.order(orderBy, { ascending: true });
     const { data, error } = await q.range(from, from + CHUNK_PAGE - 1);
     if (error) return { data: null, error };
     rows.push(...data);
@@ -109,8 +119,8 @@ async function main() {
   // --- Polish 6B.1 step B: baca protected story IDs (SELEPAS cleanup A,
   // guna nowIso sama). Fail closed pada ralat. ---
   const [savedRes, historyRes] = await Promise.all([
-    selectAllChunked('saved_stories', 'story_id', q => q.gt('expires_at', nowIso)),
-    selectAllChunked('history_entries', 'story_id', q => q.gt('expires_at', nowIso)),
+    selectAllChunked('saved_stories', 'story_id', q => q.gt('expires_at', nowIso), 'id'),
+    selectAllChunked('history_entries', 'story_id', q => q.gt('expires_at', nowIso), 'id'),
   ]);
   if (savedRes.error) { console.error('baca saved_stories gagal:', savedRes.error); process.exit(1); }
   if (historyRes.error) { console.error('baca history_entries gagal:', historyRes.error); process.exit(1); }
@@ -275,7 +285,7 @@ async function main() {
     // is still subject to PostgREST's default row-return cap once the
     // cluster count is large -- reuse selectAllChunked so this scales the
     // same way the protected-ID reads already do.
-    const { data: liveClusters, error: liveClustersErr } = await selectAllChunked('story_clusters', '*', q => q.in('id', toCarryForward));
+    const { data: liveClusters, error: liveClustersErr } = await selectAllChunked('story_clusters', '*', q => q.in('id', toCarryForward), 'id');
     if (liveClustersErr) { console.error('baca live story_clusters (carry-forward) gagal:', liveClustersErr); process.exit(1); }
 
     for (const id of toCarryForward) {
@@ -289,7 +299,7 @@ async function main() {
       // exceeds the row cap -- and if the representative happened to land
       // in the first page, the earlier validateCarryForwardCluster() check
       // would pass despite older items actually being lost.
-      const { data: liveItems, error: liveItemsErr } = await selectAllChunked('rss_items', '*', q => q.eq('cluster_id', id));
+      const { data: liveItems, error: liveItemsErr } = await selectAllChunked('rss_items', '*', q => q.eq('cluster_id', id), 'id');
       if (liveItemsErr) { console.error(`baca live rss_items (carry-forward, cluster ${id}) gagal:`, liveItemsErr); process.exit(1); }
 
       const errs = validateCarryForwardCluster({ liveCluster, liveItems, stagingSourceIds });
@@ -345,7 +355,7 @@ async function main() {
 
   // --- Polish 6B.1 step E.1: every protected story ID must be present in
   // staging (fresh OR carried forward) before swap is ever attempted. ---
-  const { data: stagingClusterRows, error: stagingClusterIdsErr } = await selectAllChunked('story_clusters_staging', 'id');
+  const { data: stagingClusterRows, error: stagingClusterIdsErr } = await selectAllChunked('story_clusters_staging', 'id', undefined, 'id');
   if (stagingClusterIdsErr) { console.error('baca story_clusters_staging (protected check) gagal:', stagingClusterIdsErr); process.exit(1); }
   const stagingClusterIds = new Set(stagingClusterRows.map(r => r.id));
   const stillMissing = findStillMissingProtected(protectedStoryIds, stagingClusterIds);

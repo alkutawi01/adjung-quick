@@ -61,11 +61,19 @@ console.log('\nCLASSIFY-PRODUCTION P0-B — computeClassificationRows / writeCla
 // below fail loudly (wrong activeClusterIds.length) instead of just
 // happening to still work against a small fixture.
 const REAL_POSTGREST_DEFAULT_CAP = 1000;
-function makeQuery(data, error = null) {
+// Polish 9A: `onOrder(col, opts)` lets fakeSupabase() record which
+// column(s) each .order() call named AND its options, per table —
+// proving selectAllChunked() genuinely asks for a deterministic
+// ASCENDING order (its real PRIMARY KEY), not just that pagination
+// produces the right row count against this fixture. Adversarial review
+// mutation-proved the earlier version (col only, opts discarded) was
+// blind to `{ascending: true}` silently flipping to `false` — 35/35 still
+// passed with that mutation live. Capturing opts closes that gap.
+function makeQuery(data, error = null, onOrder) {
   const q = {
     select: (_cols, opts) => (opts?.count ? { then: (resolve, reject) => Promise.resolve({ count: data.length, error }).then(resolve, reject) } : q),
     eq: () => q,
-    order: () => q,
+    order: (col, opts) => { if (onOrder) onOrder(col, opts); return q; },
     range: (from, to) => ({
       then: (resolve, reject) => Promise.resolve({ data: data.slice(from, to + 1), error }).then(resolve, reject),
     }),
@@ -77,16 +85,18 @@ function makeQuery(data, error = null) {
 function fakeSupabase({ classification_rules = [], edition_rules = [], story_clusters = [], rss_items = [], taxonomy_fields = TAXONOMY_FIELDS_FIXTURE, edition_story_classifications = [], rpcResult = { data: 0, error: null } } = {}) {
   const tables = { classification_rules, edition_rules, story_clusters, rss_items, taxonomy_fields, edition_story_classifications };
   const rpcCalls = [];
+  const orderCalls = [];
   const client = {
     from(table) {
       if (!(table in tables)) throw new Error(`fakeSupabase: unexpected table "${table}"`);
-      return makeQuery(tables[table]);
+      return makeQuery(tables[table], null, (col, opts) => orderCalls.push({ table, col, opts }));
     },
     rpc(name, params) {
       rpcCalls.push({ name, params });
       return Promise.resolve(rpcResult);
     },
     _rpcCalls: rpcCalls,
+    _orderCalls: orderCalls,
   };
   return client;
 }
@@ -205,6 +215,16 @@ const itemB = {
     result.rows.some(r => r.story_id === 'pg-cluster-1049'));
   assert('no cluster is falsely counted as having no items just because its item was on the second page',
     result.noItems === 0);
+
+  // Polish 9A: pagination alone isn't enough — range()/offset across
+  // separate HTTP requests has no ordering guarantee unless the query
+  // itself asks for one. Prove selectAllChunked() actually orders by each
+  // table's real PRIMARY KEY ('id' for both), not just that row counts
+  // happen to come out right against this fixture.
+  assert('story_clusters is read ordered ASCENDING by its real primary key (id) — deterministic pagination, not accidental',
+    client._orderCalls.some(c => c.table === 'story_clusters' && c.col === 'id' && c.opts?.ascending === true));
+  assert('rss_items is read ordered ASCENDING by its real primary key (id) — deterministic pagination, not accidental',
+    client._orderCalls.some(c => c.table === 'rss_items' && c.col === 'id' && c.opts?.ascending === true));
 }
 
 // --- writeClassificationRows(): routes through the RPC, not a client-side
