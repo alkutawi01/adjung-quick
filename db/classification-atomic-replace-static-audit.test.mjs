@@ -58,6 +58,63 @@ const fnBody = sql.slice(sql.indexOf('FUNCTION replace_edition_story_classificat
     /hashtext\('replace_edition_story_classifications'\)/.test(fnBody));
 }
 
+// --- P0-B.1: the stale-generation guard the director required before
+// approving this migration. Checked AFTER the lock, BEFORE the DELETE --
+// wrong-ordered, it would either compare against a state a concurrent
+// writer could still change (before the lock) or check too late (after
+// data is already gone). No force/bypass parameter -- director's explicit
+// instruction that this check is never optional, unlike the row-count
+// floor. ---
+{
+  check('the function signature takes p_expected_story_ids as a second parameter',
+    /CREATE OR REPLACE FUNCTION replace_edition_story_classifications\(\s*p_rows JSONB,\s*p_expected_story_ids TEXT\[\]/.test(sql));
+  const lockIdx = fnBody.indexOf('pg_advisory_xact_lock(');
+  const guardIdx = fnBody.indexOf('EXCEPT');
+  const deleteIdx = fnBody.indexOf('DELETE FROM edition_story_classifications');
+  check('the stale-generation guard is present (compares live story_clusters against the snapshot)',
+    guardIdx !== -1 && /SELECT id FROM story_clusters WHERE workspace_state NOT IN \('expired', 'released'\)/.test(fnBody));
+  check('the guard runs AFTER the advisory lock is acquired (compares against a now-settled state, not one a concurrent writer could still change)',
+    lockIdx !== -1 && guardIdx !== -1 && lockIdx < guardIdx);
+  check('the guard runs BEFORE the DELETE (rejection happens before any data is touched)',
+    guardIdx !== -1 && deleteIdx !== -1 && guardIdx < deleteIdx);
+  // Adversarial review: merely counting 2 EXCEPTs does not prove they
+  // check OPPOSITE directions -- a mutation with both EXCEPT clauses
+  // reading live-minus-expected TWICE (silently dropping the
+  // disappeared-cluster check) still passed a "count >= 2" test. Each
+  // EXCEPT block is isolated and its LEFT/RIGHT operand order is checked
+  // directly: block 1 must be (live) EXCEPT (expected), block 2 must be
+  // (expected) EXCEPT (live) -- the two blocks are REQUIRED to disagree
+  // on which side story_clusters is on, or this fails.
+  {
+    const exceptBlocks = fnBody.split(/\bEXCEPT\b/).slice(0, -1); // last chunk has no EXCEPT after it
+    check('exactly 2 EXCEPT clauses in the guard (not 1, not 3+)', exceptBlocks.length === 2,
+      `found ${exceptBlocks.length}`);
+    if (exceptBlocks.length === 2) {
+      // For each EXCEPT, the operand immediately BEFORE it is the "left"
+      // side -- take the tail of that chunk (the nearest preceding SELECT)
+      // to identify which table it queries.
+      const leftOperandIsLive = chunk => {
+        const lastSelect = chunk.slice(chunk.lastIndexOf('SELECT'));
+        return /story_clusters/.test(lastSelect) && !/unnest/.test(lastSelect);
+      };
+      const leftOperandIsExpected = chunk => {
+        const lastSelect = chunk.slice(chunk.lastIndexOf('SELECT'));
+        return /unnest\(p_expected_story_ids\)/.test(lastSelect);
+      };
+      check('EXCEPT #1\'s LEFT side is the LIVE set (story_clusters) -- catches "something disappeared from live since compute"',
+        leftOperandIsLive(exceptBlocks[0]));
+      check('EXCEPT #2\'s LEFT side is the EXPECTED set (the snapshot) -- catches "something NEW appeared in live since compute"',
+        leftOperandIsExpected(exceptBlocks[1]));
+      check('the two EXCEPT clauses do NOT both read the same direction (would silently drop one half of the check)',
+        leftOperandIsLive(exceptBlocks[0]) !== leftOperandIsLive(exceptBlocks[1]));
+    }
+  }
+  check('a mismatch raises an exception naming the real cause, not a generic error',
+    /data berita berubah sejak pengelasan dikira/.test(fnBody));
+  check('there is no force/bypass parameter for this specific guard (director: never optional, unlike the row-count floor)',
+    !/p_force/i.test(sql) && !/skip.*stale/i.test(sql));
+}
+
 // --- Refuses an empty batch rather than silently wiping every classification. ---
 {
   check('raises an exception when p_rows is NULL or an empty array',
@@ -94,9 +151,9 @@ const fnBody = sql.slice(sql.indexOf('FUNCTION replace_edition_story_classificat
   check('SECURITY DEFINER with search_path pinned to public (prevents the classic search-path hijack)',
     /SECURITY DEFINER\s+SET search_path = public/.test(fnBody) || /LANGUAGE plpgsql\s+SECURITY DEFINER\s+SET search_path = public/.test(sql));
   check('REVOKE EXECUTE FROM PUBLIC is present, in the same file as the GRANT',
-    /REVOKE EXECUTE ON FUNCTION replace_edition_story_classifications\(JSONB\) FROM PUBLIC/.test(sql));
+    /REVOKE EXECUTE ON FUNCTION replace_edition_story_classifications\(JSONB, TEXT\[\]\) FROM PUBLIC/.test(sql));
   check('GRANT EXECUTE is scoped to service_role ONLY',
-    /GRANT EXECUTE ON FUNCTION replace_edition_story_classifications\(JSONB\) TO service_role\s*;/.test(sql));
+    /GRANT EXECUTE ON FUNCTION replace_edition_story_classifications\(JSONB, TEXT\[\]\) TO service_role\s*;/.test(sql));
   check('no anon or authenticated grant anywhere in the file (this is a service-role-only internal write path, unlike edition_rules\' admin-UI RPCs)',
     !/TO anon\b/i.test(sql) && !/TO authenticated\b/i.test(sql));
 }

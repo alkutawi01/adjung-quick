@@ -151,13 +151,16 @@ const itemB = {
     delete process.env.CONFIRM_PRODUCTION_WRITE;
 
     const rows = [{ story_id: 'x', edition_id: 'ms-MY', field: 'Politik' }];
+    const expectedIds = ['x'];
     const client = fakeSupabase({ rpcResult: { data: 42, error: null } });
-    const written = await writeClassificationRows(client, rows);
+    const written = await writeClassificationRows(client, rows, expectedIds);
 
     assert('calls the replace_edition_story_classifications RPC exactly once',
       client._rpcCalls.length === 1 && client._rpcCalls[0].name === 'replace_edition_story_classifications');
     assert('passes the rows through as p_rows, unmodified',
       client._rpcCalls[0].params.p_rows === rows);
+    assert('passes the ID snapshot through as p_expected_story_ids, unmodified (P0-B.1)',
+      client._rpcCalls[0].params.p_expected_story_ids === expectedIds);
     assert('returns the RPC\'s own row count, not a client-side counter',
       written === 42);
   } finally {
@@ -176,7 +179,7 @@ const itemB = {
     delete process.env.CONFIRM_PRODUCTION_WRITE;
     const client = fakeSupabase({ rpcResult: { data: 1, error: null } });
     let threw = false;
-    try { await writeClassificationRows(client, [{ story_id: 'x' }]); }
+    try { await writeClassificationRows(client, [{ story_id: 'x' }], ['x']); }
     catch { threw = true; }
     assert('refuses to write with DATABASE_ENV unset (fails closed, same guard --write already used)', threw);
     assert('the refusal happens BEFORE the RPC is ever called', client._rpcCalls.length === 0);
@@ -184,7 +187,7 @@ const itemB = {
     process.env.DATABASE_ENV = 'production';
     process.env.CONFIRM_PRODUCTION_WRITE = 'false';
     let threw2 = false;
-    try { await writeClassificationRows(client, [{ story_id: 'x' }]); }
+    try { await writeClassificationRows(client, [{ story_id: 'x' }], ['x']); }
     catch { threw2 = true; }
     assert('refuses production writes without CONFIRM_PRODUCTION_WRITE=true', threw2);
   } finally {
@@ -201,7 +204,7 @@ const itemB = {
   const client = fakeSupabase({ rpcResult: { data: null, error: { message: 'replace_edition_story_classifications: refusing to write 0 rows' } } });
   process.env.DATABASE_ENV = 'development';
   let threw = false, message = '';
-  try { await writeClassificationRows(client, []); }
+  try { await writeClassificationRows(client, [], []); }
   catch (err) { threw = true; message = err.message; }
   delete process.env.DATABASE_ENV;
   assert('an RPC-level error (e.g. the empty-batch guard firing) is re-thrown as a real JS Error, not swallowed',
@@ -223,15 +226,16 @@ const itemB = {
     const client = fakeSupabase({ edition_story_classifications: currentRows, rpcResult: { data: 50, error: null } });
     const newRows = Array.from({ length: 50 }, (_, i) => ({ story_id: `s${i}` }));
 
+    const newIds = newRows.map(r => r.story_id);
     let threw = false, message = '';
-    try { await writeClassificationRows(client, newRows); }
+    try { await writeClassificationRows(client, newRows, newIds); }
     catch (err) { threw = true; message = err.message; }
     assert('refuses a drop from 543 to 50 rows (>50%) without force', threw);
     assert('the refusal happens BEFORE the RPC is ever called (no partial write attempted)', client._rpcCalls.length === 0);
     assert('the error names both counts so an operator can judge it, not a generic message',
       /543/.test(message) && /50/.test(message));
 
-    const written = await writeClassificationRows(client, newRows, { force: true });
+    const written = await writeClassificationRows(client, newRows, newIds, { force: true });
     assert('{ force: true } bypasses the floor and reaches the RPC', client._rpcCalls.length === 1);
     assert('a forced write still returns the RPC\'s real count', written === 50);
   } finally {
@@ -247,7 +251,7 @@ const itemB = {
   const currentRows = Array.from({ length: 543 }, (_, i) => ({ story_id: `s${i}` }));
   const client = fakeSupabase({ edition_story_classifications: currentRows, rpcResult: { data: 400, error: null } });
   const newRows = Array.from({ length: 400 }, (_, i) => ({ story_id: `s${i}` }));
-  const written = await writeClassificationRows(client, newRows);
+  const written = await writeClassificationRows(client, newRows, newRows.map(r => r.story_id));
   delete process.env.DATABASE_ENV;
   assert('a modest ~26% drop (ordinary churn) is NOT blocked by the floor', written === 400 && client._rpcCalls.length === 1);
 }
@@ -258,10 +262,75 @@ const itemB = {
   const currentRows = Array.from({ length: 278 }, (_, i) => ({ story_id: `s${i}` }));
   const client = fakeSupabase({ edition_story_classifications: currentRows, rpcResult: { data: 543, error: null } });
   const newRows = Array.from({ length: 543 }, (_, i) => ({ story_id: `s${i}` }));
-  const written = await writeClassificationRows(client, newRows);
+  const written = await writeClassificationRows(client, newRows, newRows.map(r => r.story_id));
   delete process.env.DATABASE_ENV;
   assert('a large INCREASE (278 -> 543, the real P0-A recovery) is never mistaken for a drop',
     written === 543 && client._rpcCalls.length === 1);
+}
+
+// --- P0-B.1: the stale-generation scenario ChatGPT specified exactly --
+// compute G1, live data changes to G2, write of G1's (now stale) result
+// must be refused.
+//
+// HONEST SCOPE NOTE (adversarial review): the "rejectingClient" below
+// re-implements the staleness comparison in JS to decide whether its
+// fake rpc() should reject. That proves the JS layer collects and
+// forwards the right snapshot UNCHANGED to the RPC call -- it does NOT
+// and CANNOT prove the real SQL guard's own two-directional EXCEPT logic
+// is correct, since no live Postgres is available in this environment
+// (same constraint every RPC audit in this project states, e.g.
+// edition-rules-static-audit.test.mjs's header). That correctness is
+// verified separately and more rigorously in
+// classification-atomic-replace-static-audit.test.mjs, which parses the
+// real SQL's two EXCEPT clauses and checks their operand order directly
+// (not just "EXCEPT appears twice") -- confirmed by reproducing the
+// director's own review mutation (both EXCEPT clauses reading the same
+// direction) and verifying that specific static check catches it. ---
+{
+  process.env.DATABASE_ENV = 'development';
+  // computeClassificationRows() ran against G1: clusters a and b.
+  const g1Client = fakeSupabase({
+    story_clusters: [
+      { id: 'a', topic: 'Unclassified', workspace_state: 'active' },
+      { id: 'b', topic: 'Unclassified', workspace_state: 'active' },
+    ],
+    rss_items: [itemA, { ...itemB, cluster_id: 'b' }],
+  });
+  const g1 = await computeClassificationRows(g1Client);
+  delete process.env.DATABASE_ENV;
+
+  assert('the G1 snapshot captured exactly the two clusters compute ran against',
+    JSON.stringify([...g1.activeClusterIds].sort()) === JSON.stringify(['a', 'b']));
+
+  // Simulates the real scenario: by the time the (slow) G1 write is about
+  // to happen, live data has moved on to G2 -- a NEW cluster 'c' appeared,
+  // matching a fake RPC that behaves like the real one would (rejects a
+  // stale p_expected_story_ids). This proves writeClassificationRows()
+  // genuinely SENDS the snapshot it was given, not a value it silently
+  // recomputes or drops -- the actual staleness DECISION is the SQL
+  // guard's job, proven separately and statically.
+  const rejectingClient = {
+    _rpcCalls: [],
+    rpc(name, params) {
+      rejectingClient._rpcCalls.push({ name, params });
+      const live = new Set(['a', 'b', 'c']); // G2: c appeared since G1 was computed
+      const stale = params.p_expected_story_ids.some(id => !live.has(id)) || [...live].some(id => !params.p_expected_story_ids.includes(id));
+      return Promise.resolve(stale
+        ? { data: null, error: { message: 'replace_edition_story_classifications: data berita berubah sejak pengelasan dikira -- kira semula.' } }
+        : { data: g1.rows.length, error: null });
+    },
+    from() { return { select: () => ({ then: (resolve) => resolve({ count: 0, error: null }) }) }; },
+  };
+  process.env.DATABASE_ENV = 'development';
+  let threw = false, message = '';
+  try { await writeClassificationRows(rejectingClient, g1.rows, g1.activeClusterIds); }
+  catch (err) { threw = true; message = err.message; }
+  delete process.env.DATABASE_ENV;
+
+  assert('writeClassificationRows() forwards the ORIGINAL G1 snapshot to the RPC unchanged (it is the RPC\'s job to detect it is stale, not the JS layer\'s)',
+    rejectingClient._rpcCalls[0]?.params.p_expected_story_ids === g1.activeClusterIds);
+  assert('a stale-generation rejection from the RPC surfaces as a real thrown error (not swallowed)',
+    threw && /data berita berubah sejak pengelasan dikira/.test(message));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.\n`);

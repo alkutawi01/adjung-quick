@@ -184,7 +184,21 @@ export async function computeClassificationRows(client) {
     }
   }
 
-  return { rows, stats, noItems, skippedIneligible, activeClusterCount: active.length, totalClusterCount: clusters.length, totalItemCount: items.length };
+  // P0-B.1 (docs/p0-classification-backlog-incident-v1.md): the exact set
+  // of active cluster IDs this computation was run against -- the
+  // "generation" writeClassificationRows() must prove is still current
+  // before it's allowed to write. The advisory lock alone only serializes
+  // two WRITES; it says nothing about which one's underlying COMPUTE is
+  // stale. Real scenario ChatGPT named: a slow manual --write started
+  // against generation G1 finishes computing after an ingestion has
+  // already produced G2 and the automatic hook has already written G2 --
+  // the lock lets the slow G1 write proceed cleanly (no PK collision), but
+  // it silently overwrites the fresh G2 classification with stale G1
+  // results. The row-count floor guard doesn't catch this either if G1
+  // and G2 happen to be similar sizes.
+  const activeClusterIds = active.map(c => c.id);
+
+  return { rows, stats, noItems, skippedIneligible, activeClusterIds, activeClusterCount: active.length, totalClusterCount: clusters.length, totalItemCount: items.length };
 }
 
 // P0-B: the atomic write, extracted for the same reason as
@@ -207,7 +221,14 @@ export async function computeClassificationRows(client) {
 // safety net has to live in code instead.
 const CLASSIFICATION_DROP_FLOOR_RATIO = 0.5;
 
-export async function writeClassificationRows(client, rows, { force = false } = {}) {
+// P0-B.1: `expectedStoryIds` is REQUIRED, not optional, and there is no
+// force-bypass for it (unlike the row-count floor below) -- per ChatGPT's
+// explicit instruction: "--force hanya boleh bypass floor 50%, bukan
+// membenarkan hasil stale menimpa generasi baru." A caller cannot forget
+// this snapshot and cannot opt out of the check it enables; the RPC itself
+// re-verifies it server-side (schema-classification-atomic-replace-rpc-
+// v1.sql) rather than trusting the client's own freshness claim.
+export async function writeClassificationRows(client, rows, expectedStoryIds, { force = false } = {}) {
   assertWriteAllowed();
 
   if (!force) {
@@ -233,7 +254,10 @@ export async function writeClassificationRows(client, rows, { force = false } = 
   // committed and only some of the new rows written. That was tolerable
   // for an occasional manual run; not once this runs automatically after
   // every ingestion (below).
-  const { data: written, error } = await client.rpc('replace_edition_story_classifications', { p_rows: rows });
+  const { data: written, error } = await client.rpc('replace_edition_story_classifications', {
+    p_rows: rows,
+    p_expected_story_ids: expectedStoryIds,
+  });
   if (error) throw new Error(`replace_edition_story_classifications — ${error.message}`);
   return written;
 }
@@ -265,7 +289,7 @@ async function main() {
     return;
   }
 
-  const written = await writeClassificationRows(supabase, result.rows, { force: FORCE });
+  const written = await writeClassificationRows(supabase, result.rows, result.activeClusterIds, { force: FORCE });
   console.log(`Done. ${written} rows written to edition_story_classifications (atomic replace).\n`);
 }
 

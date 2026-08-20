@@ -56,6 +56,13 @@ check('imports writeClassificationRows from classify-production.js',
     swapIdx !== -1 && computeIdx !== -1 && swapIdx < computeIdx);
   check('classification runs AFTER the parity check (never on unverified data)',
     allPassIdx !== -1 && computeIdx !== -1 && allPassIdx < computeIdx);
+  // P0-B.1: the automatic hook is the exact scenario the stale-generation
+  // guard exists for (a slow concurrent manual --write racing this
+  // automatic call) -- if this call site ever stopped forwarding the
+  // snapshot, the hook itself would be writing with no protection against
+  // its own compute going stale mid-flight.
+  check('writeClassificationRows() is called with the compute step\'s activeClusterIds as its 3rd argument (P0-B.1 stale-generation snapshot)',
+    /writeClassificationRows\(supabase,\s*classification\.rows,\s*classification\.activeClusterIds\)/.test(code));
   check('rows are computed before they are written (compute -> write, not the other way round)',
     computeIdx !== -1 && writeIdx !== -1 && computeIdx < writeIdx);
 }

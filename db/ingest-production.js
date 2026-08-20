@@ -447,7 +447,7 @@ async function main() {
   console.log('\nRunning classification for the new generation (P0-B, automatic post-ingest)...');
   try {
     const classification = await computeClassificationRows(supabase);
-    const written = await writeClassificationRows(supabase, classification.rows);
+    const written = await writeClassificationRows(supabase, classification.rows, classification.activeClusterIds);
     console.log(`✓ Classification complete: ${written} rows written (atomic replace).\n`);
   } catch (err) {
     console.error('\n✗ CLASSIFICATION FAILED after a successful ingestion swap.');

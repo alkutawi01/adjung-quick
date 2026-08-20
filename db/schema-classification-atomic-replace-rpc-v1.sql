@@ -1,4 +1,7 @@
 -- schema-classification-atomic-replace-rpc-v1.sql — P0-B, 2026-08-20.
+-- Updated same day (P0-B.1) with a concurrency-race guard the director
+-- found while reviewing the advisory lock -- see p_expected_story_ids
+-- below.
 --
 -- Fixes a real atomicity gap in classify-production.js's write path, found
 -- while designing the automatic ingest->classify hook (docs/p0-classification-
@@ -31,8 +34,29 @@ BEGIN;
 -- without a live DB) and only the WRITE mechanics move server-side — the
 -- same division schema-edition-rules-rpc-v1.sql's functions keep between
 -- caller-side data and server-side write safety.
+-- p_expected_story_ids: P0-B.1 (director's finding after reviewing the
+-- advisory lock above). The lock only serializes two WRITES -- it says
+-- nothing about which one's underlying COMPUTE is stale. Real scenario: a
+-- slow manual --write starts computing against generation G1; an
+-- ingestion produces G2 and the automatic hook writes G2 first; the slow
+-- G1 write then acquires the lock cleanly (no PK collision) and silently
+-- OVERWRITES the fresh G2 classification with stale G1 results. The
+-- row-count floor guard (JS layer, writeClassificationRows()) doesn't
+-- catch this either if G1 and G2 happen to be similar sizes.
+--
+-- The caller passes the exact set of active story_clusters.id it computed
+-- classification against (classify-production.js's computeClassificationRows()
+-- return value). After the lock is acquired but before DELETE, this
+-- function re-checks that set against story_clusters' CURRENT live
+-- membership -- if even one ID differs either direction (a cluster
+-- appeared, disappeared, or changed workspace_state since the caller
+-- computed), the whole write is refused. No fingerprinting of cluster
+-- CONTENT (a same-ID-different-content edit slipping through) -- an
+-- accepted V1 gap per the director, not something to solve here with a
+-- content hash.
 CREATE OR REPLACE FUNCTION replace_edition_story_classifications(
-  p_rows JSONB
+  p_rows JSONB,
+  p_expected_story_ids TEXT[]
 ) RETURNS INTEGER
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -57,6 +81,31 @@ BEGIN
   -- Released automatically at COMMIT/ROLLBACK -- never needs an explicit
   -- unlock, and can never be left held by a crashed session.
   PERFORM pg_advisory_xact_lock(hashtext('replace_edition_story_classifications'));
+
+  -- P0-B.1 stale-generation guard. No force/bypass parameter exists for
+  -- this check, deliberately -- unlike the row-count floor (JS layer),
+  -- the director was explicit that this one must never be optional: a
+  -- caller cannot forget it (the JS signature requires the parameter) and
+  -- cannot opt out of it (this function has no flag that skips it).
+  -- Symmetric-difference check via two EXCEPTs: catches a cluster that
+  -- exists live but wasn't in the caller's snapshot (something NEW
+  -- appeared since compute) just as much as one that was in the snapshot
+  -- but no longer exists live (something removed/expired/released since
+  -- compute) -- either direction means the classification the caller
+  -- computed no longer matches reality.
+  IF EXISTS (
+    (SELECT id FROM story_clusters WHERE workspace_state NOT IN ('expired', 'released')
+     EXCEPT
+     SELECT unnest(p_expected_story_ids))
+    UNION ALL
+    (SELECT unnest(p_expected_story_ids)
+     EXCEPT
+     SELECT id FROM story_clusters WHERE workspace_state NOT IN ('expired', 'released'))
+  ) THEN
+    RAISE EXCEPTION
+      'replace_edition_story_classifications: data berita berubah sejak pengelasan dikira -- '
+      'kira semula (node db/classify-production.js --write). Refusing to write a stale generation.';
+  END IF;
 
   -- Refuses an empty batch outright, never treats "0 rows computed" as
   -- "intentionally wipe every classification". The old script could only
@@ -115,7 +164,7 @@ $$;
 -- project (schema-ingestion-staging-functions-v1.sql, schema-edition-rules-
 -- rpc-v1.sql) — REVOKE FROM PUBLIC explicit in the same block as the GRANT,
 -- per the Phase 2 security-incident lesson those files already apply.
-REVOKE EXECUTE ON FUNCTION replace_edition_story_classifications(JSONB) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION replace_edition_story_classifications(JSONB) TO service_role;
+REVOKE EXECUTE ON FUNCTION replace_edition_story_classifications(JSONB, TEXT[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION replace_edition_story_classifications(JSONB, TEXT[]) TO service_role;
 
 COMMIT;
