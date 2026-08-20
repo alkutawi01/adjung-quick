@@ -90,8 +90,12 @@ export function scoreCandidate(candidate, now = new Date()) {
   // Surfaced in reasons so boost stays EXPLAINABLE — an editor must be
   // able to see that a human decision, not the algorithm alone, is why
   // this story is here (docs/ranking-engine-contract-v1.md's
-  // explainability requirement).
-  if (candidate.boosted) reasons.push('editorial_boost');
+  // explainability requirement). Polish 7D fix (ChatGPT's catch): gated
+  // on the ACTUAL contribution (editorialBoost > 0), not the raw
+  // `boosted` flag -- with BOOST_WEIGHT=0, a candidate.boosted=true
+  // legacy override adds zero points, so labelling it 'editorial_boost'
+  // would misrepresent the score as human-influenced when it isn't.
+  if (editorialBoost > 0) reasons.push('editorial_boost');
 
   return { ...candidate, score, scoreBreakdown: { freshness, sourceTrust, confidenceModifier, editorialBoost }, reasons };
 }

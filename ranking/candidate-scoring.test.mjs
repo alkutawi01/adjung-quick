@@ -65,6 +65,13 @@ function candidate(overrides) {
   const scored = scoreCandidate(candidate({ boosted: true }), NOW);
   assert('boosted=true still gives +0 while BOOST_WEIGHT=0',
     scored.scoreBreakdown.editorialBoost === 0);
+  // ChatGPT's catch (Polish 7D review): reasons must reflect the ACTUAL
+  // score contribution, not the raw `boosted` flag -- a boosted=true
+  // legacy override that adds zero points must not be labelled
+  // 'editorial_boost', or explainability would misrepresent the score
+  // as human-influenced when it isn't.
+  assert('boosted=true with BOOST_WEIGHT=0 does NOT surface the editorial_boost reason',
+    !scored.reasons.includes('editorial_boost'));
 }
 
 // --- full score assembly sanity check ---

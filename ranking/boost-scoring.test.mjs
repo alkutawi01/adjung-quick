@@ -37,8 +37,17 @@ function candidate(overrides) {
     boosted.score - plain.score === BOOST_WEIGHT);
   assert('boost is surfaced in scoreBreakdown (explainability)',
     boosted.scoreBreakdown.editorialBoost === BOOST_WEIGHT && plain.scoreBreakdown.editorialBoost === 0);
-  assert('boost is surfaced in reasons (an editor can see WHY it is here)',
-    boosted.reasons.includes('editorial_boost') && !plain.reasons.includes('editorial_boost'));
+  // Polish 7D fix (ChatGPT's catch): reasons are now gated on the ACTUAL
+  // contribution (editorialBoost > 0), not the raw `boosted` flag -- with
+  // BOOST_WEIGHT=0 a boosted candidate correctly does NOT get labelled
+  // 'editorial_boost', since it didn't actually influence the score.
+  if (BOOST_WEIGHT > 0) {
+    assert('boost is surfaced in reasons (an editor can see WHY it is here)',
+      boosted.reasons.includes('editorial_boost') && !plain.reasons.includes('editorial_boost'));
+  } else {
+    assert('boost NOT surfaced in reasons while BOOST_WEIGHT=0 (it added zero points)',
+      !boosted.reasons.includes('editorial_boost') && !plain.reasons.includes('editorial_boost'));
+  }
   assert('boost does not alter the other scoring terms',
     boosted.scoreBreakdown.freshness === plain.scoreBreakdown.freshness &&
     boosted.scoreBreakdown.sourceTrust === plain.scoreBreakdown.sourceTrust &&
