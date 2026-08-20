@@ -20,6 +20,15 @@
 // Both "Kaedah semasa" and "Skor V1 simulasi" run the FULL real chain --
 // score -> selectDiverseCandidates() -> applyEditorialComposition() --
 // unmodified, imported directly. Only the score fed in at stage 1 differs.
+//
+// Polish 8B fix (docs/polish-8-selection-audit-v1.md): Polish 8A's audit
+// found this panel ran the full chain for ANY category and claimed "Set
+// akhir 10 berita yang pembaca akan lihat" -- true only for
+// ms-MY.politics, the sole category on `editorial_v1`
+// (state/rankingFlags.js). Every other category's real Reader never runs
+// diversity/composition at all. getRankingVersion() is now the single
+// authority for whether this panel's output may be presented as
+// production truth vs simulation-only -- never hardcode a field code.
 import { useState, useMemo } from 'react';
 import { scoreCandidates } from '../../../ranking/candidate-scoring.mjs';
 import { scoreCandidateV1 } from '../../../ranking/scoring-v1-simulation.mjs';
@@ -27,6 +36,7 @@ import { selectDiverseCandidates } from '../../../ranking/diversity-selection.mj
 import { applyEditorialComposition } from '../../../ranking/editorial-composition.mjs';
 import { extractPinned } from './kaedahNilaiAdapter.js';
 import { getFieldLabel } from '../../../state/editions.js';
+import { getRankingVersion } from '../../../state/rankingFlags.js';
 
 const EDITION_ID = 'ms-MY';
 const CAPACITY = 10;
@@ -71,6 +81,7 @@ export default function SusunanAkhirPanel({ corpus, error, weights }) {
     return [...new Set(corpus.map(c => c.fieldCode))].sort();
   }, [corpus]);
   const activeField = fieldCode ?? fieldOptions[0] ?? null;
+  const isActiveProduction = activeField ? getRankingVersion(EDITION_ID, activeField) === 'editorial_v1' : false;
 
   const result = useMemo(() => {
     if (!corpus || !activeField) return null;
@@ -99,13 +110,22 @@ export default function SusunanAkhirPanel({ corpus, error, weights }) {
   return (
     <div className="susunan-akhir-panel">
       <p className="bidang-panel__intro">
-        Set akhir 10 berita yang pembaca akan lihat — guna enjin komposisi editorial SEBENAR (tidak diubah).
+        {isActiveProduction
+          ? 'Set akhir 10 berita yang pembaca akan lihat — guna enjin komposisi editorial SEBENAR (tidak diubah).'
+          : 'Simulasi set akhir 10 berita — belum digunakan oleh pembaca untuk kategori ini.'}
         <b> Komposisi TIDAK mengira skor semula dan TIDAK membuat ranking kedua berdasarkan skor</b> — ia
         terima susunan Pemilihan 10
         SEPERTI ADANYA, cuma semak: adakah satu sumber menguasai &gt;50% daripada 10 slot; jika ya, cuba
         satu pertukaran (calon terlemah sumber dominan itu, gantikan dengan calon sumber lain yang cukup
         kualiti) — paling banyak SATU pertukaran, bukan susun semula penuh.
       </p>
+      {activeField && !isActiveProduction && (
+        <p className="admin-app__status admin-app__status--notice">
+          Kaedah Nilai &amp; Susunan baharu belum diaktifkan untuk kategori ini. Paparan pembaca semasa
+          masih menggunakan susunan sedia ada. Keputusan di bawah ialah simulasi — belum digunakan oleh
+          pembaca.
+        </p>
+      )}
 
       <div className="classification-rules__filters">
         <label>

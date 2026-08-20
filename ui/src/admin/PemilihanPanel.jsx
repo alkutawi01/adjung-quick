@@ -8,6 +8,17 @@
 // score fed into it differs between modes. editorial-composition.mjs is
 // explicitly out of scope (Pusingan 15).
 //
+// Polish 8B fix (docs/polish-8-selection-audit-v1.md): Polish 8A's audit
+// found this panel ran selectDiverseCandidates() for ANY category and
+// labelled the result "Kaedah semasa" (current/production method) --
+// true only for ms-MY.politics, the sole category on `editorial_v1`
+// (state/rankingFlags.js). Every other category's real Reader uses a
+// plain legacy .slice() with NO diversity selection at all, so showing
+// this pipeline's output as "Kaedah semasa" for those categories was a
+// real, provable Admin/Reader mismatch. getRankingVersion() is now the
+// single authority for whether a category's results may be presented as
+// production truth vs simulation-only -- never hardcode a field code.
+//
 // Traced first (state/reducer.js::selectFieldActiveSet, this session's
 // own round 11 finding, re-verified): pin bypasses the diversity
 // SELECTION contest entirely -- extracted BEFORE scoring/selection ever
@@ -32,6 +43,7 @@ import { scoreCandidateV1 } from '../../../ranking/scoring-v1-simulation.mjs';
 import { selectDiverseCandidates } from '../../../ranking/diversity-selection.mjs';
 import { extractPinned } from './kaedahNilaiAdapter.js';
 import { getFieldLabel } from '../../../state/editions.js';
+import { getRankingVersion } from '../../../state/rankingFlags.js';
 
 const EDITION_ID = 'ms-MY';
 const CAPACITY = 10;
@@ -51,6 +63,11 @@ export default function PemilihanPanel({ corpus, error, weights }) {
   }, [corpus]);
 
   const activeField = fieldCode ?? fieldOptions[0] ?? null;
+  // Polish 8B: single authority for whether THIS category's pipeline
+  // output may be shown as production truth. Never hardcode a field
+  // code -- when a category is later added to RANKING_FLAGS, this
+  // panel follows automatically.
+  const isActiveProduction = activeField ? getRankingVersion(EDITION_ID, activeField) === 'editorial_v1' : false;
 
   const result = useMemo(() => {
     if (!corpus || !activeField) return null;
@@ -108,6 +125,13 @@ export default function PemilihanPanel({ corpus, error, weights }) {
         SEBENAR (tidak diubah), skor sahaja berbeza antara mod. Susunan Akhir (pemeriksaan komposisi
         selepas ini) ada di tab berasingan.
       </p>
+      {activeField && !isActiveProduction && (
+        <p className="admin-app__status admin-app__status--notice">
+          Kaedah Nilai &amp; Susunan baharu belum diaktifkan untuk kategori ini. Paparan pembaca semasa
+          masih menggunakan susunan sedia ada. Keputusan di bawah ialah simulasi — belum digunakan oleh
+          pembaca.
+        </p>
+      )}
 
       <div className="classification-rules__filters">
         <label>
@@ -157,7 +181,13 @@ export default function PemilihanPanel({ corpus, error, weights }) {
             </table>
           </div>
 
-          <h2 className="bidang-panel__section-title">10 berita yang dipilih ({mode === 'semasa' ? 'Kaedah semasa' : 'Skor V1 simulasi'})</h2>
+          <h2 className="bidang-panel__section-title">
+            10 berita yang dipilih (
+            {isActiveProduction
+              ? (mode === 'semasa' ? 'Kaedah semasa' : 'Skor V1 simulasi')
+              : (mode === 'semasa' ? 'Simulasi — formula semasa, belum digunakan oleh pembaca' : 'Simulasi — Skor V1, belum digunakan oleh pembaca')}
+            )
+          </h2>
           <div className="source-table-wrap">
             <table className="source-table">
               <thead>
