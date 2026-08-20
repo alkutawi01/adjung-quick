@@ -29,10 +29,17 @@
 //             A's applicable preconditions — NOT a subsequent ingestion
 //             cycle for this specific migration-era generation, see
 //             above. This script cannot see reader/admin normalcy.)
+//   Also requires a FRESH local snapshot (npm run snapshot)
+//   — see checkSnapshotFreshness() below, Polish 9D-1.
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { existsSync, readFileSync } from 'fs';
+import { dirname } from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { assertWriteAllowed } from './production-write-guard.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -44,8 +51,57 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
+// Polish 9D-1 (docs/polish-9-audit-v1.md, risk #1): this project's ONLY
+// backup mechanism (db/snapshot-production.mjs) had zero mechanical
+// connection to this script — a human could drop *_old with a backup that
+// was days old, or none at all, and nothing here would notice. Confirmed
+// by that audit: neither this script nor any of its 3 governing docs ever
+// mentioned "snapshot". This closes that gap the same way this script
+// already gates on CONFIRM_OLD_TABLES_VERIFIED — fail closed, not a
+// warning that's easy to miss.
+//
+// Pure function (snapshotPath/maxAgeMinutes/now all passed in, no reach
+// for Date.now()/module-level constants directly) so it's unit-testable
+// without touching the real filesystem clock or the real snapshot path.
+export const SNAPSHOT_PATH = `${__dirname}/snapshots/production-snapshot.json`;
+export const SNAPSHOT_MAX_AGE_MINUTES = 60;
+
+export function checkSnapshotFreshness(snapshotPath, maxAgeMinutes, now = Date.now()) {
+  if (!existsSync(snapshotPath)) {
+    return { ok: false, reason: 'tiada fail snapshot ditemui' };
+  }
+  let snapshot;
+  try {
+    snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'));
+  } catch (err) {
+    return { ok: false, reason: `fail snapshot rosak / tidak boleh dibaca (${err.message})` };
+  }
+  const snapshotTime = Date.parse(snapshot.snapshotDate);
+  if (Number.isNaN(snapshotTime)) {
+    return { ok: false, reason: 'fail snapshot tiada snapshotDate yang sah' };
+  }
+  const ageMinutes = (now - snapshotTime) / 60000;
+  if (ageMinutes > maxAgeMinutes) {
+    return { ok: false, reason: `snapshot berumur ${Math.round(ageMinutes)} minit (had dibenarkan: ${maxAgeMinutes} minit)`, ageMinutes, snapshotDate: snapshot.snapshotDate };
+  }
+  return { ok: true, ageMinutes, snapshotDate: snapshot.snapshotDate };
+}
+
 async function main() {
   assertWriteAllowed();
+
+  const freshness = checkSnapshotFreshness(SNAPSHOT_PATH, SNAPSHOT_MAX_AGE_MINUTES);
+  if (!freshness.ok) {
+    console.error('');
+    console.error('✗ ABORT: No verified snapshot found before destructive operation.');
+    console.error(`  Sebab: ${freshness.reason}`);
+    console.error('');
+    console.error('  Ini operasi memusnahkan (*_old TIDAK dapat dipulihkan selepas dibuang).');
+    console.error('  Jalankan dahulu: npm run snapshot');
+    console.error(`  kemudian ulang semula arahan ini dalam ${SNAPSHOT_MAX_AGE_MINUTES} minit.`);
+    process.exit(1);
+  }
+  console.log(`✓ Snapshot sah ditemui (${Math.round(freshness.ageMinutes)} minit lalu, ${freshness.snapshotDate}).\n`);
 
   if (process.env.CONFIRM_OLD_TABLES_VERIFIED !== 'true') {
     console.error('');
@@ -118,7 +174,23 @@ async function checkDangling() {
   return results;
 }
 
-main().catch(err => {
-  console.error('drop-ingestion-old-tables failed:', err);
-  process.exit(1);
-});
+// Polish 9D-1 adversarial-testing discovery: this file previously called
+// main() unconditionally at module scope — merely IMPORTING it (e.g. to
+// unit-test checkSnapshotFreshness()) triggered a real destructive-drop
+// attempt against production. classify-production.js already guarded
+// against exactly this; this one had silently never gotten the same
+// treatment. (A second adversarial review of THIS fix then found the
+// identical unguarded pattern still live in ingest-production.js —
+// fixed there too, same commit, per CLAUDE.md's "same pattern must be
+// treated uniformly" rule; don't assume "every other script" already
+// has a fix without checking each one.) pathToFileURL() (not a raw
+// `file://${argv[1]}` string) is required for this comparison to work on
+// Windows, where argv[1] uses backslashes and import.meta.url is a
+// proper file:// URL with forward slashes — same reasoning
+// classify-production.js's own guard comment states.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => {
+    console.error('drop-ingestion-old-tables failed:', err);
+    process.exit(1);
+  });
+}

@@ -70,6 +70,7 @@ const TEST_FILES = [
   'db/ingest-classify-hook-static-audit.test.mjs',
   'db/pagination-order-static-audit.test.mjs',
   'classification/rtm-url-vocabulary.test.mjs',
+  'db/drop-old-tables-snapshot-precondition.test.mjs',
 ];
 // NOTE: db/daily-observation.mjs and db/snapshot-production.mjs are
 // standalone CLI scripts (real Supabase client at module load, network

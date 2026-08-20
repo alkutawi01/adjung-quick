@@ -21,6 +21,7 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { pathToFileURL } from 'url';
 import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
 import { assertWriteAllowed } from './production-write-guard.mjs';
@@ -469,7 +470,21 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('Production ingestion failed:', err);
-  process.exit(1);
-});
+// Polish 9D-1 (docs/polish-9-audit-v1.md): this is the most destructive
+// script in the project (full production ingest + swap), yet — like
+// db/drop-ingestion-old-tables.mjs before its own Polish 9D-1 fix — it
+// called main() unconditionally at module scope, with no guard against a
+// future import ever triggering a real run. Nothing imports this file
+// today (confirmed by repo-wide grep for `ingest-production.js`
+// imports), so this was dormant, not an active bug — but it's the exact
+// same landmine, on the highest-stakes script in the repo, closed the
+// same way classify-production.js/drop-ingestion-old-tables.mjs already
+// are. pathToFileURL() (not a raw `file://${argv[1]}` string) is required
+// for this comparison to work on Windows, where argv[1] uses backslashes
+// and import.meta.url is a proper file:// URL with forward slashes.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => {
+    console.error('Production ingestion failed:', err);
+    process.exit(1);
+  });
+}
