@@ -97,7 +97,8 @@ export let TAXONOMY_REGISTRY = {
     { field_code: 'health_science', label: 'صحة وعلوم', subject_codes: ['Health', 'Science'], wheel_visible: true }, // LOCKED merge, BBC Arabic evidence
     { field_code: 'education', label: 'تعليم', subject_codes: ['Education'], wheel_visible: true },
     { field_code: 'technology', label: 'تكنولوجيا', subject_codes: ['Technology'], wheel_visible: true },
-    { field_code: 'culture_entertainment', label: 'ثقافة وفنون', subject_codes: ['Culture', 'Entertainment'], wheel_visible: true }, // LOCKED v1 merge, editorial choice not unanimous evidence — see sesi2-edition-taxonomy-design.md
+    { field_code: 'culture', label: 'ثقافة', subject_codes: ['Culture'], wheel_visible: true }, // Global Phase 1B (2026-08-21): split from culture_entertainment per Izzat's B1 decision (docs/global-edition-decision-v1.md) -- intentionally separate, not a temporary merged taxonomy. Label matches Al Araby's real nav (sesi2-edition-taxonomy-design.md), the one outlet in the corpus that keeps these apart.
+    { field_code: 'entertainment', label: 'ترفيه', subject_codes: ['Entertainment'], wheel_visible: true }, // Global Phase 1B, same split as above. Label is 'ترفيه' not Al Araby's own 'منوعات' -- that word is already this registry's Lifestyle label two rows below; reusing it here would collide.
     { field_code: 'religion', label: 'دين', subject_codes: ['Religion'], wheel_visible: true },
     { field_code: 'lifestyle', label: 'منوعات', subject_codes: ['Lifestyle'], wheel_visible: true },
     { field_code: 'world', label: 'العالم', subject_codes: null, wheel_visible: false }, // same pre-existing gap as en-global's World
