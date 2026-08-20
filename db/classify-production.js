@@ -16,6 +16,10 @@
 // Usage:
 //   node db/classify-production.js --dry-run   (default: prints, writes nothing)
 //   node db/classify-production.js --write     (actually upserts)
+//   node db/classify-production.js --write --force
+//     (bypasses the >=50% row-count-drop guard in writeClassificationRows() --
+//     use only after confirming a large drop is genuinely expected, e.g. a
+//     deliberate mass-archive, never as a reflex when the guard fires.)
 //
 // Requires db/schema-edition-classification.sql to have been run first.
 
@@ -39,6 +43,7 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 }
 
 const WRITE = process.argv.includes('--write');
+const FORCE = process.argv.includes('--force');
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 // Extracted per docs/control-plane-phase3-production-wiring-audit-plan-v1.md
@@ -50,23 +55,25 @@ export function buildRuleMatchItem(canonical) {
   return { sourceId: canonical.source_id, link: canonical.link, title: canonical.title, description: canonical.description };
 }
 
-async function main() {
-  // Per docs/production-write-guard-v1.md: only --write mode is
-  // destructive (it truncates edition_story_classifications) — a
-  // --dry-run never writes, so it never needs the guard.
-  if (WRITE) assertWriteAllowed();
-
-  console.log(`\nPRODUCTION CLASSIFICATION WIRING — ${WRITE ? 'WRITE MODE' : 'DRY RUN (no writes)'}\n`);
-
+// P0-B (docs/p0-classification-backlog-incident-v1.md): extracted so
+// ingest-production.js can run the exact same compute step right after a
+// successful swap, without shelling out to a second process. Takes the
+// caller's OWN supabase client (never a module-level singleton) so a
+// caller that already holds a connection reuses it, same posture as every
+// adapter in ui/src/admin that accepts `supabase` as a parameter.
+//
+// Pure I/O + the frozen classifier — no writes here. Returns everything
+// main()'s CLI printing needs, so the CLI path below stays a thin wrapper
+// around this rather than a second, drifting copy of the same logic.
+export async function computeClassificationRows(client) {
   // Backend Control Plane Phase 2 (2026-08-17): load taxonomy from
   // taxonomy_fields ONCE here, before the classification loop below —
   // per docs/control-plane-phase2-taxonomy-implementation-plan-v1.md §1.
   // Every function this cache feeds (resolveDefaultPlacement(),
   // getFieldEntry*()) stays fully synchronous; only this one startup
   // step is async.
-  await loadTaxonomyRegistryFromDB(supabase);
+  await loadTaxonomyRegistryFromDB(client);
   rebuildEditionTaxonomy();
-  console.log('Taxonomy loaded from taxonomy_fields (backend source of truth).\n');
 
   // Backend Control Plane Phase 3 production wiring (per docs/control-
   // plane-phase3-production-wiring-audit-plan-v1.md): fetch active
@@ -74,30 +81,28 @@ async function main() {
   // the taxonomy load above. classifyForAllEditions() itself already
   // scopes global-vs-edition-specific rules internally; this script only
   // needs to supply the flat active set.
-  const { data: activeRules, error: rErr } = await supabase
+  const { data: activeRules, error: rErr } = await client
     .from('classification_rules')
     .select('id, rule_type, edition_id, pattern, field_code, subject_code, priority')
     .eq('status', 'active');
   if (rErr) throw new Error(`classification_rules — ${rErr.message}`);
-  console.log(`${activeRules.length} active classification rule(s) loaded.\n`);
 
   // Backend Control Plane Fasa 4 (edition_rules): same one-time fetch
   // pattern. Unlike classification_rules, edition_rules has no global
   // case (edition_id is always required) — classifyForAllEditions()
   // still does the per-edition equality filter itself, this script only
   // supplies the flat active set.
-  const { data: activeEditionRules, error: erErr } = await supabase
+  const { data: activeEditionRules, error: erErr } = await client
     .from('edition_rules')
     .select('id, edition_id, condition_subject, condition_geography_type, condition_geography_value, action_field_code, priority')
     .eq('status', 'active');
   if (erErr) throw new Error(`edition_rules — ${erErr.message}`);
-  console.log(`${activeEditionRules.length} active edition rule(s) loaded.\n`);
 
   // Pull clusters + their member items. The classifier needs the item's
   // own signals (link/categories/title), not the cluster's legacy topic.
   const [{ data: clusters, error: cErr }, { data: items, error: iErr }] = await Promise.all([
-    supabase.from('story_clusters').select('id, topic, workspace_state'),
-    supabase.from('rss_items').select('id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at, language'),
+    client.from('story_clusters').select('id, topic, workspace_state'),
+    client.from('rss_items').select('id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at, language'),
   ]);
   if (cErr) throw new Error(`story_clusters — ${cErr.message}`);
   if (iErr) throw new Error(`rss_items — ${iErr.message}`);
@@ -109,7 +114,6 @@ async function main() {
   }
 
   const active = clusters.filter(c => c.workspace_state !== 'expired' && c.workspace_state !== 'released');
-  console.log(`${active.length} active clusters (of ${clusters.length} total), ${items.length} items.\n`);
 
   const rows = [];
   // Derived from whatever classifyForAllEditions() actually returns, rather
@@ -180,6 +184,62 @@ async function main() {
     }
   }
 
+  return { rows, stats, noItems, skippedIneligible, activeClusterCount: active.length, totalClusterCount: clusters.length, totalItemCount: items.length };
+}
+
+// P0-B: the atomic write, extracted for the same reason as
+// computeClassificationRows() above — ingest-production.js's post-swap hook
+// needs the exact write behavior a human running --write gets, not a
+// second copy of it. Always writes (there is no dry-run form of this
+// function — main() below decides whether to call it at all), so the
+// production-write guard is enforced HERE, unconditionally, rather than
+// trusted to every caller to remember. A caller that only wants a preview
+// simply doesn't call this function.
+// A drop this large below the CURRENT row count is refused unless the
+// caller explicitly forces it. Adversarial review caught the gap this
+// closes: the RPC's own guard only refuses a fully EMPTY batch
+// (schema-classification-atomic-replace-rpc-v1.sql), so a non-empty but
+// drastically SMALLER result (a partial upstream hiccup producing 50 rows
+// instead of 543) would sail straight through and silently wipe good data
+// -- the exact thing a human running --write used to catch by eye, reading
+// the printed dry-run stats before confirming. Once this call happens
+// automatically after every ingestion (no human review step at all), that
+// safety net has to live in code instead.
+const CLASSIFICATION_DROP_FLOOR_RATIO = 0.5;
+
+export async function writeClassificationRows(client, rows, { force = false } = {}) {
+  assertWriteAllowed();
+
+  if (!force) {
+    const { count: currentCount, error: countErr } = await client
+      .from('edition_story_classifications')
+      .select('story_id', { count: 'exact', head: true });
+    if (countErr) throw new Error(`writeClassificationRows: checking current row count — ${countErr.message}`);
+    if (currentCount > 0 && rows.length < currentCount * CLASSIFICATION_DROP_FLOOR_RATIO) {
+      throw new Error(
+        `writeClassificationRows: refusing to write ${rows.length} rows, down from ${currentCount} currently `
+        + `(a drop of more than ${Math.round((1 - CLASSIFICATION_DROP_FLOOR_RATIO) * 100)}%). `
+        + 'This looks like a partial failure upstream, not an intentional shrink. '
+        + 'If this drop is genuinely expected, pass { force: true } (CLI: --force).'
+      );
+    }
+  }
+
+  // schema-classification-atomic-replace-rpc-v1.sql: DELETE + INSERT inside
+  // ONE Postgres function call, i.e. one implicit transaction. Replaces the
+  // old truncate-then-batched-upsert flow, which made multiple separate
+  // HTTP requests with no client-side transaction spanning them — a batch
+  // failing partway through could leave the table with the delete
+  // committed and only some of the new rows written. That was tolerable
+  // for an occasional manual run; not once this runs automatically after
+  // every ingestion (below).
+  const { data: written, error } = await client.rpc('replace_edition_story_classifications', { p_rows: rows });
+  if (error) throw new Error(`replace_edition_story_classifications — ${error.message}`);
+  return written;
+}
+
+function printClassificationSummary({ stats, noItems, skippedIneligible, activeClusterCount, totalClusterCount, totalItemCount }) {
+  console.log(`${activeClusterCount} active clusters (of ${totalClusterCount} total), ${totalItemCount} items.\n`);
   if (noItems > 0) console.log(`(${noItems} clusters skipped — no member items fetched)\n`);
   if (skippedIneligible > 0) console.log(`(${skippedIneligible} edition placements skipped — no representation in that edition's locale, per Edition Representation Eligibility Gate)\n`);
 
@@ -192,40 +252,21 @@ async function main() {
     }
     console.log('');
   }
+}
+
+async function main() {
+  console.log(`\nPRODUCTION CLASSIFICATION WIRING — ${WRITE ? 'WRITE MODE' : 'DRY RUN (no writes)'}\n`);
+
+  const result = await computeClassificationRows(supabase);
+  printClassificationSummary(result);
 
   if (!WRITE) {
-    console.log(`DRY RUN — ${rows.length} rows would be upserted. Re-run with --write to apply.\n`);
+    console.log(`DRY RUN — ${result.rows.length} rows would be written. Re-run with --write to apply.\n`);
     return;
   }
 
-  // BUG FOUND live (2026-08-13, right after adding the Representation
-  // Eligibility Gate above): upsert alone does NOT delete rows that this
-  // run no longer produces. The gate's whole purpose is to STOP writing
-  // ineligible placements (e.g. a Malay-only story's en-global "Religion"
-  // row) — but every ineligible row written by an EARLIER run (before the
-  // gate existed) stayed in the table untouched, since upsert only
-  // touches rows present in `rows`. Confirmed live: table had 2595 rows
-  // after a --write that only produced 867. Truncate first — this script
-  // already fully regenerates its output from `active` every run (same
-  // full-recompute pattern as db/ingest-production.js), so there is no
-  // partial/incremental state here worth preserving between runs.
-  const { error: truncateErr } = await supabase.from('edition_story_classifications').delete().not('story_id', 'is', null);
-  if (truncateErr) throw new Error(`truncate edition_story_classifications — ${truncateErr.message}`);
-
-  // Upsert in batches; onConflict on the composite PK makes this safely
-  // re-runnable (a later calibration round re-runs the same script).
-  const BATCH = 500;
-  let written = 0;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const chunk = rows.slice(i, i + BATCH);
-    const { error } = await supabase
-      .from('edition_story_classifications')
-      .upsert(chunk, { onConflict: 'story_id,edition_id' });
-    if (error) throw new Error(`upsert batch ${i / BATCH} — ${error.message}`);
-    written += chunk.length;
-    console.log(`  upserted ${written}/${rows.length}`);
-  }
-  console.log(`\nDone. ${written} rows written to edition_story_classifications.\n`);
+  const written = await writeClassificationRows(supabase, result.rows, { force: FORCE });
+  console.log(`Done. ${written} rows written to edition_story_classifications (atomic replace).\n`);
 }
 
 // Guarded so importing this module for buildRuleMatchItem() (per the

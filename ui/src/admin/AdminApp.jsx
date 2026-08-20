@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, fetchClassificationBacklog, submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
 import FilterRuleEffect from './FilterRuleEffect.jsx';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
@@ -155,6 +155,8 @@ function ReviewQueue({ userId, role }) {
   const [busyStoryId, setBusyStoryId] = useState(null);
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState(null);
+  const [classificationBacklog, setClassificationBacklog] = useState(null);
+  const [classificationBacklogError, setClassificationBacklogError] = useState(null);
   // Polish 4A (2026-08-19): navigasi kini berasaskan URL sebenar (History
   // API, ui/src/admin/adminRouter.js) -- bukan lagi activeGroup/
   // activeSection/nilaiTab tiga lapisan berasingan. `pathname` diselaraskan
@@ -289,6 +291,26 @@ function ReviewQueue({ userId, role }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // P0-B backlog warning indicator: fetched ONCE, not per editionId switch
+  // — unlike digest, this is a global system-health fact (classify-
+  // production.js either ran across every edition or it didn't), not a
+  // per-edition number.
+  //
+  // A fetch FAILURE must never block Ringkasan itself, but adversarial
+  // review caught the first version of this treating "still loading" and
+  // "permanently failed" as the same state (classificationBacklog staying
+  // null forever, swallowed to console.warn only) -- which reproduces the
+  // exact shape of the P0 incident THIS indicator exists to catch: a
+  // silent gap nobody sees, inside the panel built to surface silent gaps.
+  // classificationBacklogError makes the terminal-failure case visible in
+  // the UI (AdminDigest.jsx), distinct from the transient-loading case
+  // (classificationBacklog still null, error still null).
+  useEffect(() => {
+    fetchClassificationBacklog(adminSupabase)
+      .then(setClassificationBacklog)
+      .catch(err => { console.warn('fetchClassificationBacklog:', err.message); setClassificationBacklogError(err.message); });
+  }, []);
+
   const resolve = async (storyId, action) => {
     setBusyStoryId(storyId);
     try {
@@ -350,6 +372,8 @@ function ReviewQueue({ userId, role }) {
             <AdminDigest
               digest={digest}
               error={digestError}
+              classificationBacklog={classificationBacklog}
+              classificationBacklogError={classificationBacklogError}
               onOpenQueue={() => goTo('/admin/berita/semakan')}
             />
           )}
@@ -452,7 +476,7 @@ function ReviewQueue({ userId, role }) {
       {activeGroup === 'kategori' && activeSection === 'penempatan' && (
         <PenempatanBeritaPage
           supabase={adminSupabase}
-          editionId={editionId}
+          editionId={editionId}
           taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
           taxonomyFieldLabels={getEdition(editionId).taxonomy}
           editionRules={editionRules}

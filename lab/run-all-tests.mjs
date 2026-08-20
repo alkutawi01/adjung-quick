@@ -64,6 +64,10 @@ const TEST_FILES = [
   'ui/src/admin/unpinWiring.test.mjs',
   'ui/src/admin/penempatanBerita.test.mjs',
   'db/polish-8-acceptance.test.mjs',
+  'db/classification-atomic-replace-static-audit.test.mjs',
+  'db/classify-production-p0b.test.mjs',
+  'ui/src/admin/classificationBacklog.test.mjs',
+  'db/ingest-classify-hook-static-audit.test.mjs',
 ];
 
 const results = [];

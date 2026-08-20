@@ -537,6 +537,73 @@ export async function fetchDigest(supabase, editionId) {
   };
 }
 
+// P0-B (docs/p0-classification-backlog-incident-v1.md): the incident this
+// exists to make visible was 408 of 686 live clusters having ZERO row in
+// edition_story_classifications for ANY edition — classify-production.js
+// simply never ran, and nothing surfaced that fact anywhere. This is
+// deliberately a WARNING INDICATOR, not the fix (the director's own
+// framing) — the real fix is the atomic write + automatic post-ingest hook
+// (writeClassificationRows()/computeClassificationRows() in
+// db/classify-production.js). A number this can go stale is still better
+// than a number no one is shown at all.
+//
+// Deliberately GLOBAL, not per-edition, unlike fetchDigest() above: the
+// failure mode is "the classifier didn't run at all", which affects every
+// edition identically and simultaneously — scoping this to one edition
+// would make three separate near-identical warnings instead of one honest
+// one. "Backlog" here means a cluster with NO classification row in ANY
+// edition, not "missing from edition_id=X" — a cluster genuinely
+// ineligible for one edition (Edition Representation Eligibility Gate,
+// e.g. an English-only story correctly having no ms-MY row) is NOT
+// backlog, it is working as designed, and counting it as backlog would
+// make this indicator cry wolf on every normal run.
+// Same pattern/PAGE size as db/ingest-production.js's own selectAllChunked
+// — kept as a small local copy rather than a shared module, since this is
+// the only caller on this side of the app and the two functions already
+// take their table name as a parameter (no divergent hardcoded logic to
+// keep in sync, just the loop shape).
+const CHUNK_PAGE = 1000;
+async function selectAllChunked(supabase, table, columns) {
+  const rows = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase.from(table).select(columns).range(from, from + CHUNK_PAGE - 1);
+    if (error) return { data: null, error };
+    rows.push(...data);
+    if (data.length < CHUNK_PAGE) break;
+    from += CHUNK_PAGE;
+  }
+  return { data: rows, error: null };
+}
+
+export async function fetchClassificationBacklog(supabase) {
+  // Adversarial review caught this reading unpaginated at first: PostgREST
+  // caps a single .select() at ~1000 rows, and this exact codebase has
+  // already hit that cap live on this table specifically (a stale comment
+  // in classify-production.js's history cites 2595 rows observed there
+  // before an unrelated fix). db/ingest-production.js's own
+  // selectAllChunked() (range()-chunked, PAGE=1000) is the established
+  // pattern for exactly this — a truncated edition_story_classifications
+  // read here would UNDERcount classifiedIds and report a false backlog,
+  // the "cry wolf" failure mode the comment above already worries about,
+  // just from the opposite direction. That helper is module-private to
+  // ingest-production.js (closes over its own module-level client), so a
+  // small local equivalent lives here rather than reaching across module
+  // boundaries for one function.
+  const [clustersRes, classifiedRes] = await Promise.all([
+    selectAllChunked(supabase, 'story_clusters', 'id, workspace_state'),
+    selectAllChunked(supabase, 'edition_story_classifications', 'story_id'),
+  ]);
+  if (clustersRes.error) throw new Error(`fetchClassificationBacklog: story_clusters — ${clustersRes.error.message}`);
+  if (classifiedRes.error) throw new Error(`fetchClassificationBacklog: edition_story_classifications — ${classifiedRes.error.message}`);
+
+  const live = clustersRes.data.filter(c => c.workspace_state !== 'expired' && c.workspace_state !== 'released');
+  const classifiedIds = new Set(classifiedRes.data.map(r => r.story_id));
+  const backlogCount = live.filter(c => !classifiedIds.has(c.id)).length;
+
+  return { liveClusterCount: live.length, backlogCount };
+}
+
 function startOfLocalDayIso() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);

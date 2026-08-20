@@ -25,6 +25,7 @@ import { fetchFeed } from '../lab/rss.js';
 import { buildRankedQueue } from '../lab/engine.js';
 import { assertWriteAllowed } from './production-write-guard.mjs';
 import { fetchAllSourcesForIngestion } from './source-registry-adapter.mjs';
+import { computeClassificationRows, writeClassificationRows } from './classify-production.js';
 import {
   computeProtectedStoryIds,
   computeMissingProtected,
@@ -413,6 +414,47 @@ async function main() {
   if (!allPass) {
     console.error('\nParity failed AFTER swap — the swap itself already committed. Use');
     console.error('db/rollback-ingestion-swap.mjs to swap *_old back if this needs reverting.');
+    process.exit(1);
+  }
+
+  // P0-B (docs/p0-classification-backlog-incident-v1.md): every ingestion
+  // that reaches this point has already committed a new generation of
+  // story_clusters/rss_items — until now, NOTHING then told the classifier
+  // about it. classify-production.js only ever ran when a human separately
+  // remembered to run it by hand, and the incident this closes found 408 of
+  // 686 live clusters (59%) had gone through ingestion but never
+  // classification, invisible to every reader, discovered only because
+  // Izzat asked why one category looked nearly empty.
+  //
+  // Deliberately NOT a second independent scheduler — the director's own
+  // reasoning: two separately-triggered automatic processes can drift out
+  // of sync with each other exactly the way ingestion and classification
+  // already had. Piggybacking on whatever already triggers ingestion (today
+  // a human running this script; potentially a real scheduler later) means
+  // classification is now automatic FOR FREE, for every existing and future
+  // caller, with no second cron/endpoint/secret to keep in sync.
+  //
+  // Failure here does NOT roll back the swap — the new generation is
+  // already live and correctly ingested; only classification of it is
+  // stale/missing, same recoverable state as today's manual gap, not a new
+  // failure mode. It exits non-zero specifically so an operator (or
+  // whatever eventually calls this script on a schedule) sees a clear
+  // signal rather than the run quietly reporting success while the exact
+  // incident this section exists to prevent recurs. writeClassificationRows()
+  // itself calls the same atomic RPC a human's --write does (schema-
+  // classification-atomic-replace-rpc-v1.sql) — if it fails partway, the
+  // PREVIOUS classification stays intact, never a half-written table.
+  console.log('\nRunning classification for the new generation (P0-B, automatic post-ingest)...');
+  try {
+    const classification = await computeClassificationRows(supabase);
+    const written = await writeClassificationRows(supabase, classification.rows);
+    console.log(`✓ Classification complete: ${written} rows written (atomic replace).\n`);
+  } catch (err) {
+    console.error('\n✗ CLASSIFICATION FAILED after a successful ingestion swap.');
+    console.error('  Production ingestion IS live and correct — only classification is stale.');
+    console.error('  Previous classification data is untouched (the atomic RPC never partially wrote).');
+    console.error('  Re-run manually: node db/classify-production.js --write');
+    console.error('  Underlying error:', err.message);
     process.exit(1);
   }
 }

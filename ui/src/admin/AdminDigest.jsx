@@ -5,7 +5,7 @@
 // hunting for problems, the system states what matters. Read-only — it
 // creates no editorial state, so it needs no confirm/reason flow.
 
-export default function AdminDigest({ digest, error, onOpenQueue }) {
+export default function AdminDigest({ digest, error, classificationBacklog, classificationBacklogError, onOpenQueue }) {
   if (error) {
     return (
       <section className="digest">
@@ -25,7 +25,22 @@ export default function AdminDigest({ digest, error, onOpenQueue }) {
     processed, needsAttention, noActionNeeded, actionsToday,
     hasYesterdayComparison, failedSourcesToday, activeOverridesToday, trend,
   } = digest;
-  const allClear = needsAttention === 0 && actionsToday.length === 0;
+  // P0-B (docs/p0-classification-backlog-incident-v1.md): a story with no
+  // classification row at all is invisible to every reader, not merely
+  // "needs a decision" like the review queue -- a nonzero backlog belongs
+  // in the same "not actually all clear" bucket as needsAttention, or this
+  // panel would say "Tiada apa-apa perlu perhatian" while hundreds of
+  // stories are silently missing. `classificationBacklog` is optional
+  // (null while its own best-effort fetch is still in flight) -- absence
+  // must never itself read as "backlog is zero".
+  //
+  // classificationBacklogError is a SEPARATE, terminal state from "still
+  // loading" (an adversarial review caught the first version conflating
+  // the two): if the fetch genuinely failed, this panel does not know
+  // whether there is a backlog, so it must not claim all-clear either --
+  // "unverified" is not the same fact as "verified zero".
+  const backlogCount = classificationBacklog?.backlogCount ?? 0;
+  const allClear = needsAttention === 0 && actionsToday.length === 0 && backlogCount === 0 && !classificationBacklogError;
 
   return (
     <section className="digest">
@@ -61,6 +76,29 @@ export default function AdminDigest({ digest, error, onOpenQueue }) {
             (daily-observation.mjs has run today); before that there is no
             "today" number to show at all, per ChatGPT's explicit guard
             against Digest computing these itself. */}
+        {/* P0-B: standing health check, not an edition-scoped "today"
+            number like the rows below -- see fetchClassificationBacklog()'s
+            own header for why this counts a cluster missing from EVERY
+            edition, not just the active one. Hidden only while its own
+            best-effort fetch hasn't resolved yet (classificationBacklog
+            starts null); a 0 is a real, verified zero, never a stand-in for
+            "not loaded". */}
+        {classificationBacklogError ? (
+          <div className="digest__row digest__row--attention">
+            <dt>Klasifikasi tertunggak</dt>
+            <dd>Tidak dapat disahkan: {classificationBacklogError}</dd>
+          </div>
+        ) : classificationBacklog !== null && (
+          <div className={`digest__row${backlogCount > 0 ? ' digest__row--attention' : ''}`}>
+            <dt>Klasifikasi tertunggak</dt>
+            <dd>
+              {backlogCount === 0
+                ? '0'
+                : `${backlogCount} berita belum melalui pengelasan`}
+            </dd>
+          </div>
+        )}
+
         {failedSourcesToday !== null && (
           <div className="digest__row">
             <dt>Sumber gagal</dt>
