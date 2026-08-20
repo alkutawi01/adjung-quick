@@ -64,7 +64,7 @@ export default function NilaiSusunanPanel({ supabase, editionId, taxonomyFieldCo
       {activeFieldCode && (
         <p className={`admin-app__status${isActiveProduction ? '' : ' admin-app__status--notice'}`}>
           {isActiveProduction
-            ? 'Digunakan oleh pembaca — susunan di bawah ialah apa yang pembaca lihat sekarang untuk kategori ini.'
+            ? 'Digunakan oleh pembaca — kaedah Nilai & Susunan ini aktif untuk kategori ini. Susunan setiap pembaca boleh berubah selepas mereka melepaskan berita.'
             : 'Pratonton — belum digunakan oleh pembaca. Paparan pembaca semasa untuk kategori ini masih menggunakan susunan sedia ada.'}
         </p>
       )}

@@ -69,11 +69,16 @@ export function computeFieldRanking(candidates) {
   //   Keluar           — WAS in diversity selection, displaced by composition
   //   Tidak dipilih    — never in the final set at any stage
   const rows = [];
-  for (const c of pinned) {
+  pinned.forEach((c, i) => {
     // `c` is already candidate-shaped here (this function's `candidates`
     // input is post-clusterToCandidate) -- no second conversion needed.
-    rows.push({ ...enrich(c), position: null, status: 'Dikekalkan editor', reason: 'Pin oleh editor' });
-  }
+    // Reader production puts Pin at the front of the Active Set
+    // (`[...pinned, ...ranked]`, state/reducer.js), so Pin genuinely
+    // occupies position 1/2 -- leaving this `null` let the panel sort
+    // Pin rows in among the unranked candidates below the real top 10
+    // (8C.1 fix, ChatGPT-caught Admin/Reader mismatch).
+    rows.push({ ...enrich(c), position: i + 1, status: 'Dikekalkan editor', reason: 'Pin oleh editor' });
+  });
   composed.forEach((c, i) => {
     const wasInDiversitySelection = diversitySelectedIds.has(c.storyId);
     const status = wasInDiversitySelection ? 'Kekal' : 'Masuk';

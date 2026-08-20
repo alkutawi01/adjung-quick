@@ -112,6 +112,28 @@ function candidate(overrides) {
     p3.status !== 'Dikekalkan editor' && rows.some(r => r.storyId === 'p3'));
 }
 
+// 8C.1 (ChatGPT-caught Admin/Reader mismatch): Reader production puts Pin
+// at the front of the Active Set ([...pinned, ...ranked]) -- Pin rows must
+// get real position 1/2, not null, or the panel sorts them in among the
+// unranked candidates below the real top 10.
+{
+  const cands = [
+    candidate({ storyId: 'p1', pinned: true, pinnedAt: hoursAgo(200) }),
+    candidate({ storyId: 'p2', pinned: true, pinnedAt: hoursAgo(150) }),
+    ...Array.from({ length: 12 }, (_, i) => candidate({ storyId: `c${i}`, title: `Judul ${i}`, sourceId: `s${i}`, sourceName: `Sumber ${i}`, trustScore: 50 + i })),
+  ];
+  const rows = computeFieldRanking(cands);
+  const p1 = rows.find(r => r.storyId === 'p1');
+  const p2 = rows.find(r => r.storyId === 'p2');
+  assert('2 Pin get real positions 1 and 2 (not null)', p1.position === 1 && p2.position === 2);
+  const finalSet = rows.filter(r => r.position != null).sort((a, b) => a.position - b.position);
+  const positions = finalSet.map(r => r.position);
+  assert('final set of 10 has continuous positions 1..10',
+    finalSet.length === 10 && positions.every((p, i) => p === i + 1));
+  assert('Pin rows (position 1/2) sort before ranked candidates in the final set',
+    finalSet[0].storyId === 'p1' && finalSet[1].storyId === 'p2');
+}
+
 // <10 eligible candidates -> all shown, no padding/filler rows.
 {
   const cands = [candidate({ storyId: 'a' }), candidate({ storyId: 'b' }), candidate({ storyId: 'c' })];
