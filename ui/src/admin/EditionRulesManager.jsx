@@ -53,11 +53,18 @@ const PLACEMENT_SUBJECTS = [
 // `type: null, value: null` satisfies the schema's geography XOR constraint
 // (both null or both set), so "Semua lokasi" is a real stored state rather
 // than a UI-only convenience.
+// Ordered narrowest-first (8E.1). "Semua lokasi" is a legitimate choice but
+// it is also the BROADEST rule, and because every new rule is assigned the
+// highest priority, a later "Politik / Semua lokasi" would silently outrank
+// an earlier "Politik / Luar Malaysia" — the resolver has no specificity
+// tie-break. Listing it last, behind an explicit "— Pilih lokasi —", means
+// the broadest rule can no longer be created by simply not deciding.
 const LOCATIONS = [
-  { key: 'all', label: 'Semua lokasi', type: null, value: null },
   { key: 'malaysia', label: 'Malaysia', type: 'is', value: 'Malaysia' },
   { key: 'luar', label: 'Luar Malaysia', type: 'not', value: 'Malaysia' },
+  { key: 'all', label: 'Semua lokasi', type: null, value: null },
 ];
+const ALL_LOCATIONS_LABEL = LOCATIONS.find(l => l.key === 'all').label;
 
 // DISPLAY-ONLY labels for values this page no longer offers but that older
 // rows (or a direct DB write) may still contain. Without these the table
@@ -81,7 +88,7 @@ export const subjectLabel = value =>
   ?? value;
 
 export const locationLabel = (type, value) => {
-  if (!type) return LOCATIONS[0].label;
+  if (!type) return ALL_LOCATIONS_LABEL;
   const known = LOCATIONS.find(l => l.type === type && l.value === value);
   if (known) return known.label;
   const place = LEGACY_GEOGRAPHY_LABELS[value] ?? value;
@@ -106,11 +113,26 @@ export function nextPriorityFor(rules) {
   return highest + 1;
 }
 
+// Exported for the same reason as nextPriorityFor above: the interesting
+// case is "subject and target chosen, location NOT chosen", which a static
+// render cannot reach (it has no state) — so a rendered-HTML assertion
+// passed happily when `locationKey` was dropped from this condition.
+export function canSubmitRule({ subject, locationKey, fieldCode, busy }) {
+  return Boolean(subject && locationKey && fieldCode && !busy);
+}
+
 // The geography XOR (`edition_rules_geography_xor`) requires type and value
 // to be BOTH null or BOTH set. Keeping them on one LOCATIONS entry and
 // building the payload here means no call site can ever split the pair.
+//
+// Returns null for a missing/unknown key (8E.1) rather than defaulting. It
+// used to fall back to the first LOCATIONS entry, which meant a caller that
+// forgot the field — or passed a stale key — silently created the BROADEST
+// possible rule: the one hardest to notice and, under newest-wins priority,
+// the one that outranks everything narrower. Failing loudly is the point.
 export function buildRulePayload({ subject, locationKey, fieldCode, nextPriority }) {
-  const location = LOCATIONS.find(l => l.key === locationKey) ?? LOCATIONS[0];
+  const location = LOCATIONS.find(l => l.key === locationKey);
+  if (!location) return null;
   return {
     conditionSubject: subject,
     conditionGeographyType: location.type,
@@ -271,17 +293,21 @@ function EditionRuleRow({ rule, fieldLabelFor, busy, onArchive, onRestore, archi
 // that value is now a max, not a count.
 export function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, busy, onAdd, nextPriority }) {
   const [subject, setSubject] = useState('');
-  const [locationKey, setLocationKey] = useState('all');
+  // Starts empty (8E.1): location must be a deliberate choice, not something
+  // an editor gets by default. See the LOCATIONS note.
+  const [locationKey, setLocationKey] = useState('');
   const [fieldCode, setFieldCode] = useState('');
 
-  const canSubmit = subject && fieldCode && !busy;
+  const canSubmit = canSubmitRule({ subject, locationKey, fieldCode, busy });
 
   const submit = e => {
     e.preventDefault();
     if (!canSubmit) return;
-    onAdd(buildRulePayload({ subject, locationKey, fieldCode, nextPriority }));
+    const payload = buildRulePayload({ subject, locationKey, fieldCode, nextPriority });
+    if (!payload) return; // unknown location key — never fall through to a global rule
+    onAdd(payload);
     setSubject('');
-    setLocationKey('all');
+    setLocationKey('');
     setFieldCode('');
   };
 
@@ -300,6 +326,7 @@ export function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, bu
       <label className="edition-rules__field">
         Jika lokasinya:
         <select value={locationKey} onChange={e => setLocationKey(e.target.value)} disabled={busy}>
+          <option value="">— Pilih lokasi —</option>
           {LOCATIONS.map(l => <option key={l.key} value={l.key}>{l.label}</option>)}
         </select>
       </label>

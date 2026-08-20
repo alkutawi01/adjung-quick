@@ -38,7 +38,7 @@ const managerSrc = fs.readFileSync(managerUrl, 'utf8');
 const adapterSrc = fs.readFileSync(new URL('./editionRulesAdapter.js', import.meta.url), 'utf8');
 
 const tmpUrl = new URL('./.penempatanBerita.compiled.tmp.mjs', import.meta.url);
-let EditionRulesManager, AddEditionRuleForm, nextPriorityFor, buildRulePayload, subjectLabel, locationLabel;
+let EditionRulesManager, AddEditionRuleForm, nextPriorityFor, buildRulePayload, canSubmitRule, subjectLabel, locationLabel;
 try {
   await build({
     entryPoints: [fileURLToPath(managerUrl)],
@@ -46,7 +46,7 @@ try {
     bundle: true, format: 'esm', platform: 'node', logLevel: 'silent',
     external: ['react', 'react-dom', 'react-dom/server', '@supabase/supabase-js'],
   });
-  ({ default: EditionRulesManager, AddEditionRuleForm, nextPriorityFor, buildRulePayload, subjectLabel, locationLabel } = await import(tmpUrl.href));
+  ({ default: EditionRulesManager, AddEditionRuleForm, nextPriorityFor, buildRulePayload, canSubmitRule, subjectLabel, locationLabel } = await import(tmpUrl.href));
 } finally {
   fs.rmSync(tmpUrl, { force: true });
 }
@@ -136,9 +136,17 @@ const renderPage = rules => renderToStaticMarkup(
     my.conditionSubject === 'Crime');
   assert('the payload carries the computed priority through unchanged',
     all.priority === 7);
-  assert('an unknown location key falls back to "Semua lokasi" rather than a split pair',
-    (() => { const p = buildRulePayload({ subject: 'X', locationKey: 'nope', fieldCode: 'y', nextPriority: 1 });
-      return p.conditionGeographyType === null && p.conditionGeographyValue === null; })());
+  // 8E.1: must NOT silently become the broadest rule. Defaulting an unknown
+  // key to "Semua lokasi" meant a caller that forgot the field created the
+  // widest possible rule -- which, under newest-wins priority, outranks
+  // every narrower one.
+  assert('an unknown location key returns null, never a silent "Semua lokasi" rule',
+    buildRulePayload({ subject: 'X', locationKey: 'nope', fieldCode: 'y', nextPriority: 1 }) === null);
+  assert('an empty location key returns null too',
+    buildRulePayload({ subject: 'X', locationKey: '', fieldCode: 'y', nextPriority: 1 }) === null
+    && buildRulePayload({ subject: 'X', fieldCode: 'y', nextPriority: 1 }) === null);
+  assert('"Semua lokasi" is still creatable when chosen EXPLICITLY',
+    buildRulePayload({ subject: 'X', locationKey: 'all', fieldCode: 'y', nextPriority: 1 })?.conditionGeographyType === null);
 }
 
 // --- Legacy rows: values this page no longer offers must still render in
@@ -196,6 +204,27 @@ const renderPage = rules => renderToStaticMarkup(
   for (const opt of ['Semua lokasi', 'Malaysia', 'Luar Malaysia']) {
     assert(`location dropdown offers "${opt}"`, new RegExp(`>${opt}<`).test(html));
   }
+  // 8E.1: location must be chosen deliberately.
+  assert('location dropdown opens on an explicit "— Pilih lokasi —" placeholder',
+    /— Pilih lokasi —/.test(html));
+  assert('no location is preselected (the placeholder is the selected option)',
+    /<select><option selected value="">— Pilih lokasi —/.test(html.replace(/\s+/g, ' ')) || !/selected[^>]*>(Semua lokasi|Malaysia|Luar Malaysia)</.test(html));
+  assert('the submit button starts disabled — a rule cannot be sent without a location',
+    /<button type="submit" disabled=""/.test(html));
+  // The interesting case needs STATE, which a static render cannot reach:
+  // subject and target chosen, location left unchosen. Asserted against the
+  // real predicate the form uses -- a rendered-HTML check passed happily
+  // when locationKey was dropped from it.
+  assert('a rule with subject + target but NO location cannot be submitted',
+    canSubmitRule({ subject: 'Politics', locationKey: '', fieldCode: 'dunia', busy: false }) === false);
+  assert('the same rule becomes submittable once a location is chosen',
+    canSubmitRule({ subject: 'Politics', locationKey: 'luar', fieldCode: 'dunia', busy: false }) === true);
+  assert('busy still blocks submission',
+    canSubmitRule({ subject: 'Politics', locationKey: 'luar', fieldCode: 'dunia', busy: true }) === false);
+  // "Semua lokasi" is listed LAST: it is the broadest rule and, under
+  // newest-wins priority, silently outranks anything narrower added before it.
+  assert('"Semua lokasi" is offered last, after the narrower choices',
+    html.indexOf('>Semua lokasi<') > html.indexOf('>Luar Malaysia<'));
   for (const leaked of ['Americas', 'Europe', 'Southeast Asia', 'Middle East']) {
     assert(`geography "${leaked}" is NOT exposed in ms-MY V1`, !new RegExp(leaked).test(html));
   }
