@@ -76,10 +76,13 @@ for (const file of TEST_FILES) {
 const failed = results.filter(r => !r.passed);
 
 console.log('\n' + '='.repeat(60));
-console.log(`TEST SUMMARY — ${results.length} fail dijalankan, ${results.length - failed.length} lulus, ${failed.length} gagal`);
+// "fail ujian", not bare "fail" — in Malay a bare "fail" next to a count
+// reads as English "failure", exactly backwards from what it means here
+// (it's the Malay word for "file"). Director's note, 2026-08-20.
+console.log(`TEST SUMMARY — ${results.length} fail ujian dijalankan, ${results.length - failed.length} lulus, ${failed.length} gagal`);
 console.log('='.repeat(60));
 if (failed.length > 0) {
-  console.log('\nFail GAGAL (semak output di atas untuk butiran):');
+  console.log('\nFail ujian yang GAGAL (semak output di atas untuk butiran):');
   for (const r of failed) console.log(`  ✗ ${r.file}`);
 }
 console.log('');
