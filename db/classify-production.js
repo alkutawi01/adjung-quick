@@ -46,6 +46,34 @@ const WRITE = process.argv.includes('--write');
 const FORCE = process.argv.includes('--force');
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
+// P0-B.2 (docs/p0-classification-backlog-incident-v1.md): story_clusters
+// and rss_items were read with a plain .select(), no pagination -- the
+// same ~1000-row PostgREST default cap this project has already hit twice
+// on other tables (db/ingest-production.js's protectedStoryIds read,
+// ui/src/admin/reviewQueueAdapter.js's classification backlog read; both
+// carry this exact same range()-chunked fix, same PAGE size). Corpus is
+// currently ~686 clusters / ~741 items so this hadn't bitten yet, but
+// rss_items in particular is close enough that the next ingestion could
+// silently truncate it -- and unlike a human running --write and eyeballing
+// the dry-run stats, the automatic post-ingest hook (ingest-production.js)
+// has no one watching to notice a quietly-partial corpus.
+// Parameterized by client (not a module-level singleton) for the same
+// reason computeClassificationRows() itself is: ingest-production.js calls
+// this with its own already-open client, never a second connection.
+const CHUNK_PAGE = 1000;
+async function selectAllChunked(client, table, columns) {
+  const rows = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await client.from(table).select(columns).range(from, from + CHUNK_PAGE - 1);
+    if (error) return { data: null, error };
+    rows.push(...data);
+    if (data.length < CHUNK_PAGE) break;
+    from += CHUNK_PAGE;
+  }
+  return { data: rows, error: null };
+}
+
 // Extracted per docs/control-plane-phase3-production-wiring-audit-plan-v1.md
 // so the wiring itself (not just resolveClassificationRule() in isolation)
 // is directly testable — this is the exact shape classification-rules-
@@ -100,9 +128,13 @@ export async function computeClassificationRows(client) {
 
   // Pull clusters + their member items. The classifier needs the item's
   // own signals (link/categories/title), not the cluster's legacy topic.
+  // P0-B.2: chunked (selectAllChunked, PAGE=1000) -- see comment above its
+  // definition. Unpaginated here would silently drop clusters/items past
+  // the first page rather than error, so this corpus growing past ~1000
+  // rows would fail SILENTLY without this.
   const [{ data: clusters, error: cErr }, { data: items, error: iErr }] = await Promise.all([
-    client.from('story_clusters').select('id, topic, workspace_state'),
-    client.from('rss_items').select('id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at, language'),
+    selectAllChunked(client, 'story_clusters', 'id, topic, workspace_state'),
+    selectAllChunked(client, 'rss_items', 'id, cluster_id, source_id, title, description, link, categories, source_known_category, published_at, language'),
   ]);
   if (cErr) throw new Error(`story_clusters — ${cErr.message}`);
   if (iErr) throw new Error(`rss_items — ${iErr.message}`);

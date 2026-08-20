@@ -51,12 +51,25 @@ console.log('\nCLASSIFY-PRODUCTION P0-B — computeClassificationRows / writeCla
 // computeClassificationRows() awaits. `.select(cols, {count:'exact',
 // head:true})` — the shape writeClassificationRows()'s row-count-floor
 // guard uses — resolves {count, error} instead, same as the real client.
+//
+// P0-B.2: `.range(from, to)` slices `data`, matching the real client's
+// range() semantics exactly. Crucially, AWAITING WITHOUT calling .range()
+// first (the un-paginated call shape selectAllChunked() replaces) caps the
+// result at REAL_POSTGREST_DEFAULT_CAP — mirroring PostgREST's real
+// silent-truncation behavior — so a regression back to a plain, unpaginated
+// .select() would make the >REAL_POSTGREST_DEFAULT_CAP-row fixture test
+// below fail loudly (wrong activeClusterIds.length) instead of just
+// happening to still work against a small fixture.
+const REAL_POSTGREST_DEFAULT_CAP = 1000;
 function makeQuery(data, error = null) {
   const q = {
     select: (_cols, opts) => (opts?.count ? { then: (resolve, reject) => Promise.resolve({ count: data.length, error }).then(resolve, reject) } : q),
     eq: () => q,
     order: () => q,
-    then: (resolve, reject) => Promise.resolve({ data, error }).then(resolve, reject),
+    range: (from, to) => ({
+      then: (resolve, reject) => Promise.resolve({ data: data.slice(from, to + 1), error }).then(resolve, reject),
+    }),
+    then: (resolve, reject) => Promise.resolve({ data: data.slice(0, REAL_POSTGREST_DEFAULT_CAP), error }).then(resolve, reject),
   };
   return q;
 }
@@ -140,6 +153,58 @@ const itemB = {
   // whole block already — the block completing at all IS the proof.
   assert('completed without ever calling the fake rpc() (compute is I/O-read-only)',
     client._rpcCalls.length === 0);
+}
+
+// --- P0-B.2 (docs/p0-classification-backlog-incident-v1.md): story_clusters
+// and rss_items must be read with selectAllChunked(), not a plain .select()
+// — the same ~1000-row PostgREST default cap this project has already hit
+// on two other tables. 1050 clusters, one item each (1050 items too, so
+// BOTH reads need a second page), built so a regression back to a plain
+// .select() is caught by wrong counts here, not just "seemed to still
+// work" against a small fixture. ---
+{
+  const PAGINATION_FIXTURE_SIZE = 1050;
+  const bigClusters = [];
+  const bigItems = [];
+  for (let i = 0; i < PAGINATION_FIXTURE_SIZE; i++) {
+    bigClusters.push({ id: `pg-cluster-${i}`, topic: 'Unclassified', workspace_state: 'active' });
+    bigItems.push({
+      id: `pg-item-${i}`, cluster_id: `pg-cluster-${i}`, source_id: 'rss-awani-politik',
+      title: `Kongres lulus undang-undang ${i}`, description: 'Parlimen.',
+      link: `https://www.astroawani.com/berita-politik/kongres-lulus-${i}`,
+      categories: [], source_known_category: null, published_at: '2026-08-17T00:00:00Z', language: 'ms',
+    });
+  }
+
+  // Wraps makeQuery() (same REAL_POSTGREST_DEFAULT_CAP-truncating .then()
+  // fallback and real .range()-slicing behavior) but counts how many times
+  // .range() is actually called per table, so "was this genuinely paginated"
+  // is proven by call count, not just by the final row count happening to
+  // come out right.
+  const rangeCallCounts = { story_clusters: 0, rss_items: 0 };
+  const client = fakeSupabase({ story_clusters: bigClusters, rss_items: bigItems });
+  const realFrom = client.from.bind(client);
+  client.from = (table) => {
+    const q = realFrom(table);
+    if (table in rangeCallCounts) {
+      const realRange = q.range.bind(q);
+      q.range = (from, to) => { rangeCallCounts[table]++; return realRange(from, to); };
+    }
+    return q;
+  };
+
+  const result = await computeClassificationRows(client);
+
+  assert('story_clusters required exactly 2 .range() calls to exhaust 1050 rows (1000 + 50)',
+    rangeCallCounts.story_clusters === 2);
+  assert('rss_items required exactly 2 .range() calls to exhaust 1050 rows (1000 + 50)',
+    rangeCallCounts.rss_items === 2);
+  assert('activeClusterIds captures all 1050 clusters, not just the first 1000-row page',
+    result.activeClusterIds.length === PAGINATION_FIXTURE_SIZE);
+  assert('a cluster whose ONLY item lives on the second page (index 1049, past the 1000-row cap) still classifies — its item genuinely reached the classifier',
+    result.rows.some(r => r.story_id === 'pg-cluster-1049'));
+  assert('no cluster is falsely counted as having no items just because its item was on the second page',
+    result.noItems === 0);
 }
 
 // --- writeClassificationRows(): routes through the RPC, not a client-side
