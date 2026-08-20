@@ -12,16 +12,11 @@ import ClassificationFlow from './ClassificationFlow.jsx';
 import { fetchEditionRules, addEditionRule, archiveEditionRule, restoreEditionRule } from './editionRulesAdapter.js';
 import SourceRegistryPanel from './SourceRegistryPanel.jsx';
 import { PemetaanSumberPage, PetunjukRssUrlPage, FeedCampuranPage, SemuaPelarasanPage, PenempatanBeritaPage } from './BidangPanel.jsx';
-import ValueRankingPanel from './ValueRankingPanel.jsx';
-import KaedahNilaiPanel from './KaedahNilaiPanel.jsx';
-import PemilihanPanel from './PemilihanPanel.jsx';
-import SusunanAkhirPanel from './SusunanAkhirPanel.jsx';
-import { fetchScoringCorpus } from './kaedahNilaiAdapter.js';
-import { DEFAULT_SCORING_V1_WEIGHTS } from '../../../ranking/scoring-v1-simulation.mjs';
+import NilaiSusunanPanel from './NilaiSusunanPanel.jsx';
 import AllStoriesPanel from './AllStoriesPanel.jsx';
 import TapisanPanel from './TapisanPanel.jsx';
 import AdminShell from './AdminShell.jsx';
-import { DEFAULT_PATH, resolvePage, navigate as routerNavigate } from './adminRouter.js';
+import { DEFAULT_PATH, resolvePage, resolveRedirect, navigate as routerNavigate } from './adminRouter.js';
 
 // AdminApp.jsx — Fasa 3.6.2 Review Queue. Per
 // docs/review-queue-ui-implementation-plan-v1.md §5: reuses Supabase Auth
@@ -178,8 +173,9 @@ function ReviewQueue({ userId, role }) {
 
   useEffect(() => {
     if (!activePage) {
-      window.history.replaceState({}, '', DEFAULT_PATH);
-      setPathname(DEFAULT_PATH);
+      const target = resolveRedirect(pathname) ?? DEFAULT_PATH;
+      window.history.replaceState({}, '', target);
+      setPathname(target);
     }
   }, [pathname, activePage]);
 
@@ -190,19 +186,6 @@ function ReviewQueue({ userId, role }) {
 
   const activeGroup = activePage?.group ?? 'berita';
   const activeSection = activePage?.id;
-  const nilaiTab = activePage?.id; // 'data-sebenar' | 'kaedah' | 'pemilihan' | 'susunan-akhir'
-
-  // Pusingan 14/15: dikongsi antara KaedahNilaiPanel dan PemilihanPanel --
-  // satu fetch, satu set berat simulasi, bukan dua salinan berasingan.
-  const [scoringCorpus, setScoringCorpus] = useState(null);
-  const [scoringCorpusError, setScoringCorpusError] = useState(null);
-  const [scoringWeights, setScoringWeights] = useState(DEFAULT_SCORING_V1_WEIGHTS);
-
-  useEffect(() => {
-    if (activeGroup === 'nilai' && nilaiTab !== 'data-sebenar' && scoringCorpus === null && !scoringCorpusError) {
-      fetchScoringCorpus(adminSupabase).then(setScoringCorpus).catch(err => setScoringCorpusError(err.message));
-    }
-  }, [activeGroup, nilaiTab, scoringCorpus, scoringCorpusError]);
 
   const [filterRules, setFilterRules] = useState(null); // null = not loaded yet
   const [filterRulesError, setFilterRulesError] = useState(null);
@@ -476,17 +459,13 @@ function ReviewQueue({ userId, role }) {
         />
       )}
 
-      {activeGroup === 'nilai' && nilaiTab === 'data-sebenar' && (
-        <ValueRankingPanel supabase={adminSupabase} role={role} userId={userId} />
-      )}
-      {activeGroup === 'nilai' && nilaiTab === 'kaedah' && (
-        <KaedahNilaiPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} setWeights={setScoringWeights} />
-      )}
-      {activeGroup === 'nilai' && nilaiTab === 'pemilihan' && (
-        <PemilihanPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} />
-      )}
-      {activeGroup === 'nilai' && nilaiTab === 'susunan-akhir' && (
-        <SusunanAkhirPanel corpus={scoringCorpus} error={scoringCorpusError} weights={scoringWeights} />
+      {activeGroup === 'nilai' && (
+        <NilaiSusunanPanel
+          supabase={adminSupabase}
+          editionId={editionId}
+          taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
+          taxonomyFieldLabels={getEdition(editionId).taxonomy}
+        />
       )}
     </AdminShell>
   );

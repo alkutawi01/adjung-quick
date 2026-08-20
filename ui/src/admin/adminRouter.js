@@ -29,16 +29,31 @@ export const PAGES = [
   { group: 'kategori', id: 'feed-campuran', path: '/admin/kategori/feed-campuran', label: 'Feed Campuran' },
   { group: 'kategori', id: 'pelarasan', path: '/admin/kategori/pelarasan', label: 'Semua Pelarasan' },
   { group: 'kategori', id: 'penempatan', path: '/admin/kategori/penempatan', label: 'Penempatan Berita' },
-  { group: 'nilai', id: 'data-sebenar', path: '/admin/nilai/data-sebenar', label: 'Data Sebenar' },
-  { group: 'nilai', id: 'kaedah', path: '/admin/nilai/kaedah', label: 'Kaedah Nilai' },
-  { group: 'nilai', id: 'pemilihan', path: '/admin/nilai/pemilihan', label: 'Pemilihan 10' },
-  { group: 'nilai', id: 'susunan-akhir', path: '/admin/nilai/susunan-akhir', label: 'Susunan Akhir' },
+  { group: 'nilai', id: 'nilai', path: '/admin/nilai', label: 'Nilai & Susunan' },
 ];
 
 export const DEFAULT_PATH = '/admin/berita/ringkasan';
 
+// Polish 8C (docs/polish-8-selection-audit-v1.md): "Nilai & Susunan" was
+// four separate pages (Data Sebenar / Kaedah Nilai / Pemilihan 10 /
+// Susunan Akhir), unified into one (/admin/nilai). Old bookmarks/back-
+// forward history pointing at the four retired URLs still resolve
+// somewhere sensible instead of falling through to the unrelated global
+// DEFAULT_PATH -- a small alias map, per ChatGPT's explicit instruction
+// not to add React Router for this.
+const LEGACY_REDIRECTS = {
+  '/admin/nilai/data-sebenar': '/admin/nilai',
+  '/admin/nilai/kaedah': '/admin/nilai',
+  '/admin/nilai/pemilihan': '/admin/nilai',
+  '/admin/nilai/susunan-akhir': '/admin/nilai',
+};
+
 export function resolvePage(pathname) {
   return PAGES.find(p => p.path === pathname) ?? null;
+}
+
+export function resolveRedirect(pathname) {
+  return LEGACY_REDIRECTS[pathname] ?? null;
 }
 
 export function pagesForGroup(groupId) {

@@ -1,33 +1,23 @@
 // valueRankingAdapter.js — Admin Console V2, "Nilai & Susunan" real data.
 //
-// Pusingan 11/15 (2026-08-19). Per ChatGPT: stop being an explanatory
-// page, show what the system is actually choosing and why.
-//
-// Traced first (state/rankingFlags.js, state/reducer.js::selectFieldActiveSet):
-// the real, explainable Editorial Ranking Engine (candidate-scoring ->
-// diversity-selection -> editorial-composition) is LIVE for exactly ONE
-// (edition, field): ms-MY / politics. Every other field/edition uses the
-// legacy path -- plain stored editorial_score order, no per-candidate
-// breakdown, no diversity/composition reasoning to show. This module
-// therefore only computes the real pipeline for ms-MY/politics; nothing
-// here is invented for fields that don't have it.
-//
-// Reuses the EXACT pure functions production already calls (imported
-// unmodified from ranking/*.mjs and state/editorialRankingAdapter.js's
-// exported clusterToCandidate) rather than a re-implementation -- this
-// module's only job is to call them from the admin side and expose each
-// intermediate stage (score -> diversity selection -> composition) that
-// state/reducer.js's selectFieldActiveSet() normally collapses into one
-// return value, so the admin can see the difference between Nilai,
-// Pemilihan, and Susunan Akhir instead of just the final list.
+// Polish 8C (docs/polish-8-selection-audit-v1.md): generalized from a
+// hardcoded ms-MY/politics-only module into the single adapter the unified
+// NilaiSusunanPanel.jsx uses for ANY (editionId, fieldCode) — active or
+// not. The pipeline itself is unchanged (still the exact production
+// functions, unmodified): fetchRankedQueue() -> scoreCandidates() ->
+// selectDiverseCandidates() -> applyEditorialComposition(). Whether the
+// RESULT is "what the reader sees" or "pratonton" is a presentation
+// decision the caller makes via getRankingVersion() -- this module always
+// computes the real pipeline, honestly, for whatever field it's asked for.
 //
 // Data source: productionAdapter.js's fetchRankedQueue() -- the SAME
-// corpus the real reader pipeline runs on (hidden/filtered stories
-// already excluded, matching what a reader's Active Set selection would
-// actually draw from). Admin-authenticated `supabase` client is used only
-// for the promotional-override id lookup below (boost/pin ids aren't
-// carried on rankedQueue entries); the ranked queue read itself goes
-// through the same reader-facing adapter, unmodified.
+// corpus the real reader pipeline runs on (hidden/filtered stories already
+// excluded). This was previously KaedahNilaiPanel/PemilihanPanel/
+// SusunanAkhirPanel's separate concern (a different corpus via
+// kaedahNilaiAdapter.fetchScoringCorpus) -- Polish 8C intentionally
+// standardises on ONE corpus reader for the whole "Nilai & Susunan" surface
+// so an active category and a not-yet-active category are never computed
+// from two different data shapes on the same page.
 
 import { fetchRankedQueue, fetchSourceNames } from '../adapter/productionAdapter.js';
 import { getFieldLabel } from '../../../state/editions.js';
@@ -36,8 +26,6 @@ import { selectDiverseCandidates } from '../../../ranking/diversity-selection.mj
 import { applyEditorialComposition } from '../../../ranking/editorial-composition.mjs';
 import { clusterToCandidate } from '../../../state/editorialRankingAdapter.js';
 
-export const RANKED_EDITION_ID = 'ms-MY';
-export const RANKED_FIELD_CODE = 'politics';
 const CAPACITY = 10; // state/model.js's activeSetCapacity baseline
 
 const REASON_LABELS = {
@@ -45,104 +33,104 @@ const REASON_LABELS = {
   source_diversity_opportunity: 'Dimasukkan demi kepelbagaian sumber',
   dominant_event_preserved: 'Peristiwa dominan sebenar, tiada gantian sesuai',
   no_diversity_candidate_available: 'Tiada calon sumber lain tersedia',
+  source_diversity_preserved: 'Pilihan pertama daripada sumber ini',
+  source_diversity_discounted: 'Penalti kepelbagaian dikenakan',
 };
 
-export async function fetchValueRankingData(supabase) {
-  const [rankedQueue, sourceNameById] = await Promise.all([
-    fetchRankedQueue(RANKED_EDITION_ID),
-    fetchSourceNames(),
-  ]);
-  const eligible = rankedQueue.filter(c => c.topic === RANKED_FIELD_CODE);
-
+// Pure -- no I/O. Takes an already-built candidate list (clusterToCandidate
+// shape, `pinned`/`pinnedAt` already attached) for ONE field and runs the
+// real pipeline. Separated from fetchValueRankingData() below so this can
+// be unit-tested with fixtures, no Supabase client required.
+export function computeFieldRanking(candidates) {
   // Same pin extraction as state/reducer.js::selectFieldActiveSet -- pin
   // bypasses the ranking contest entirely, so it's separated BEFORE
-  // scoring, not folded into the score.
-  const pinned = eligible
+  // scoring, not folded into the score. Capped at 2, oldest-pin-first.
+  const pinned = candidates
     .filter(c => c.pinned)
     .sort((a, b) => new Date(a.pinnedAt ?? 0) - new Date(b.pinnedAt ?? 0))
     .slice(0, 2);
-  const pinnedIds = new Set(pinned.map(c => c.clusterKey));
-  const rest = eligible.filter(c => !pinnedIds.has(c.clusterKey));
+  const pinnedIds = new Set(pinned.map(c => c.storyId));
+  const rest = candidates.filter(c => !pinnedIds.has(c.storyId));
   const remainingCapacity = Math.max(0, CAPACITY - pinned.length);
 
-  const candidates = rest.map(clusterToCandidate);
-  const scored = scoreCandidates(candidates);
+  const scored = scoreCandidates(rest);
   const diversitySelected = selectDiverseCandidates(scored, remainingCapacity);
-  const alternativePool = scored.filter(c => !diversitySelected.some(s => s.storyId === c.storyId));
+  const diversitySelectedIds = new Set(diversitySelected.map(c => c.storyId));
+  const alternativePool = scored.filter(c => !diversitySelectedIds.has(c.storyId));
   const { selected: composed, compositionReasons } = applyEditorialComposition(diversitySelected, { alternativePool });
+  const composedIds = new Set(composed.map(c => c.storyId));
 
-  const storyIds = eligible.map(c => c.clusterKey);
-  const promo = storyIds.length > 0 ? await fetchPromotionalOverrideIds(supabase, RANKED_EDITION_ID, storyIds) : new Map();
+  // Status per Polish 8C's locked semantics -- Masuk/Kekal/Keluar now mean
+  // something real about the selection -> composition transition, not a
+  // comparison between two experimental score formulas:
+  //   Dikekalkan editor — Pin (bypasses the contest entirely)
+  //   Kekal            — selected by diversity, stays after composition
+  //   Masuk            — NOT in diversity selection, added by composition swap
+  //   Keluar           — WAS in diversity selection, displaced by composition
+  //   Tidak dipilih    — never in the final set at any stage
+  const rows = [];
+  for (const c of pinned) {
+    // `c` is already candidate-shaped here (this function's `candidates`
+    // input is post-clusterToCandidate) -- no second conversion needed.
+    rows.push({ ...enrich(c), position: null, status: 'Dikekalkan editor', reason: 'Pin oleh editor' });
+  }
+  composed.forEach((c, i) => {
+    const wasInDiversitySelection = diversitySelectedIds.has(c.storyId);
+    const status = wasInDiversitySelection ? 'Kekal' : 'Masuk';
+    const compositionReason = compositionReasons[c.storyId]?.[0];
+    const reason = compositionReason ? REASON_LABELS[compositionReason] : (c.reasons?.map(r => REASON_LABELS[r]).find(Boolean) ?? '—');
+    rows.push({ ...enrich(c), position: pinned.length + i + 1, status, reason });
+  });
+  for (const c of diversitySelected) {
+    if (composedIds.has(c.storyId)) continue; // already added above as 'Kekal'
+    const compositionReason = compositionReasons[c.storyId]?.[0];
+    rows.push({ ...enrich(c), position: null, status: 'Keluar', reason: compositionReason ? REASON_LABELS[compositionReason] : '—' });
+  }
+  const finalIds = new Set(rows.map(r => r.storyId));
+  const notSelected = scored
+    .filter(c => !finalIds.has(c.storyId))
+    .sort((a, b) => b.score - a.score)
+    .map(c => ({ ...enrich(c), position: null, status: 'Tidak dipilih', reason: '—' }));
 
-  const enrich = candidate => {
-    const promoIds = promo.get(candidate.storyId) ?? {};
-    return {
-      storyId: candidate.storyId,
-      title: candidate.title,
-      sourceName: sourceNameById.get(candidate.sourceId) ?? candidate.sourceId,
-      fieldLabel: getFieldLabel(RANKED_EDITION_ID, RANKED_FIELD_CODE),
-      score: candidate.score ?? candidate.finalScore,
-      boosted: candidate.boosted,
-      boostOverrideId: promoIds.boostOverrideId ?? null,
-      pinOverrideId: promoIds.pinOverrideId ?? null,
-    };
-  };
+  return [...rows, ...notSelected];
+}
 
+function enrich(candidate) {
   return {
-    editionLabel: RANKED_EDITION_ID,
-    fieldLabel: getFieldLabel(RANKED_EDITION_ID, RANKED_FIELD_CODE),
-    // Fokus 1 — every scored candidate (the full eligible pool minus
-    // pinned, since pinned bypasses scoring entirely), sorted by real
-    // stored score.
-    scoredCandidates: [...scored].sort((a, b) => b.score - a.score).map(enrich),
-    // Fokus 2 — pinned (Dikekalkan) + Diversity Selection's real order,
-    // then whatever didn't make it in (Tidak terpilih), so the table
-    // shows the full contest outcome, not just the winners.
-    selection: [
-      ...pinned.map(c => ({ ...enrich(clusterToCandidate(c)), reason: 'Dikekalkan', pinned: true, kedudukan: null })),
-      ...diversitySelected.map((c, i) => ({
-        ...enrich(c),
-        reason: c.boosted ? 'Keutamaan editor' : 'Dipilih',
-        pinned: false,
-        kedudukan: pinned.length + i + 1,
-      })),
-      ...alternativePool
-        .filter(c => !diversitySelected.some(s => s.storyId === c.storyId))
-        .map(c => ({ ...enrich(c), reason: 'Tidak terpilih', pinned: false, kedudukan: null })),
-    ],
-    // Fokus 3 — the actual final Active Set order (pinned + composed),
-    // with composition's own reason codes where a swap happened.
-    finalOrder: [
-      ...pinned.map(c => ({ ...enrich(clusterToCandidate(c)), reason: 'Dikekalkan', kedudukan: null })),
-      ...composed.map((c, i) => ({
-        ...enrich(c),
-        reason: REASON_LABELS[compositionReasons[c.storyId]?.[0]] ?? (c.boosted ? 'Keutamaan editor' : 'Dipilih'),
-        kedudukan: pinned.length + i + 1,
-      })),
-    ],
+    storyId: candidate.storyId,
+    title: candidate.title,
+    sourceId: candidate.sourceId,
+    sourceName: candidate.sourceName,
+    score: candidate.score ?? candidate.finalScore,
+    reasons: candidate.reasons,
   };
 }
 
-// Same query shape as reviewQueueAdapter.js's promotionalOverrides query
-// (boost/pin, active, unexpired) -- parameterized to an arbitrary story
-// id list instead of that adapter's implicit review-queue set, since this
-// panel's eligible pool is a different corpus. Not new write/business
-// logic, just the existing read pattern reused for a different row set.
-async function fetchPromotionalOverrideIds(supabase, editionId, storyIds) {
-  const { data, error } = await supabase.from('story_overrides')
-    .select('id, story_id, override_type')
-    .eq('edition_id', editionId)
-    .eq('active', true)
-    .in('override_type', ['boost', 'pin'])
-    .gt('expires_at', new Date().toISOString())
-    .in('story_id', storyIds);
-  if (error) throw new Error(`fetchPromotionalOverrideIds: ${error.message}`);
+export async function fetchValueRankingData(supabase, editionId, fieldCode) {
+  const [rankedQueue, sourceNameById] = await Promise.all([
+    fetchRankedQueue(editionId),
+    fetchSourceNames(),
+  ]);
+  const eligible = rankedQueue.filter(c => c.topic === fieldCode);
+  const candidates = eligible.map(c => {
+    const candidate = clusterToCandidate(c);
+    return {
+      ...candidate,
+      sourceName: sourceNameById.get(candidate.sourceId) ?? candidate.sourceId,
+      // clusterToCandidate() doesn't carry pin state (it's outside the
+      // scoring-relevant shape) -- pulled from the raw rankedQueue row,
+      // same as the pre-8C code did.
+      pinned: c.pinned ?? false,
+      pinnedAt: c.pinnedAt ?? null,
+    };
+  });
 
-  const map = new Map();
-  for (const row of data) {
-    if (!map.has(row.story_id)) map.set(row.story_id, {});
-    if (row.override_type === 'boost') map.get(row.story_id).boostOverrideId = row.id;
-    else map.get(row.story_id).pinOverrideId = row.id;
-  }
-  return map;
+  const rows = computeFieldRanking(candidates);
+
+  return {
+    editionId,
+    fieldCode,
+    fieldLabel: getFieldLabel(editionId, fieldCode),
+    rows,
+  };
 }
