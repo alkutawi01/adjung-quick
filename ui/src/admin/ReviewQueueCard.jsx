@@ -11,6 +11,18 @@ import ClassificationProvenance from './ClassificationProvenance.jsx';
 // Every action requires a reason (docs/review-queue-spec-v1.md — a hard
 // requirement carried down from story_overrides.reason NOT NULL, not a UI
 // nicety) — the Confirm button stays disabled until reason text is present.
+//
+// Polish 7D (docs/polish-7-scoring-calibration-v1.md): BOOST_WEIGHT is
+// currently 0 (ranking/candidate-scoring.mjs) -- Polish 7C's synthetic
+// sensitivity testing found every tested nonzero weight let a mid/weak
+// story jump straight to #1 in the real (clustered) corpus, so boost
+// stays inactive pending Polish 8. Per ChatGPT's explicit instruction:
+// hide the new-action control rather than let an editor believe clicking
+// it does something, but do NOT delete the override_type/data model --
+// an already-existing boost override still displays and can still be
+// undone. Flip this back on once Polish 8 sets a real weight.
+const BOOST_ACTIVE = false;
+
 export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onReclassify, onBoost, onUnboost, onPin, onUnpin }) {
   const [composing, setComposing] = useState(null); // null | 'hide' | 'reclassify' | 'boost' | 'pin'
   const [reason, setReason] = useState('');
@@ -40,12 +52,17 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
       />
 
       {/* Real current state, per FASA 3.6.5/6 — never an illustration.
-          Boost affects Nilai Berita (+40 pada skor, ranking/candidate-scoring.mjs);
+          Boost affects Nilai Berita (ranking/candidate-scoring.mjs);
           Pin affects Pemilihan, not score (state/editorialRankingAdapter.js). */}
       {entry.boostOverrideId && (
         <p className="review-card__promo-status">
           <span className="review-card__promo-tag">Keutamaan dinaikkan</span>
-          Menambah +40 pada nilai berita ini.
+          {BOOST_ACTIVE
+            ? 'Menambah nilai pada berita ini.'
+            /* Polish 7D: an existing override from before boost was
+               disabled -- still real, still undo-able, but must not
+               claim an effect the current BOOST_WEIGHT=0 doesn't have. */
+            : 'Tindakan ini sedia ada tetapi tiada kesan pada nilai berita buat masa ini (Boost belum diaktifkan).'}
           <button type="button" className="review-card__promo-undo" onClick={() => onUnboost(entry.boostOverrideId)} disabled={busy}>Nyahaktifkan</button>
         </p>
       )}
@@ -65,10 +82,15 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
           <button type="button" onClick={() => setComposing('hide')} disabled={busy}>
             Sembunyikan
           </button>
-          {!entry.boostOverrideId && (
+          {!entry.boostOverrideId && BOOST_ACTIVE && (
             <button type="button" onClick={() => setComposing('boost')} disabled={busy}>
               Naikkan keutamaan
             </button>
+          )}
+          {!entry.boostOverrideId && !BOOST_ACTIVE && (
+            <span className="review-card__unavailable" title="Boost belum dikalibrasi (Polish 7D/8) — tiada kesan pada nilai berita buat masa ini.">
+              Naikkan keutamaan — Belum diaktifkan
+            </span>
           )}
           {!entry.pin && (
             <button type="button" onClick={() => setComposing('pin')} disabled={busy}>
@@ -102,7 +124,7 @@ export default function ReviewQueueCard({ entry, taxonomy, busy, onHide, onRecla
             <p className="review-card__confirm">Berita ini tidak akan muncul kepada pembaca.</p>
           )}
           {composing === 'boost' && (
-            <p className="review-card__confirm">Menambah +40 pada nilai berita ini — meningkatkan peluang ia dipilih, tidak menjamin.</p>
+            <p className="review-card__confirm">Menambah nilai pada berita ini — meningkatkan peluang ia dipilih, tidak menjamin.</p>
           )}
           {composing === 'pin' && (
             <>

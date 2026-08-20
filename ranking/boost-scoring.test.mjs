@@ -46,14 +46,24 @@ function candidate(overrides) {
 }
 
 // --- Layer 6b: a boost can lift a story that would otherwise lose ---
+// Polish 7D (docs/polish-7-scoring-calibration-v1.md): BOOST_WEIGHT is
+// currently 0 -- Polish 7C's synthetic sensitivity testing found every
+// tested nonzero weight (+3/+5/+8) routinely let a mid/weak candidate
+// reach #1 in the real (heavily clustered) corpus, so boost stays
+// inactive pending Polish 8 rather than guess a number. With weight 0,
+// "a boosted underdog can overtake a rival" is structurally impossible
+// -- that's the CORRECT, intended behavior right now, not a regression.
+// This proof becomes meaningful again once Polish 8 sets BOOST_WEIGHT > 0.
 {
-  // Older + less trusted, but boosted: freshness 80 (12h) + trust 40 = 120,
-  // vs. a fresher rival at freshness 100 (1h) + trust 45 = 145.
-  // Boosted: 120 + 40 = 160 > 145. Boost changed the outcome.
   const underdog = scoreCandidate(candidate({ storyId: 'underdog', publishedAt: hoursAgo(12), trustScore: 40, classificationConfidence: 0, boosted: true }), NOW);
   const rival = scoreCandidate(candidate({ storyId: 'rival', publishedAt: hoursAgo(1), trustScore: 45, classificationConfidence: 0 }), NOW);
-  assert('Layer 6b — a boosted underdog CAN overtake a rival it would otherwise lose to',
-    underdog.score > rival.score);
+  if (BOOST_WEIGHT > 0) {
+    assert('Layer 6b — a boosted underdog CAN overtake a rival it would otherwise lose to',
+      underdog.score > rival.score);
+  } else {
+    assert('Layer 6b — SKIPPED (BOOST_WEIGHT=0, inactive pending Polish 8): underdog correctly does NOT overtake the rival',
+      underdog.score < rival.score);
+  }
 }
 
 // --- Layer 7: ranking integrity — boost must be able to LOSE ---
@@ -86,9 +96,20 @@ function candidate(overrides) {
 }
 
 // --- BOOST_WEIGHT is a single configurable constant ---
+// Polish 7D: value is intentionally 0 right now (inactive pending Polish
+// 8) -- no longer asserting > 0, only that it's a valid non-negative
+// tunable number in one place.
 {
   assert('BOOST_WEIGHT is exported as a single tunable constant (per ChatGPT: one place only)',
-    typeof BOOST_WEIGHT === 'number' && BOOST_WEIGHT > 0);
+    typeof BOOST_WEIGHT === 'number' && BOOST_WEIGHT >= 0);
+}
+
+// --- Polish 7D: boosted=true currently contributes +0 (explicit per
+// ChatGPT's required test list, docs/polish-7-scoring-calibration-v1.md) ---
+{
+  const boosted = scoreCandidate(candidate({ boosted: true }), NOW);
+  assert('boosted=true currently gives +0 (BOOST_WEIGHT inactive, Polish 7D)',
+    boosted.scoreBreakdown.editorialBoost === 0);
 }
 
 // --- unboosted candidates are entirely unaffected ---

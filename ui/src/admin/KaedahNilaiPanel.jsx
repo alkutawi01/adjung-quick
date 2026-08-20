@@ -20,12 +20,17 @@ const EDITION_ID = 'ms-MY';
 
 // "Kaedah semasa" -- real ceilings/shape from ranking/candidate-scoring.mjs,
 // written out here as display text (the file itself is never touched).
+// Polish 7D (docs/polish-7-scoring-calibration-v1.md): kebaruan kini
+// susutan licin (bukan bucket) selepas Polish 7A-7C mendapati bucket lama
+// mengumpulkan hampir semua calon ms-MY.politik pada satu skor (19/21
+// terikat dalam 0.1 mata). Boost kini 0 -- tak selamat diaktifkan pada
+// mana-mana berat diuji (Polish 7C), tunggu Polish 8.
 const CURRENT_METHOD_LABEL = {
-  freshnessCeiling: 'Julat masa tetap: 6 jam=100, 24 jam=80, 3 hari=50, 7 hari=20, lebih lama=0 (sama untuk semua kategori)',
+  freshnessCeiling: 'Susutan licin: 100 pada 0 jam, 50 pada 72 jam (half-life), 25 pada 144 jam, terus menyusut (sama untuk semua kategori)',
   trustCeiling: '0–100 mentah (skala penuh, TIDAK dinormalkan)',
   duplicationCeiling: '(tiada faktor ini dalam formula lama)',
   confidenceMultiplier: '×10',
-  boostWeight: '+40',
+  boostWeight: '0 (belum diaktifkan, tunggu Polish 8)',
 };
 const FACTOR_LABEL = {
   freshnessCeiling: 'Kebaruan',
@@ -46,11 +51,12 @@ const INPUT_RANGE = {
   boostWeight: { min: 0, max: 40 },
 };
 
-// Hampiran "macam formula lama" -- BUKAN candidate-scoring.mjs sebenar
+// Hampiran "macam formula semasa" -- BUKAN candidate-scoring.mjs sebenar
 // (kurva kebaruan V1 masih ikut bentuk per-kategori Pusingan 12, tak boleh
-// ditukar jadi bucket rata guna penukar magnitud sahaja). Label UI
-// nyatakan ini jelas supaya tak disalah anggap sbg formula lama tepat.
-const PRODUCTION_LIKE_PRESET = { freshnessCeiling: 25, trustCeiling: 100, duplicationCeiling: 0, confidenceMultiplier: 10, boostWeight: 40 };
+// ditukar jadi susutan licin guna penukar magnitud sahaja). Label UI
+// nyatakan ini jelas supaya tak disalah anggap sbg formula semasa tepat.
+// boostWeight=0 sepadan BOOST_WEIGHT sebenar (Polish 7D).
+const PRODUCTION_LIKE_PRESET = { freshnessCeiling: 25, trustCeiling: 100, duplicationCeiling: 0, confidenceMultiplier: 10, boostWeight: 0 };
 
 // Pusingan 14/15: `weights`/`setWeights` AND `corpus`/`error` diangkat ke
 // AdminApp (dikongsi dgn PemilihanPanel.jsx -- satu fetch, bukan dua) --

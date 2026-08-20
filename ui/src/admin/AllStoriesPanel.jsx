@@ -264,7 +264,13 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
           <div className="review-card__actions">
             <button type="button" onClick={() => setComposing('reclassify')} disabled={busy}>Ubah kategori</button>
             <button type="button" onClick={() => setComposing('hide')} disabled={busy}>Sembunyikan</button>
-            {!story.boosted && <button type="button" onClick={() => setComposing('boost')} disabled={busy}>Naikkan keutamaan</button>}
+            {/* Polish 7D (docs/polish-7-scoring-calibration-v1.md): BOOST_WEIGHT=0,
+                inactive pending Polish 8 -- same gate as ReviewQueueCard.jsx. */}
+            {!story.boosted && (
+              <span className="review-card__unavailable" title="Boost belum dikalibrasi (Polish 7D/8) — tiada kesan pada nilai berita buat masa ini.">
+                Naikkan keutamaan — Belum diaktifkan
+              </span>
+            )}
             {!story.pinned && <button type="button" onClick={() => setComposing('pin')} disabled={busy}>Kekalkan dalam pemilihan</button>}
           </div>
         )}
@@ -280,7 +286,7 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onB
               </label>
             )}
             {composing === 'hide' && <p className="review-card__confirm">Berita ini tidak akan muncul kepada pembaca.</p>}
-            {composing === 'boost' && <p className="review-card__confirm">Menambah +40 pada nilai berita ini — meningkatkan peluang ia dipilih, tidak menjamin.</p>}
+            {composing === 'boost' && <p className="review-card__confirm">Menambah nilai pada berita ini — meningkatkan peluang ia dipilih, tidak menjamin.</p>}
             {composing === 'pin' && <p className="review-card__confirm">Tidak mengubah nilai berita; mempengaruhi pemilihan akhir dalam kategori ini. Had maksimum 2 berita dikekalkan serentak setiap kategori.</p>}
             {composing === 'reclassify' && <p className="review-card__confirm">Letakkan berita ini di kategori lain.</p>}
             <label className="review-card__field">

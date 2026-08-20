@@ -17,48 +17,54 @@
 //
 // candidateScore = freshness + sourceTrust + optional confidenceModifier
 
-// Freshness buckets — explicitly a STARTING PARAMETER (contract §3A),
-// not locked. Same shape for every field in this prototype; per-field
-// tuning is future calibration work, not done here.
-const FRESHNESS_BUCKETS = [
-  { maxHours: 6, score: 100 },
-  { maxHours: 24, score: 80 },
-  { maxHours: 24 * 3, score: 50 },
-  { maxHours: 24 * 7, score: 20 },
-  { maxHours: Infinity, score: 0 },
-];
+// Freshness — smooth exponential decay, 72-hour half-life (Polish 7D,
+// docs/polish-7-scoring-calibration-v1.md). Replaces the old 5-step
+// bucket, which collapsed most of the real ms-MY.politics corpus into
+// one or two identical scores (19 of 21 candidates tied within 0.1
+// points) because two stories published hours apart within the same
+// bucket scored identically. Still a STARTING PARAMETER (contract §3A),
+// not locked; per-field tuning is future calibration work.
+//
+// freshness(hours) = 100 * 0.5^(hours / 72) -- exactly 100 at 0h, 50 at
+// 72h, 25 at 144h, approaching 0 for very old stories, never a hard
+// floor (unlike the old bucket's flat 0 past 7 days).
+const FRESHNESS_HALF_LIFE_HOURS = 72;
 
 // Fixed 2026-08-13 (audit finding, docs/exhaustive-audit-findings-v1.md
 // HIGH): a missing/unparseable publishedAt produced NaN hours, which
 // satisfies no bucket's <= comparison (not even the Infinity one), so
 // .find() returned undefined and `.score` threw — crashing ranking for
 // the entire edition/field, not just the one bad candidate. Guarded to
-// degrade to the oldest bucket (score 0) instead: a story with no known
+// degrade to the oldest score (0) instead: a story with no known
 // publish time should rank as if it's old, not take the whole pipeline
-// down.
+// down. A future-dated publishedAt (clock skew between the source and
+// this server) is clamped to ageHours=0 (freshness=100) rather than a
+// negative age, which the exponential would otherwise turn into a score
+// above 100 (Polish 7D, ChatGPT's explicit instruction).
 export function freshnessScore(publishedAt, now = new Date()) {
   const hours = (now.getTime() - new Date(publishedAt).getTime()) / (1000 * 60 * 60);
   if (Number.isNaN(hours)) return 0;
-  const bucket = FRESHNESS_BUCKETS.find(b => hours <= b.maxHours);
-  return bucket.score;
+  const ageHours = Math.max(0, hours);
+  return 100 * Math.pow(0.5, ageHours / FRESHNESS_HALF_LIFE_HOURS);
 }
 
 // Editorial Boost weight (FASA 3.6.3c). THE single place this number
 // lives — per ChatGPT's explicit instruction not to hardcode it in
-// several files, since real data may show +40 is too strong or too weak
-// and it must be adjustable in one edit.
+// several files, since real data may show what weight is too strong or
+// too weak and it must be adjustable in one edit.
 //
-// Sized against the other terms (freshness 0–100, sourceTrust 0–~100,
-// confidence 0–10): +40 is roughly two freshness buckets — enough to
-// lift a good-but-older story into contention, not enough to let a stale
-// story from a weak source beat a fresh one from a trusted source. A
-// starting parameter for calibration, exactly like FRESHNESS_BUCKETS
-// above, not a locked truth.
-//
-// This magnitude is what keeps boost honest: boost must raise the CHANCE
-// of selection, never guarantee it (docs/boost-action-plan-v1.md §1). A
-// weight large enough to always win would make boost a pin in disguise.
-export const BOOST_WEIGHT = 40;
+// SET TO 0 (Polish 7D, docs/polish-7-scoring-calibration-v1.md): boost
+// has never been exercised in real production (0 story_overrides boost
+// rows, ever), and synthetic sensitivity testing across +3/+5/+8 in
+// Polish 7C found that even the smallest tested weight routinely lifted
+// a mid-ranked or weak candidate straight to #1 in 3 of 5 tested
+// categories, because the real corpus is heavily clustered/tied. A
+// weight that reliably wins is a pin wearing a different name
+// (docs/boost-action-plan-v1.md §1) -- so boost stays inactive rather
+// than guess a number. Re-evaluate once Polish 8 tests real selection
+// behavior. The Admin UI's Boost action is hidden while this is 0 so
+// editors are never shown a control that silently does nothing.
+export const BOOST_WEIGHT = 0;
 
 // candidate: { storyId, title, sourceId, publishedAt, trustScore, classificationConfidence, boosted }
 // trustScore comes from lab/sources.js (NOT sourceType — the KPM lesson:
