@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, submitBoostOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
 import FilterRuleEffect from './FilterRuleEffect.jsx';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';

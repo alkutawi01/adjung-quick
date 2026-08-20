@@ -216,9 +216,159 @@ consistent with the four old panels no longer being imported/bundled);
 `pemilihanSusunanParity.test.mjs` (13/13, testing the now-orphaned-but-
 unchanged old panels) and `nilaiSusunanPanel.test.mjs` (26/26) pass.
 
+## 8C.1 — Pin position bug + copy tightening (implemented)
+
+Director caught a real Admin/Reader mismatch during 8C review:
+`computeFieldRanking()` gave Pin rows `position: null`, but Reader
+production puts Pin at the front of the Active Set
+(`[...pinned, ...ranked]`, `state/reducer.js`) — Pin genuinely occupies
+position 1/2. `NilaiSusunanPanel.jsx` only treats rows with a position as
+the final set and sorts them to the top, so with 2 active Pins the Admin
+table could show ranked candidates #3–#10 first with the real #1/#2 Pins
+buried further down among unranked candidates. The prior fixture only
+checked Pin `status`, never `position`, so the bug passed all 26
+assertions in the 8C commit.
+
+Fix: `valueRankingAdapter.js`'s `pinned.forEach` now assigns
+`position: i + 1` (1, 2) instead of `null`; composed rows were already
+offset correctly by `pinned.length`. Also narrowed
+`NilaiSusunanPanel.jsx`'s "susunan di bawah ialah apa yang pembaca lihat
+sekarang" — technically overclaimed (a given reader's own Active Set can
+differ after they release a story, per `RELEASE_STORY` history) — to
+"kaedah Nilai & Susunan ini aktif untuk kategori ini" plus a note that a
+reader's own order can change after release. No personal-state preview
+added to Admin (explicitly out of scope, overengineering).
+
+3 new assertions in `nilaiSusunanPanel.test.mjs`: 2 Pins get position 1/2
+(not null), a final set of 10 has continuous positions 1..10, Pin rows
+sort before ranked candidates in panel output. 29/29 total. Full suite
+otherwise unchanged. Build succeeds. Polish 8C marked CLOSED by the
+director after this fix.
+
+## 8D-A — Pin end-to-end audit (implemented)
+
+Director's checklist, audited against existing coverage rather than
+rebuilding from scratch (no new functions, per explicit instruction):
+
+- Low-score pin still enters + takes position 1 (single pin), 2 pins ->
+  position 1/2 oldest-first, defensive cap on a 3rd pin, released pinned
+  story not forced back: all already covered by `state/pin.test.mjs`
+  (reducer level) and `nilaiSusunanPanel.test.mjs` (Admin panel level).
+- 3rd pin write refused with a readable error (not silently dropped):
+  `reviewQueueAdapter.js`'s `submitPinOverride`, covered by
+  `db/editor-auth.test.mjs`.
+- Hidden story -> pin refused: `submitPinOverride`'s hide-check, already
+  tested.
+- Pin routes the story into its target field:
+  `editorialStateResolver.mjs` already returns
+  `fieldCode: pin.new_field_code` when a pin is active (tested).
+
+One real gap found and closed: no test named "unpin falls back to the
+right decision" existed, even though the mechanism (`deactivateOverride`
+sets `active: false`; the resolver only ever sees `active: true` rows, so
+an unpinned row is simply absent from its input) was implicitly exercised
+by unrelated fallback tests. Added 3 explicit assertions to
+`editorialStateResolver.test.mjs`: pin beats reclassify while active,
+falls back to the reclassify decision after unpin, falls back further to
+the classifier decision if no reclassify exists either. 18/18 (was
+15/15).
+
+Also fixed a stale code comment the director flagged in
+`reviewQueueAdapter.js`'s `submitPinOverride`: "no UI currently offers a
+pin action" had been false since `AllStoriesPanel.jsx`'s "Kekalkan dalam
+pemilihan" action shipped — comment corrected, no logic touched.
+
+**Not done, flagged instead**: the production UAT step the director
+specified (a real temporary Pin via the admin UI against production data,
+verified, then unpinned and confirmed restored) is a real production
+database write. Per this project's standing rule, that requires Izzat's
+own explicit approval even when designed to be safely reversible —
+pending as of this writing, does not block 8D-B/8D-C.
+
+## 8D-B — Boost V1 decision (read-only simulation, implemented)
+
+Read-only simulation (`lab/boost-v1-simulation.mjs`, kept in the repo per
+the director as useful regression/calibration evidence) ran the exact
+production pipeline shape — `scoreCandidates()` -> synthetic `+delta` ->
+`selectDiverseCandidates()` -> `applyEditorialComposition()` — against
+the real production corpus (`ranking/shadow-runner.mjs`'s
+`loadFieldCandidates()`, the same read-only loader shadow-mode
+comparisons already use). No production code, DB, `BOOST_WEIGHT`, or
+`RANKING_FLAGS` touched.
+
+8 categories had >=12 eligible candidates (the director's minimum for a
+meaningful test): `ms-MY` politics/dunia/crime/bisnes/sports/
+entertainment/religion/lifestyle. 26 other (edition, field) pairs were
+too small and skipped, not forced. For each qualifying category, three
+non-Pin candidate types were tested — boundary (rank ~11/12), median, and
+weak (lower quartile) — each with synthetic `+1`, `+2`, `+3` added
+directly to the base score, after `scoreCandidates()` and before
+diversity selection (never touching `candidate.boosted`, since
+production `BOOST_WEIGHT=0` already).
+
+Result: even `+1`, the smallest delta tested, was enough to send several
+median/weak candidates straight to the final set's #1 position. Sharpest
+example: `ms-MY.crime`'s weakest tested candidate (real production rank
+#22, nowhere near the real top 10) reached score-rank #1 and the final
+set's #1 slot with a `+1` delta alone. The same happened for
+`ms-MY.dunia` (rank #16 -> #1) and `ms-MY.crime`'s median candidate (rank
+#15 -> #1). Aggregate: at `+1`, 6/24 experiments reached #1 and 8/24
+reached Top 3 (5 of those 8 were median/weak candidates, not boundary
+ones) — the corpus's score formula (freshness + trust + confidence) is
+tightly clustered near the top in several categories, the same failure
+mode Polish 7C found with synthetic fixtures, now confirmed on the real
+production corpus at the smallest tested delta.
+
+This fails the director's locked criterion directly: a safe global weight
+must help near-miss candidates without turning median/weak candidates
+into Top 3/#1. It also directly answers the director's Boost-vs-Pin
+comparison question — a rank #15-22 candidate can leapfrog to #1 from a
+`+1` delta alone, a more unpredictable jump than Pin itself (which is
+explicit, capped at 2, and audited).
+
+**Decision (director-confirmed): Boost stays OFF for V1.** No
+per-category weight, adaptive weight, percentile normalization, or new
+formula was considered — explicitly out of scope, unnecessary complexity
+for a feature that doesn't clear the bar even at its smallest tested
+delta.
+
+## 8D-C — Boost V1 UI cleanup (implemented)
+
+With the Boost-OFF decision final, the director asked for one more small
+cleanup: the mounted Admin UI should stop offering an inert "Boost" action
+to editors, since the answer is no longer pending. Scope was UI write-path
+only — no schema change, no data deletion, no touching orphaned panels.
+
+`AllStoriesPanel.jsx` (the only "Berita" surface `AdminApp.jsx` actually
+mounts, per Round 8/15 — `ReviewQueueCard.jsx` has been orphaned since
+that change) had it removed: the `submitBoostOverride` import, the
+`onBoost` prop/callback, the `composing === 'boost'` branch, its
+confirmation copy, and the "Naikkan keutamaan — Belum diaktifkan" dead
+label. `AdminApp.jsx`'s own top-level `submitBoostOverride` import (never
+actually wired to the mounted path — a leftover from before
+`AllStoriesPanel.jsx` replaced `ReviewQueueCard.jsx`) was removed too.
+
+Preserved, per explicit instruction — this removes the ability to CREATE
+a new Boost, not the data model: `reviewQueueAdapter.js`'s
+`submitBoostOverride()` function itself, `override_type='boost'` and its
+schema/resolver support, `BOOST_WEIGHT=0` in `candidate-scoring.mjs`, and
+`AllStoriesPanel.jsx`'s read-only "Dinaikkan" tag for stories with a real
+historical boost override. `ReviewQueueCard.jsx`/`ValueRankingPanel.jsx`
+(both already orphaned, not mounted) were left untouched — not in scope,
+per the director's "audit mounted path only" instruction.
+
+New `ui/src/admin/boostV1Cleanup.test.mjs` (8/8): mounted UI has no Boost
+write path (no import, no callback, no composer branch, no dead label);
+the read-only historical tag still renders; backend `submitBoostOverride`
+export and `BOOST_WEIGHT=0` both still exist untouched. Full suite
+unaffected (33/33 relevant, same 2 pre-existing unrelated
+`editor-auth.test.mjs` failures). `copyLint` 0 violations (20 files,
+unchanged count — no new `.jsx` added). Build succeeds.
+
 ## Next
 
-Polish 8D — Pin and Boost decisions: test Pin's real interaction with the
-unified selection surface, and decide Boost V1's activation (or continued
-inactivity) against real selection behavior rather than isolated score
-sensitivity, per the director's Polish 8 roadmap.
+Pin's production UAT (a real temporary Pin via the admin UI, verified,
+then unpinned and confirmed restored) remains pending Izzat's explicit
+approval for the production write — the director will decide whether
+that UAT gates closing Polish 8D fully, or whether it's tracked as the
+sole deferred item while Polish 8 moves to its next part.
