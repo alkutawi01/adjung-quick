@@ -1,6 +1,6 @@
 # P0 — Classification Backlog Incident (2026-08-20)
 
-Status: `[x] Found live` `[x] Root cause confirmed` `[x] P0-A recovered` `[x] P0-B implemented` `[ ] Applied to production`
+Status: `[x] Found live` `[x] Root cause confirmed` `[x] P0-A recovered` `[x] P0-B implemented` `[x] Applied to production (ACTIVE)` `[ ] Verified end-to-end on a real ingestion (CLOSED)`
 
 ## What happened
 
@@ -47,7 +47,32 @@ other editions), and ~70 are a genuine classifier vocabulary gap (mostly
 two feeds, `rss-amanz` and `rss-rtm-sukan`), tracked separately, not part
 of this incident.
 
-## P0-B — prevent recurrence (implemented, not yet applied to production)
+## P0-B.1 / P0-B.2 — two gaps closed during adversarial review, before production
+
+- **P0-B.1 (stale-generation guard):** the advisory lock above only
+  serializes two *writes* — it says nothing about which one's underlying
+  *compute* is stale. A slow manual `--write` computing against an older
+  generation could still land its write cleanly after a newer automatic
+  write, silently overwriting fresh data with stale results. Fixed:
+  `replace_edition_story_classifications` now takes a second parameter,
+  `p_expected_story_ids` (the caller's snapshot of active cluster IDs at
+  compute time), and refuses the write if it no longer matches live
+  `story_clusters` in either direction — checked inside the same
+  advisory-locked transaction, no force-bypass.
+- **P0-B.2 (pagination):** `computeClassificationRows()` read
+  `story_clusters`/`rss_items` with plain unpaginated `.select()` calls,
+  which PostgREST silently caps at ~1000 rows — the same cap this project
+  has already hit on two other tables. Corpus was ~686/~741 at the time,
+  not yet broken, but close enough that the next ingestion could silently
+  truncate it with no human reviewing dry-run stats to notice. Fixed with
+  a `selectAllChunked()` helper, same pattern already used in
+  `ingest-production.js` and `reviewQueueAdapter.js`.
+
+Both closed the same day, verified via real mutation-then-restore testing
+plus an independent adversarial review agent, before the director signed
+off P0-B for production.
+
+## P0-B — prevent recurrence (implemented, applied to production 2026-08-20)
 
 Per the director's explicit scope: fix the write path's atomicity, then
 make classification run automatically without adding a second,
@@ -105,3 +130,32 @@ hook makes classification automatic immediately. If not, ingestion itself
 remains manually triggered — P0-B still closes the specific gap that
 caused this incident (a human running ingestion without remembering the
 separate classification step), and is not blocked on this answer.
+
+## Production rollout (2026-08-20)
+
+Izzat gave explicit approval and personally ran the migration in the
+Supabase SQL Editor (this project's automation cannot write to production
+SQL directly — every attempt is blocked by the harness's own safety
+classifier, a standing limitation, not new). Verified read-only
+afterward:
+
+- `replace_edition_story_classifications(JSONB, TEXT[])` exists.
+- `service_role` has `EXECUTE`; `anon`/`authenticated` do not.
+- `edition_story_classifications` still had its original 686 rows,
+  untouched (the migration is additive-only — `CREATE FUNCTION` +
+  `REVOKE`/`GRANT`, no data statements).
+- The live Vercel deployment already served the matching commit
+  (`1512041`) — confirmed by comparing the served JS bundle hash against
+  the local build, byte-identical. Admin backlog indicator renders
+  correctly ("Klasifikasi tertunggak: 0").
+- `node db/classify-production.js --dry-run` staged cleanly and stopped
+  before swap; no classification hook output appeared, confirming the
+  hook is correctly gated behind a real swap and never fires in dry-run.
+
+**Status: ACTIVE, not yet CLOSED.** Per the director's explicit
+instruction, a real ingestion was not forced just to test the hook —
+waiting for the next real one through the existing (manually-triggered)
+lifecycle. This incident moves to CLOSED once that ingestion's logs show
+the full sequence (staging → swap → parity PASS → automatic
+classification → atomic replace PASS) and the Admin backlog + a sample of
+Reader categories (including Nasional) + Pin/Nyahpin all check out clean.
