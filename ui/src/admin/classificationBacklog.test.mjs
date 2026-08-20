@@ -18,7 +18,7 @@ import { fileURLToPath } from 'url';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { fetchClassificationBacklog, fetchOldGenerationStatus } from './reviewQueueAdapter.js';
+import { fetchClassificationBacklog, fetchOldGenerationStatus, fetchLatestIngestionTime } from './reviewQueueAdapter.js';
 
 let passed = 0, failed = 0;
 function assert(label, cond, detail = '') {
@@ -41,12 +41,30 @@ console.log('\nCLASSIFICATION BACKLOG INDICATOR — adapter + panel (Polish P0-B
 // real ordering to produce the right result) but MUST exist and be
 // chainable, matching the real client's shape -- selectAllChunked() now
 // calls .order() before .range() unconditionally.
+// Polish 9D-3: .order() now ACTUALLY sorts (ascending or descending, per
+// the real opts.ascending flag) rather than being a pure no-op -- needed
+// so .limit(1) genuinely proves "picks the most recent row", not merely
+// "returns whatever happened to be first in an already-sorted fixture".
+// .limit(n) slices whatever ordering left in `data`, same "apply the
+// operation for real against the fixture array" posture as .range()
+// already has above.
 function makeQuery(data, error = null, onOrder) {
-  const q = { select: () => q, order: (col) => { if (onOrder) onOrder(col); return q; }, range: () => q, then: (resolve, reject) => Promise.resolve({ data, error }).then(resolve, reject) };
+  const q = {
+    select: () => q,
+    order: (col, opts) => {
+      if (onOrder) onOrder(col, opts);
+      const dir = opts?.ascending === false ? -1 : 1;
+      data = [...data].sort((a, b) => (a[col] > b[col] ? 1 : a[col] < b[col] ? -1 : 0) * dir);
+      return q;
+    },
+    range: () => q,
+    limit: (n) => ({ then: (resolve, reject) => Promise.resolve({ data: data.slice(0, n), error }).then(resolve, reject) }),
+    then: (resolve, reject) => Promise.resolve({ data, error }).then(resolve, reject),
+  };
   return q;
 }
-function fakeSupabase({ story_clusters = [], edition_story_classifications = [], rpcResults = {} }) {
-  const tables = { story_clusters, edition_story_classifications };
+function fakeSupabase({ story_clusters = [], edition_story_classifications = [], rss_items = [], rpcResults = {} }) {
+  const tables = { story_clusters, edition_story_classifications, rss_items };
   const orderCalls = [];
   const rpcCalls = [];
   const client = {
@@ -184,6 +202,43 @@ function fakeSupabase({ story_clusters = [], edition_story_classifications = [],
   assert('an RPC-level error is re-thrown as a real JS Error, not swallowed', threw && /permission denied/.test(message));
 }
 
+// --- fetchLatestIngestionTime() (Polish 9D-3): proves it genuinely picks
+// the MOST RECENT fetched_at among several rows (not just "whatever came
+// first"), handles the zero-rows edge case (no ingestion has ever run)
+// without crashing, and turns a query error into a real thrown Error. ---
+{
+  const items = [
+    { fetched_at: '2026-08-19T10:00:00.000Z' },
+    { fetched_at: '2026-08-20T14:02:30.608Z' }, // the real most-recent one, deliberately NOT first in the fixture
+    { fetched_at: '2026-08-20T09:00:00.000Z' },
+  ];
+  const client = fakeSupabase({ rss_items: items });
+  const result = await fetchLatestIngestionTime(client);
+  assert('picks the genuinely most recent fetched_at, not just the first row in the fixture array',
+    result.latestFetchedAt === '2026-08-20T14:02:30.608Z');
+}
+{
+  const client = fakeSupabase({ rss_items: [] });
+  const result = await fetchLatestIngestionTime(client);
+  assert('zero rss_items rows (no ingestion has ever run) returns null, not a crash or a fabricated date',
+    result.latestFetchedAt === null);
+}
+{
+  const erroringClient = {
+    from: () => ({
+      select: () => ({
+        order: () => ({
+          limit: () => ({ then: (resolve) => resolve({ data: null, error: { message: 'connection timeout' } }) }),
+        }),
+      }),
+    }),
+  };
+  let threw = false, message = '';
+  try { await fetchLatestIngestionTime(erroringClient); }
+  catch (err) { threw = true; message = err.message; }
+  assert('a query-level error is re-thrown as a real JS Error, not swallowed', threw && /connection timeout/.test(message));
+}
+
 // --- AdminDigest.jsx render tests. ---
 const digestUrl = new URL('./AdminDigest.jsx', import.meta.url);
 const tmpUrl = new URL('./.classificationBacklog.compiled.tmp.mjs', import.meta.url);
@@ -204,8 +259,8 @@ const cleanDigest = {
   hasYesterdayComparison: true, failedSourcesToday: null, activeOverridesToday: null,
   trend: { storiesProcessed: '', reviewQueue: '', failedSources: null, activeOverrides: null },
 };
-const render = (digest, classificationBacklog, classificationBacklogError = null, oldGenerationStatus = null, oldGenerationStatusError = null) => renderToStaticMarkup(
-  React.createElement(AdminDigest, { digest, error: null, classificationBacklog, classificationBacklogError, oldGenerationStatus, oldGenerationStatusError, onOpenQueue() {} }),
+const render = (digest, classificationBacklog, classificationBacklogError = null, oldGenerationStatus = null, oldGenerationStatusError = null, latestIngestion = null, latestIngestionError = null) => renderToStaticMarkup(
+  React.createElement(AdminDigest, { digest, error: null, classificationBacklog, classificationBacklogError, oldGenerationStatus, oldGenerationStatusError, latestIngestion, latestIngestionError, onOpenQueue() {} }),
 );
 
 {
@@ -290,6 +345,67 @@ const render = (digest, classificationBacklog, classificationBacklogError = null
   assert('an error carries the attention style, same as a real old generation',
     /digest__row--attention[^>]*>\s*<dt>Generasi lama/.test(html.replace(/\s+/g, ' ')));
   assert('a fetch error SUPPRESSES the all-clear banner -- "unverified" is not "verified absent"',
+    !/Tiada apa-apa perlu perhatian hari ini/.test(html));
+}
+
+// --- Polish 9D-3: the "Kandungan terbaharu" indicator. Deliberately
+// informational only (no attention styling for staleness itself -- no
+// approved severity threshold exists), but a fetch ERROR still suppresses
+// all-clear, same "unverified is not verified-fine" discipline as the
+// two indicators above. ---
+{
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, { oldGenerationExists: false }, null, null);
+  assert('latestIngestion=null (still loading) -> the row is not rendered at all',
+    !/Kandungan terbaharu/.test(html));
+  assert('while loading, an otherwise-clean digest still shows the all-clear banner',
+    /Tiada apa-apa perlu perhatian hari ini/.test(html));
+}
+{
+  const twoHoursAgo = new Date(Date.now() - 2 * 3600000).toISOString();
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, { oldGenerationExists: false }, null, { latestFetchedAt: twoHoursAgo });
+  assert('a real recent timestamp renders as "N jam lalu"', /Kandungan terbaharu/.test(html) && /2 jam lalu/.test(html));
+  assert('a normal (non-stale) reading does NOT carry the attention style -- no approved threshold exists to judge it against',
+    !/digest__row--attention[^>]*>\s*<dt>Kandungan terbaharu/.test(html.replace(/\s+/g, ' ')));
+  assert('an otherwise-clean digest with a real recent ingestion timestamp still shows all-clear',
+    /Tiada apa-apa perlu perhatian hari ini/.test(html));
+}
+{
+  const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString();
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, { oldGenerationExists: false }, null, { latestFetchedAt: threeDaysAgo });
+  assert('an old timestamp renders in days, not an absurd hour count', /3 hari lalu/.test(html));
+  // Deliberate design choice (see formatRelativeTime's own comment): even
+  // a 3-day-old reading must NOT carry attention styling or suppress
+  // all-clear -- inventing a staleness threshold here would be exactly
+  // the "UI/UX decision made unilaterally" mistake this project has been
+  // burned by before. This is a snapshot of that decision, not an
+  // endorsement that 3 days is "fine" -- if a threshold is ever approved,
+  // this assertion is the one to update.
+  assert('even a multi-day-old reading is still purely informational (no threshold exists yet)',
+    !/digest__row--attention[^>]*>\s*<dt>Kandungan terbaharu/.test(html.replace(/\s+/g, ' ')));
+}
+{
+  // Adversarial review found a mutation (hours < 24 -> hours <= 24) that
+  // slipped through every prior fixture (2 hours, 3 days) untouched --
+  // nothing exercised the exact 24-hour boundary. A reading exactly 24
+  // hours old must render as "1 hari lalu", not fall back into the hours
+  // branch and read as "24 jam lalu".
+  const exactly24HoursAgo = new Date(Date.now() - 24 * 3600000).toISOString();
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, { oldGenerationExists: false }, null, { latestFetchedAt: exactly24HoursAgo });
+  assert('a reading exactly 24 hours old crosses into the days bucket ("1 hari lalu"), not "24 jam lalu"',
+    /1 hari lalu/.test(html) && !/24 jam lalu/.test(html));
+}
+{
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, { oldGenerationExists: false }, null, { latestFetchedAt: null });
+  assert('a verified-empty result (no ingestion has ever run) shows an honest message, not a crash or a fabricated time',
+    /Belum ada kandungan/.test(html));
+}
+{
+  const html = render(cleanDigest, { liveClusterCount: 500, backlogCount: 0 }, null, { oldGenerationExists: false }, null, null, 'timeout');
+  assert('a fetch error DOES render the row', /Kandungan terbaharu/.test(html));
+  assert('the row states the fetch could not be verified, not a fabricated time',
+    /Tidak dapat disahkan/.test(html) && /timeout/.test(html));
+  assert('an error carries the attention style', /digest__row--attention[^>]*>\s*<dt>Kandungan terbaharu/.test(html.replace(/\s+/g, ' ')));
+  assert('a fetch error SUPPRESSES the all-clear banner even for this otherwise-informational indicator',
     !/Tiada apa-apa perlu perhatian hari ini/.test(html));
 }
 

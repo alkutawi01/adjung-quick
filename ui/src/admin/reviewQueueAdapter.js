@@ -635,6 +635,29 @@ export async function fetchOldGenerationStatus(supabase) {
   return { oldGenerationExists: data === true };
 }
 
+// Polish 9D-3 (docs/polish-9-audit-v1.md, "Ingestion — Ada trigger/
+// indicator?"): the one gap the director flagged as still genuinely open
+// after 9D-1/9D-2 — if ingestion itself silently stops being run, nothing
+// anywhere tells an editor. `rss_items.fetched_at` (DEFAULT now(), never
+// set explicitly by ingest-production.js's staging insert — confirmed by
+// reading it directly) is the most literal "when did we last actually
+// fetch content" fact this schema has; `story_clusters.first_seen_at` was
+// considered and rejected — it's set to the ARTICLE's own publishedAt
+// from the source feed, not ingestion time, so a 3-day-old article
+// ingested five minutes ago would misreport as "3 days stale" under that
+// column instead. No new RPC/migration needed: the Admin UI already has
+// direct authenticated-role SELECT access to rss_items (every other
+// adapter in this file already reads it the same way).
+export async function fetchLatestIngestionTime(supabase) {
+  const { data, error } = await supabase
+    .from('rss_items')
+    .select('fetched_at')
+    .order('fetched_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`fetchLatestIngestionTime: ${error.message}`);
+  return { latestFetchedAt: data?.[0]?.fetched_at ?? null };
+}
+
 function startOfLocalDayIso() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);

@@ -5,7 +5,25 @@
 // hunting for problems, the system states what matters. Read-only — it
 // creates no editorial state, so it needs no confirm/reason flow.
 
-export default function AdminDigest({ digest, error, classificationBacklog, classificationBacklogError, oldGenerationStatus, oldGenerationStatusError, onOpenQueue }) {
+// Polish 9D-3: no established severity threshold exists for "how stale is
+// too stale" (this project's own UI/UX-decisions-need-approval discipline
+// -- inventing one unprompted would be exactly that mistake), so this is
+// deliberately informational only: plain relative time, no attention
+// styling, never suppresses the all-clear banner. If Izzat/the director
+// later want a threshold-based warning, that's a real product decision
+// for them to make, not something to guess at here.
+function formatRelativeTime(isoString) {
+  if (!isoString) return null;
+  const ms = Date.now() - new Date(isoString).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return 'kurang daripada sejam lalu';
+  if (hours < 24) return `${hours} jam lalu`;
+  const days = Math.floor(hours / 24);
+  return `${days} hari lalu`;
+}
+
+export default function AdminDigest({ digest, error, classificationBacklog, classificationBacklogError, oldGenerationStatus, oldGenerationStatusError, latestIngestion, latestIngestionError, onOpenQueue }) {
   if (error) {
     return (
       <section className="digest">
@@ -46,8 +64,15 @@ export default function AdminDigest({ digest, error, classificationBacklog, clas
   // NEXT ingestion attempt, so this panel staying quiet about it would
   // reproduce the exact blind spot this whole indicator exists to close.
   const oldGenerationExists = oldGenerationStatus?.oldGenerationExists ?? false;
+  // Polish 9D-3: latestIngestion itself deliberately does NOT gate
+  // allClear (no approved staleness threshold exists to judge "too old"
+  // against — see formatRelativeTime's comment), but a fetch ERROR is a
+  // different fact from "content is stale": it means this panel cannot
+  // verify the claim at all, same "unverified is not verified-fine"
+  // discipline as the two indicators above.
   const allClear = needsAttention === 0 && actionsToday.length === 0 && backlogCount === 0
-    && !classificationBacklogError && !oldGenerationExists && !oldGenerationStatusError;
+    && !classificationBacklogError && !oldGenerationExists && !oldGenerationStatusError
+    && !latestIngestionError;
 
   return (
     <section className="digest">
@@ -124,6 +149,26 @@ export default function AdminDigest({ digest, error, classificationBacklog, clas
               {oldGenerationExists
                 ? 'Wujud — pembersihan diperlukan sebelum kandungan baharu boleh dimasukkan'
                 : 'Tiada'}
+            </dd>
+          </div>
+        )}
+
+        {/* Polish 9D-3 (docs/polish-9-audit-v1.md): the one gap the
+            director flagged as still genuinely open -- if content-fetching
+            itself silently stops being run, nothing anywhere previously
+            told an editor. Purely informational (see formatRelativeTime's
+            own comment for why this deliberately has no severity
+            threshold yet). */}
+        {latestIngestionError ? (
+          <div className="digest__row digest__row--attention">
+            <dt>Kandungan terbaharu</dt>
+            <dd>Tidak dapat disahkan: {latestIngestionError}</dd>
+          </div>
+        ) : latestIngestion !== null && (
+          <div className="digest__row">
+            <dt>Kandungan terbaharu</dt>
+            <dd>
+              {formatRelativeTime(latestIngestion.latestFetchedAt) ?? 'Belum ada kandungan'}
             </dd>
           </div>
         )}

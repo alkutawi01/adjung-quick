@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminSupabase } from './adminSupabase.js';
 import { getEditorRole, isEditor } from '../../../db/editor-auth.mjs';
-import { fetchReviewQueue, fetchDigest, fetchClassificationBacklog, fetchOldGenerationStatus, submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
+import { fetchReviewQueue, fetchDigest, fetchClassificationBacklog, fetchOldGenerationStatus, fetchLatestIngestionTime, submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride, fetchFilterRules, addFilterRule, setFilterRuleActive, deleteFilterRule, fetchEditorialFilterEffect } from './reviewQueueAdapter.js';
 import FilterRuleEffect from './FilterRuleEffect.jsx';
 import AdminDigest from './AdminDigest.jsx';
 import EditorialActivityTimeline from './EditorialActivityTimeline.jsx';
@@ -159,6 +159,8 @@ function ReviewQueue({ userId, role }) {
   const [classificationBacklogError, setClassificationBacklogError] = useState(null);
   const [oldGenerationStatus, setOldGenerationStatus] = useState(null);
   const [oldGenerationStatusError, setOldGenerationStatusError] = useState(null);
+  const [latestIngestion, setLatestIngestion] = useState(null);
+  const [latestIngestionError, setLatestIngestionError] = useState(null);
   // Polish 4A (2026-08-19): navigasi kini berasaskan URL sebenar (History
   // API, ui/src/admin/adminRouter.js) -- bukan lagi activeGroup/
   // activeSection/nilaiTab tiga lapisan berasingan. `pathname` diselaraskan
@@ -323,6 +325,14 @@ function ReviewQueue({ userId, role }) {
       .catch(err => { console.warn('fetchOldGenerationStatus:', err.message); setOldGenerationStatusError(err.message); });
   }, []);
 
+  // Polish 9D-3: same posture as the two indicators above -- a global
+  // fact, fetched once, error state distinct from loading.
+  useEffect(() => {
+    fetchLatestIngestionTime(adminSupabase)
+      .then(setLatestIngestion)
+      .catch(err => { console.warn('fetchLatestIngestionTime:', err.message); setLatestIngestionError(err.message); });
+  }, []);
+
   const resolve = async (storyId, action) => {
     setBusyStoryId(storyId);
     try {
@@ -388,6 +398,8 @@ function ReviewQueue({ userId, role }) {
               classificationBacklogError={classificationBacklogError}
               oldGenerationStatus={oldGenerationStatus}
               oldGenerationStatusError={oldGenerationStatusError}
+              latestIngestion={latestIngestion}
+              latestIngestionError={latestIngestionError}
               onOpenQueue={() => goTo('/admin/berita/semakan')}
             />
           )}
