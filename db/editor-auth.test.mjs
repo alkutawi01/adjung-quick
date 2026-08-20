@@ -65,8 +65,29 @@ assert('a reader (null role) cannot perform any action', canPerformAction(null, 
     /<ReviewQueue[^>]*\brole=\{role\}/.test(app));
   assert('ReviewQueue accepts `role` as a prop',
     /function ReviewQueue\(\s*\{[^}]*\brole\b/.test(app));
-  assert('both action handlers forward `role` to the adapter',
-    (app.match(/createdBy:\s*userId,\s*role\s*\}/g) || []).length >= 2);
+  // Round 7/15 -> 8/15 moved the actual write-action handlers (Hide/
+  // Reclassify/Pin/formerly-Boost) out of AdminApp.jsx and into
+  // AllStoriesPanel.jsx -- ReviewQueueCard.jsx (which used to hold them
+  // directly inside AdminApp.jsx's own render) is now orphaned, unmounted.
+  // The old regex checked AdminApp.jsx's own source text for the call
+  // pattern and had gone stale (0 matches, silently -- caught 2026-08-20
+  // during Polish 8D-C's npm test audit) once that move happened. The
+  // real current wiring is a two-hop trace: AdminApp's ReviewQueue
+  // wrapper forwards role/userId as PROPS to AllStoriesPanel, which is
+  // where the write calls themselves live.
+  assert('AdminApp\'s ReviewQueue wrapper forwards `role`/`userId` as props into both AllStoriesPanel mounts (Perlu Semakan + Semua Berita)',
+    (app.match(/<AllStoriesPanel[^>]*\brole=\{role\}[^>]*\buserId=\{userId\}/g) || []).length >= 2
+    || (app.match(/<AllStoriesPanel[^>]*\buserId=\{userId\}[^>]*\brole=\{role\}/g) || []).length >= 2);
+}
+{
+  const panel = readFileSync(new URL('../ui/src/admin/AllStoriesPanel.jsx', import.meta.url), 'utf8');
+  // The 3 write actions AllStoriesPanel's StoryDrawer still offers since
+  // Polish 8D-C removed Boost (Hide/Reclassify/Pin) must each forward
+  // `role` alongside `createdBy: userId` to the adapter -- this is the
+  // actual current location of what the retired AdminApp-level assertion
+  // above used to check.
+  assert('every action handler in the real mounted UI (AllStoriesPanel) forwards `role` to the adapter',
+    (panel.match(/createdBy:\s*userId,\s*role\s*\}/g) || []).length >= 3);
 }
 
 // --- FASA 3.6.5 Pin wiring (2026-08-13) ---
@@ -77,8 +98,23 @@ assert('a reader (null role) cannot perform any action', canPerformAction(null, 
   const src = readFileSync(new URL('../ui/src/admin/reviewQueueAdapter.js', import.meta.url), 'utf8');
   assert('submitPinOverride is exported',
     /export\s+async\s+function\s+submitPinOverride/.test(src));
+  // Was a fixed {0,3000}-char window from the function's start to
+  // `writeOverride(supabase` -- brittle by construction (any comment
+  // growth inside the function pushes the real call further away in
+  // source text without changing what it does). It broke silently at
+  // 3061 chars on 2026-08-20 after this session's own 8D-A comment fix
+  // (correcting a stale "no UI offers pin" note) pushed it 61 chars past
+  // the cap. Replaced with the function's real boundaries (its own
+  // `export async function` line to the next top-level `export`), so
+  // growing a comment inside the function can never break this again --
+  // the semantic check (submitPinOverride really does end by calling the
+  // shared admin-only+expiry writeOverride(), not a parallel write path)
+  // is unchanged.
+  const pinFnStart = src.indexOf('export async function submitPinOverride');
+  const nextExportStart = src.indexOf('\nexport ', pinFnStart + 1);
+  const pinFnBody = src.slice(pinFnStart, nextExportStart === -1 ? src.length : nextExportStart);
   assert('submitPinOverride reuses writeOverride (admin-only + expiry) rather than a parallel write path',
-    /export async function submitPinOverride[\s\S]{0,3000}?writeOverride\(supabase/.test(src));
+    pinFnStart !== -1 && /writeOverride\(supabase/.test(pinFnBody));
   assert('submitPinOverride reuses new_field, no separate pin-only field parameter/column referenced',
     !/story_overrides\.select\([^)]*\bfield\b[^)]*\)/.test(src)); // no query ever selects a `field` column that doesn't exist
   assert('submitPinOverride checks for an active hide before writing (ChatGPT: never offer hide+pin together)',
