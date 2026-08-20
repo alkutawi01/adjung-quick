@@ -226,7 +226,7 @@ export function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassi
   // branch, that pin would be invisible AND unremovable until the 24h
   // expiry — the very failure this change exists to remove.
   const pinUndo = story.pinOverrideId && canUnpin ? (
-    <button type="button" className="review-card__promo-undo" onClick={() => onUnpin(story.pinOverrideId)} disabled={busy}>Nyahaktifkan</button>
+    <button type="button" className="review-card__promo-undo" onClick={() => onUnpin(story.pinOverrideId)} disabled={busy}>Nyahpin</button>
   ) : null;
   const [composing, setComposing] = useState(null); // null | 'hide' | 'reclassify' | 'pin'
   const [reason, setReason] = useState('');

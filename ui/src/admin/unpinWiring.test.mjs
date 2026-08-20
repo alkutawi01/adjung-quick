@@ -76,7 +76,7 @@ const render = story => renderToStaticMarkup(
 // A pinned story shows the undo control.
 {
   const html = render({ ...baseStory, pinned: true, pinOverrideId: 'ov-1' });
-  assert('pinned story renders the "Nyahaktifkan" undo control', /Nyahaktifkan/.test(html));
+  assert('pinned story renders the "Nyahpin" undo control', /Nyahpin/.test(html));
   assert('pinned story does NOT still offer "Kekalkan dalam pemilihan"', !/Kekalkan dalam pemilihan/.test(html));
   assert('pinned story tells the editor the pin expires by itself', /24 jam/.test(html));
 }
@@ -84,7 +84,7 @@ const render = story => renderToStaticMarkup(
 // An unpinned story must not show it — otherwise the assertion above proves nothing.
 {
   const html = render(baseStory);
-  assert('unpinned story shows NO undo control', !/Nyahaktifkan/.test(html));
+  assert('unpinned story shows NO undo control', !/Nyahpin/.test(html));
   assert('unpinned story DOES offer "Kekalkan dalam pemilihan"', /Kekalkan dalam pemilihan/.test(html));
 }
 
@@ -95,7 +95,7 @@ const render = story => renderToStaticMarkup(
 // unremovable until expiry — the exact failure this change exists to remove.
 {
   const html = render({ ...baseStory, status: 'Disembunyikan', hideOverrideId: 'h-1', pinned: false, pinOverrideId: 'ov-2' });
-  assert('hidden-AND-pinned story STILL exposes the pin undo (not stranded until expiry)', /Nyahaktifkan/.test(html));
+  assert('hidden-AND-pinned story STILL exposes the pin undo (not stranded until expiry)', /Nyahpin/.test(html));
   assert('hidden-AND-pinned story also still offers "Nyahsembunyi"', /Nyahsembunyi/.test(html));
   assert('hidden-AND-pinned story explains the pin is still holding a slot', /had dua/.test(html));
 }
@@ -103,7 +103,7 @@ const render = story => renderToStaticMarkup(
 // Pin is admin-only on the way in, so it is admin-only on the way out.
 {
   const html = render({ ...baseStory, pinned: true, pinOverrideId: 'ov-3', __canUnpin: false });
-  assert('non-admin sees NO unpin control (pin is admin-only both directions)', !/Nyahaktifkan/.test(html));
+  assert('non-admin sees NO unpin control (pin is admin-only both directions)', !/Nyahpin/.test(html));
 }
 
 // --- Adapter + guard wiring. Not renderable here (fetchAllStories needs a
