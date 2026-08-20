@@ -128,10 +128,19 @@ const fnBody = sql.slice(sql.indexOf('FUNCTION replace_edition_story_classificat
 // --- Full-table replace, matching classify-production.js's own semantics
 // (it computes rows for every edition in one pass) — NOT scoped to one
 // edition_id, which would silently wipe every OTHER edition's rows if a
-// future caller ever computed only a subset. ---
+// future caller ever computed only a subset. Discovered on the first real
+// production run (2026-08-20): this database refuses ANY unqualified
+// DELETE ("DELETE requires a WHERE clause"), so the DELETE genuinely does
+// carry `WHERE true` — a syntactic no-op, not a real scoping condition.
+// The assertion below checks for that EXACT tautology, not "no WHERE at
+// all", so it still fails if the DELETE is ever scoped to a real
+// condition (e.g. `WHERE edition_id = ...`) that would silently wipe only
+// part of the table. ---
 {
-  check('the DELETE has no WHERE clause scoping it to one edition_id (full-table replace, by design)',
-    !/DELETE FROM edition_story_classifications\s+WHERE/i.test(fnBody));
+  check('the DELETE is NOT scoped to one edition_id (a real condition there would silently drop every other edition\'s rows)',
+    !/DELETE FROM edition_story_classifications\s+WHERE\s+edition_id/i.test(fnBody));
+  check('the DELETE carries WHERE true (a syntactic no-op required by this database\'s DELETE-must-have-a-WHERE-clause guard) -- not scoped, not bare',
+    /DELETE FROM edition_story_classifications\s+WHERE\s+true\s*;/i.test(fnBody));
   // Checked against the RAW file, not the comment-stripped copy — this is
   // a documentation-presence check, and stripSqlComments() deletes exactly
   // the `--` comment text this assertion is looking for.

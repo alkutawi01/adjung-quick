@@ -129,7 +129,19 @@ BEGIN
   -- long as every run does exactly that; a future caller that computes rows
   -- for a single edition only must NOT call this function, or it will
   -- silently drop every other edition's classifications).
-  DELETE FROM edition_story_classifications;
+  -- `WHERE true` is NOT a scoping condition -- it is a syntactic no-op
+  -- (matches every row, functionally identical to no WHERE at all). It
+  -- exists ONLY because this Supabase project's Postgres refuses to
+  -- execute ANY unqualified DELETE/UPDATE ("DELETE requires a WHERE
+  -- clause"), discovered live on the first real production run of this
+  -- function (2026-08-20) -- something no amount of fake-client testing
+  -- in this project's test suite could have caught, since it is a real
+  -- Postgres-level guard with no equivalent in the mocked Supabase client
+  -- every test in this file's family uses. Every OTHER DELETE against
+  -- this same table in this codebase (migration-C-swap-reconciliation-
+  -- fix-v1.sql, schema-ingestion-staging-functions-v1.sql) already carries
+  -- a real WHERE clause, which is why they never hit this.
+  DELETE FROM edition_story_classifications WHERE true;
 
   INSERT INTO edition_story_classifications (
     story_id, edition_id, field, field_code, subject_code, sub_field,
