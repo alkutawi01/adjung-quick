@@ -59,7 +59,13 @@ export async function fetchAllStories(supabase, editionId) {
     // productionAdapter.js's two-query split -- this table drives status
     // display here, not reader visibility, so all types are read together.
     supabase.from('story_overrides')
-      .select('id, story_id, override_type, new_field_code')
+      // `created_at` is required, not cosmetic: resolveStoryField() breaks
+      // same-type conflicts with pickMostRecent(), which sorts on it. Without
+      // it every comparison is NaN, the sort silently no-ops, and
+      // "most recent wins" degrades to "whatever order Postgres returned".
+      // productionAdapter.js:186 already selects it for the same resolver --
+      // this adapter was the outlier.
+      .select('id, story_id, override_type, new_field_code, created_at')
       .eq('edition_id', editionId)
       .eq('active', true)
       .gt('expires_at', new Date().toISOString()),
@@ -111,6 +117,16 @@ export async function fetchAllStories(supabase, editionId) {
       );
       const boosted = storyOverrides.some(o => o.override_type === 'boost');
       const pinned = Boolean(resolved.pinned);
+      // Deliberately read from the RAW override list, NOT from
+      // `resolved.pinned`. Hide outranks pin in resolveStoryField(), so a
+      // story that is pinned AND hidden resolves down the hide branch and
+      // reports pinned=false -- while its pin row is still active and still
+      // consuming one of the 2 per-category pin slots. Deriving the id from
+      // `resolved` would leave that pin invisible AND unremovable until the
+      // 24h expiry, which is the exact failure this fix exists to remove.
+      // `pinned` above stays resolver-derived on purpose: it drives the
+      // "Pin" badge, and a hidden story genuinely is not pinned to a reader.
+      const activePin = storyOverrides.find(o => o.override_type === 'pin') ?? null;
 
       const filterResult = resolveEditorialFilterForStory(
         { title: canonical.title, description: canonical.description },
@@ -149,6 +165,12 @@ export async function fetchAllStories(supabase, editionId) {
         // separate lookup, same overrideId shape ReviewQueueCard already
         // uses for boost/pin undo.
         hideOverrideId: !resolved.visible && resolved.source === 'override' ? resolved.overrideId : null,
+        // Added 8D-A.1: without this the mounted UI had the `pinned` flag
+        // but no id to deactivate, so an editor could create a pin and never
+        // remove it -- see the regression note in AllStoriesPanel.jsx. Set
+        // whenever an active pin row exists, INDEPENDENT of `pinned` above,
+        // so a hidden-and-pinned story is still recoverable (see activePin).
+        pinOverrideId: activePin?.id ?? null,
         // Real column, present for every cluster (set at ingest by
         // db/ingest-production.js) -- not the same as the explainable
         // freshness/sourceTrust/confidence/boost breakdown, which is only

@@ -632,6 +632,15 @@ export async function submitPinOverride(supabase, { storyId, editionId, newField
   // 8D-A comment fix, this was stale since that UI shipped), but the
   // adapter stays the enforcement point regardless of which surface
   // calls it.
+  //
+  // NOTE (8D-A.1): this guard is one-directional. It stops pin-over-hide,
+  // but nothing stops hide-over-pin — an editor can hide an already-pinned
+  // story, leaving an active pin the resolver no longer reports (hide
+  // outranks pin) that still consumes one of the 2 per-category slots.
+  // AllStoriesPanel now surfaces and allows removing that pin explicitly
+  // rather than letting it sit invisible until expiry. Making the guard
+  // symmetric at write time is a product decision, not a bug fix — it
+  // would forbid hiding a pinned story outright.
   const { data: activeHides, error: hideErr } = await supabase
     .from('story_overrides')
     .select('id')
@@ -674,12 +683,36 @@ export async function submitPinOverride(supabase, { storyId, editionId, newField
 // FASA 3.6.3a Test 4 (undo/remove override): deactivating is a soft update
 // (active -> false), never a delete — the row stays as the permanent audit
 // trail of what was decided and by whom, per
-// docs/editorial-state-implementation-spec-v1.md. No UI calls this yet
-// (ChatGPT's 3.6.3a scope explicitly excludes a History screen) — this
-// exists so the mechanism itself is real and provable, not just a promise.
+// docs/editorial-state-implementation-spec-v1.md.
+//
+// Called by AllStoriesPanel.jsx's "Nyahsembunyi" (hide undo). Intentionally
+// NOT role-gated itself: hide is an editor-level action (db/editor-auth.mjs's
+// ADMIN_ONLY_ACTIONS excludes it), so undoing one must stay editor-level too.
+// Admin-only overrides need the guarded wrapper below instead — do not add a
+// blanket admin check here, it would break unhide for editors.
 export async function deactivateOverride(supabase, overrideId) {
   const { error } = await supabase.from('story_overrides').update({ active: false }).eq('id', overrideId);
   if (error) throw new Error(`deactivateOverride: ${error.message}`);
+}
+
+// 8D-A.1. Pin is admin-only on the way IN (canPerformAction's
+// ADMIN_ONLY_ACTIONS), so it must be admin-only on the way OUT — otherwise
+// an editor could undo an admin's editorial decision, which is the exact
+// escalation boundary db/schema-editorial-state.sql says lives at the
+// application layer. Enforced HERE rather than only by hiding the button,
+// for the same reason writeOverride() enforces it at the write choke point:
+// a UI-only gate is one layer, and this project has already been bitten by
+// a documented-but-unwired boundary once (see writeOverride's audit note).
+//
+// Without this the failure was also SILENT, not just permissive: the RLS
+// policy filters non-owned rows rather than raising, so PostgREST returns
+// success with 0 rows changed. An editor got a button that did nothing and
+// said nothing, while the create path failed loudly with a readable reason.
+export async function unpinOverride(supabase, { overrideId, role }) {
+  if (!canPerformAction(role, 'pin')) {
+    throw new Error(`Tindakan "pin" memerlukan peranan admin. Peranan anda: ${role ?? 'tiada'}.`);
+  }
+  return deactivateOverride(supabase, overrideId);
 }
 
 async function writeOverride(supabase, { storyId, editionId, overrideType, newField, reason, createdBy, role }) {

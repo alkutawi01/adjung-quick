@@ -23,8 +23,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { fetchAllStories } from './allStoriesAdapter.js';
 import {
-  submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride,
+  submitHideOverride, submitReclassifyOverride, submitPinOverride, deactivateOverride, unpinOverride,
 } from './reviewQueueAdapter.js';
+import { isAdmin } from '../../../db/editor-auth.mjs';
 import ClassificationProvenance from './ClassificationProvenance.jsx';
 
 const STATUS_OPTIONS = ['Aktif', 'Perlu semakan', 'Disembunyikan'];
@@ -193,6 +194,8 @@ export default function AllStoriesPanel({ supabase, editionId, role, userId, tax
           onReclassify={(newField, reason) => runAction(() => submitReclassifyOverride(supabase, { storyId: openStory.storyId, editionId, newField, reason, createdBy: userId, role }))}
           onPin={(newField, reason) => runAction(() => submitPinOverride(supabase, { storyId: openStory.storyId, editionId, newField, reason, createdBy: userId, role }))}
           onUnhide={overrideId => runAction(() => deactivateOverride(supabase, overrideId))}
+          onUnpin={overrideId => runAction(() => unpinOverride(supabase, { overrideId, role }))}
+          canUnpin={isAdmin(role)}
         />
       )}
     </div>
@@ -211,7 +214,20 @@ function formatMasa(iso) {
   return d.toLocaleString('ms-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onPin, onUnhide }) {
+// Exported for ui/src/admin/unpinWiring.test.mjs, which renders it directly
+// with fixtures. The 8D-A.1 regression (an editor could create a pin and
+// never remove it) survived a static/regex-only test, so this one actually
+// renders the drawer — which needs a handle on the component.
+export function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onPin, onUnhide, onUnpin, canUnpin }) {
+  // Rendered in BOTH branches below (hidden and not), because hide outranks
+  // pin in the resolver: a pinned story that is later hidden reports
+  // pinned=false, yet its pin row stays active and keeps consuming one of
+  // the 2 per-category slots. If the undo lived only in the not-hidden
+  // branch, that pin would be invisible AND unremovable until the 24h
+  // expiry — the very failure this change exists to remove.
+  const pinUndo = story.pinOverrideId && canUnpin ? (
+    <button type="button" className="review-card__promo-undo" onClick={() => onUnpin(story.pinOverrideId)} disabled={busy}>Nyahaktifkan</button>
+  ) : null;
   const [composing, setComposing] = useState(null); // null | 'hide' | 'reclassify' | 'pin'
   const [reason, setReason] = useState('');
   const [newField, setNewField] = useState(taxonomy[0] ?? '');
@@ -252,18 +268,44 @@ function StoryDrawer({ story, taxonomy, busy, onClose, onHide, onReclassify, onP
         />
 
         {story.status === 'Disembunyikan' ? (
-          <p className="review-card__promo-status">
-            Berita ini disembunyikan daripada pembaca.
-            {story.hideOverrideId && (
-              <button type="button" className="review-card__promo-undo" onClick={() => onUnhide(story.hideOverrideId)} disabled={busy}>Nyahsembunyi</button>
+          <>
+            <p className="review-card__promo-status">
+              Berita ini disembunyikan daripada pembaca.
+              {story.hideOverrideId && (
+                <button type="button" className="review-card__promo-undo" onClick={() => onUnhide(story.hideOverrideId)} disabled={busy}>Nyahsembunyi</button>
+              )}
+            </p>
+            {story.pinOverrideId && (
+              <p className="review-card__promo-status">
+                Berita ini masih dikekalkan dalam pemilihan walaupun disembunyikan, dan masih mengambil satu tempat daripada had dua bagi kategori ini.
+                {pinUndo}
+              </p>
             )}
-          </p>
+          </>
         ) : composing === null && (
-          <div className="review-card__actions">
-            <button type="button" onClick={() => setComposing('reclassify')} disabled={busy}>Ubah kategori</button>
-            <button type="button" onClick={() => setComposing('hide')} disabled={busy}>Sembunyikan</button>
-            {!story.pinned && <button type="button" onClick={() => setComposing('pin')} disabled={busy}>Kekalkan dalam pemilihan</button>}
-          </div>
+          <>
+            {/* 8D-A.1 regression fix: an unpin path existed in
+                ReviewQueueCard.jsx and ValueRankingPanel.jsx, but BOTH were
+                orphaned by later consolidations (Round 8/15 and Polish 8C),
+                and neither replacement carried it over. An editor could
+                create a pin and then had no way to remove it -- it only
+                cleared via the 24h server-side expiry. Unlike hide (which
+                replaces the action list entirely, since a hidden story has
+                nothing else to act on), pin sits ALONGSIDE the other
+                actions: a pinned story is still active and can still be
+                reclassified or hidden. */}
+            {story.pinOverrideId && (
+              <p className="review-card__promo-status">
+                Berita ini dikekalkan dalam pemilihan, dan tamat secara automatik selepas 24 jam.
+                {pinUndo}
+              </p>
+            )}
+            <div className="review-card__actions">
+              <button type="button" onClick={() => setComposing('reclassify')} disabled={busy}>Ubah kategori</button>
+              <button type="button" onClick={() => setComposing('hide')} disabled={busy}>Sembunyikan</button>
+              {!story.pinned && <button type="button" onClick={() => setComposing('pin')} disabled={busy}>Kekalkan dalam pemilihan</button>}
+            </div>
+          </>
         )}
 
         {composing !== null && (

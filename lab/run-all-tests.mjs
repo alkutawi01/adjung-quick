@@ -61,6 +61,7 @@ const TEST_FILES = [
   'ui/src/admin/copyLint.test.mjs',
   'db/carry-forward-personal-state.test.mjs',
   'ui/src/admin/boostV1Cleanup.test.mjs',
+  'ui/src/admin/unpinWiring.test.mjs',
 ];
 
 const results = [];
