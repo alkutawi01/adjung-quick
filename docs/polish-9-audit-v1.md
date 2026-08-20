@@ -1,6 +1,6 @@
 # Polish 9 — Audit Kitaran Hayat, Operasi & Liputan Klasifikasi (2026-08-20)
 
-Status: `[x] 9A selesai (pagination deterministik)` `[x] 9B selesai (audit baca-sahaja)` `[x] 9C selesai (audit baca-sahaja)` `[x] 9C-A diguna pakai production` `[x] 9D-1A selesai (semakan kesegaran sandaran)` `[ ] 9D-1B ditangguhkan (lihat bawah)` `[ ] 9D-2 sedang berjalan`
+Status: `[x] 9A selesai (pagination deterministik)` `[x] 9B selesai (audit baca-sahaja)` `[x] 9C selesai (audit baca-sahaja)` `[x] 9C-A diguna pakai production` `[x] 9D-1A selesai (semakan kesegaran sandaran)` `[ ] 9D-1B ditangguhkan (lihat bawah)` `[x] 9D-2 selesai (penunjuk _old)` `[x] 9D-3 selesai (penunjuk kandungan terbaharu)`
 
 Dijalankan sejurus selepas P0 ditutup rasmi (lihat
 `docs/p0-classification-backlog-incident-v1.md`), atas arahan pengarah
@@ -275,6 +275,50 @@ trafik meningkat mendadak, ATAU sebelum keputusan Edisi Global (English/
 Arabic) dibuat — bukan tarikh tetap, semak bila salah satu daripada ni
 berlaku.
 
-### 9D-2 — Penunjuk `_old` di Admin Ringkasan (sedang berjalan)
+### 9D-2 — Penunjuk `_old` di Admin Ringkasan (selesai)
 
-Lihat commit seterusnya.
+RPC baharu `check_old_generation_exists()` (`db/schema-old-generation-check-rpc-v1.sql`,
+SECURITY DEFINER, hanya pulangkan boolean, `authenticated` sahaja) semak
+KETIGA-TIGA jadual `_old` (`sources_old`, `story_clusters_old`,
+`rss_items_old`) — padan tepat gerbang sebenar `swap_ingestion_staging()`.
+Semakan adversarial jumpa versi awal cuma semak SATU (`story_clusters_old`)
+— selamat hari ni sebab `swap`/`drop` sentiasa jaga ketiga-tiga jadual
+serentak, tapi itu invariant fungsi LAIN, bukan sesuatu semakan baca-sahaja
+patut bergantung. Diperluas semak ketiga-tiga terus.
+
+Baris baharu di Admin Ringkasan ("Generasi lama (_old)") — Izzat sahkan
+migrasi berjalan production, disahkan hidup DUA kali (wujud `_old` sebenar
+-> papar "Wujud", Izzat buang -> papar "Tiada"). Semakan adversarial juga
+tangkap perkataan Inggeris "ingestion" bocor terus ke mesej Melayu — dibaiki
+kepada "pembersihan diperlukan sebelum kandungan baharu boleh dimasukkan".
+Push `882a046`.
+
+### 9D-3 — Penunjuk kandungan terbaharu (selesai)
+
+Isu terakhir yang pengarah teknikal tandakan masih terbuka: kalau proses
+pengambilan kandungan (fetch RSS) senyap berhenti berjalan, tiada apa-apa
+di Admin beritahu editor. `fetchLatestIngestionTime()`
+(`ui/src/admin/reviewQueueAdapter.js`) baca terus `rss_items.fetched_at`
+terkini (tiada RPC/migrasi baharu perlu — `authenticated` dah ada SELECT
+terus pada `rss_items` macam fungsi adapter lain dalam fail ni). Baris
+baharu "Kandungan terbaharu" papar masa relatif ("kurang daripada sejam
+lalu" / "N jam lalu" / "N hari lalu").
+
+**Sengaja tiada ambang keterukan** — tiada takrifan diluluskan untuk "terlalu
+lapuk", jadi baris ni TAK PERNAH menahan banner "semua elok" berdasarkan
+kelapukan sahaja (cuma ralat capaian sebenar yang menahannya, sama disiplin
+"tak disahkan ≠ disahkan-elok" macam baris `_old`/backlog sebelah). Kalau
+di masa depan Izzat/pengarah nak ambang amaran, itu keputusan produk sebenar
+untuk mereka buat, bukan tekaan di sini.
+
+Semakan adversarial jumpa SATU jurang sebenar: `formatRelativeTime()` guna
+`hours < 24`, tapi tiada fixture ujian sedia ada (2 jam, ~3 hari) uji
+sempadan TEPAT 24 jam — mutasi `hours <= 24` akan terlepas senyap. Ditambah
+ujian sempadan (jadi 54 penegasan), disahkan mutasi tepat penemuan
+ditangkap (53 lulus/1 gagal), fail dipulihkan, disahkan semula 54/54. Suite
+penuh 38/38, build bersih. Push `fd10404`.
+
+**Nota untuk pengarah teknikal**: dua item yang disebut dari ingatan sebagai
+"sudah tertutup" (amaran perubahan sumber, keterlihatan admin bila peraturan
+berubah) belum disahkan semula sesi ni — perlu semak kod sebenar sebelum
+anggap tepat, bukan percaya sepenuhnya kenyataan dari ingatan.
