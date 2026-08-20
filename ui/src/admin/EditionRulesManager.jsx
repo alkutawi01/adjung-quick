@@ -1,72 +1,179 @@
 import { useState } from 'react';
-import { SUBJECT_VOCABULARY, GEOGRAPHY_VOCABULARY } from '../../../classification/lib/desk-vocabulary.mjs';
 
-// EditionRulesManager.jsx — Backend Control Plane Fasa 4, Edition Rules
-// Admin Self-Service (ms-MY only, per Izzat's locked scope). Per
-// docs/control-plane-phase4-edition-rules-implementation-plan-v1.md and
-// ChatGPT's UI acceptance checkpoint: Izzat must be able to manage this
-// without understanding resolveAdminEditionRule() or the schema.
+// EditionRulesManager.jsx — "Penempatan Berita" (Kategori → Penempatan Berita).
 //
-// Dropdowns, not free text, for condition_subject/geography/action_field —
-// reuses the SAME vocabulary the real classifier matches against
-// (desk-vocabulary.mjs's SUBJECT_VOCABULARY/GEOGRAPHY_VOCABULARY values,
-// and this edition's own live taxonomy field codes) so a rule an admin
-// creates can never target a value the classifier doesn't recognize.
-const UNIVERSAL_SUBJECTS = [...new Set(Object.values(SUBJECT_VOCABULARY))].sort();
-const UNIVERSAL_GEOGRAPHIES = [...new Set(Object.values(GEOGRAPHY_VOCABULARY))].sort();
+// Polish 8E (docs/polish-8e-placement-audit-v1.md). Rewritten from the
+// "Paparan Edisi" form after the 8E-A audit found the page spoke the
+// engine's language rather than the editor's: it rendered raw English
+// classifier values ("Politics, bukan dari Malaysia → Dunia"), used the
+// word "seksyen", stacked two headings, and split one product question
+// ("from where?") across two technical dropdowns.
+//
+// The page now answers exactly one question, in the editor's words:
+//   Berita kategori [Politik] / Jika lokasinya [Luar Malaysia] / Paparkan dalam [Dunia]
+//
+// WHAT IS STORED IS UNCHANGED. `condition_subject` and
+// `condition_geography_value` still hold the English machine values the
+// classifier matches on (classification/lib/edition-rules-resolver.mjs
+// compares them as exact strings) — only the labels differ. The maps below
+// are a small display layer, deliberately NOT a general translation system.
 
-// The one built-in rule that ships in code (classification/lib/edition-
-// rules.mjs) — shown as read-only context so Izzat can see it's there
-// and understand why a story might route to Dunia even with zero admin
-// rules. This is NOT fetched from the DB (it isn't stored there,
-// deliberately — default+override model) — it's a static description of
-// what the code currently does, kept in sync by hand since it's a single
-// fixed fact, not a list that grows.
+// Which categories may open a placement rule. Curated, not derived.
 //
-// Pusingan Polish 1/5 (2026-08-19): renamed "Susunan Edisi" -> "Paparan
-// Edisi" and copy simplified throughout per ChatGPT's exact target --
-// this was one of Izzat's own flagged screenshots (too technical, mixed
-// Kategori/Kategori terminology, raw priority number shown to editor).
+// NOT derived from SUBJECT_VOCABULARY: that list is missing 'Disaster'
+// (the classifier can produce it via content-rules.mjs, but no phrase maps
+// to it in desk-vocabulary.mjs), so deriving would silently drop Bencana.
+//
+// Three categories are deliberately EXCLUDED (director's decision):
+//   - Nasional and Dunia are geography-residual categories, not subjects —
+//     a story is not "about Nasional", it lands there by where it happened.
+//   - Bisnes maps to TWO universal subjects (Business + Economy) in this
+//     edition's taxonomy, so a single "Bisnes" choice cannot be stored as
+//     one condition_subject without misrepresenting what the rule matches.
+const PLACEMENT_SUBJECTS = [
+  { value: 'Politics', label: 'Politik' },
+  { value: 'Crime', label: 'Jenayah' },
+  { value: 'Sports', label: 'Sukan' },
+  { value: 'Environment', label: 'Alam Sekitar' },
+  { value: 'Disaster', label: 'Bencana' },
+  { value: 'Health', label: 'Kesihatan' },
+  { value: 'Education', label: 'Pendidikan' },
+  { value: 'Technology', label: 'Teknologi' },
+  { value: 'Science', label: 'Sains' },
+  { value: 'Culture', label: 'Budaya' },
+  { value: 'Entertainment', label: 'Hiburan' },
+  { value: 'Religion', label: 'Agama' },
+  { value: 'Lifestyle', label: 'Gaya Hidup' },
+];
+
+// One product-level dropdown replacing the old type+value pair. The other
+// universal geographies (Americas, Europe, Southeast Asia, World) are not
+// offered in ms-MY V1 — the mental model here is only "ours vs not ours".
+//
+// `type: null, value: null` satisfies the schema's geography XOR constraint
+// (both null or both set), so "Semua lokasi" is a real stored state rather
+// than a UI-only convenience.
+const LOCATIONS = [
+  { key: 'all', label: 'Semua lokasi', type: null, value: null },
+  { key: 'malaysia', label: 'Malaysia', type: 'is', value: 'Malaysia' },
+  { key: 'luar', label: 'Luar Malaysia', type: 'not', value: 'Malaysia' },
+];
+
+// DISPLAY-ONLY labels for values this page no longer offers but that older
+// rows (or a direct DB write) may still contain. Without these the table
+// would print the raw English machine value straight into a Malay page —
+// the exact defect 8E-A found. Kept separate from PLACEMENT_SUBJECTS /
+// LOCATIONS so listing a legacy value here can never re-add it to a
+// dropdown.
+const LEGACY_SUBJECT_LABELS = { Business: 'Bisnes', Economy: 'Ekonomi' };
+const LEGACY_GEOGRAPHY_LABELS = {
+  Americas: 'Amerika', Europe: 'Eropah', 'Southeast Asia': 'Asia Tenggara',
+  'Middle East': 'Asia Barat', World: 'Dunia', Malaysia: 'Malaysia',
+};
+
+export const subjectLabel = value =>
+  PLACEMENT_SUBJECTS.find(s => s.value === value)?.label
+  ?? LEGACY_SUBJECT_LABELS[value]
+  // Last resort for a value no list knows. Shows the stored string rather
+  // than "tidak dikenali": an unrecognised subject can only arrive by
+  // writing the table directly, and the editor still needs to see what the
+  // live rule actually matches on.
+  ?? value;
+
+export const locationLabel = (type, value) => {
+  if (!type) return LOCATIONS[0].label;
+  const known = LOCATIONS.find(l => l.type === type && l.value === value);
+  if (known) return known.label;
+  const place = LEGACY_GEOGRAPHY_LABELS[value] ?? value;
+  return type === 'not' ? `Bukan dari ${place}` : `Dari ${place}`;
+};
+
+// Exported and pure so the tests exercise the REAL logic the component runs.
+// An adversarial review caught the previous test re-implementing both of
+// these inline and asserting on its own copy — which stayed green when the
+// component was reverted to the buggy formula.
+//
+// K2 (8E-A audit): was `activeRules.length + 1`, which reuses a live number
+// as soon as any rule is archived. With priorities 1,2,3 and #2 archived the
+// count is 2, so the next rule gets 3 — colliding with the existing #3. The
+// resolver DISCARDS BOTH rules on a top-priority tie
+// (edition-rules-resolver.mjs's pickWinner) and falls back to the built-in
+// default, so an admin rule silently loses to the very default it was
+// written to override. Counting from the max across ALL rules (archived
+// included) means a restored rule can never collide either.
+export function nextPriorityFor(rules) {
+  const highest = (rules ?? []).reduce((max, r) => Math.max(max, r.priority ?? 0), 0);
+  return highest + 1;
+}
+
+// The geography XOR (`edition_rules_geography_xor`) requires type and value
+// to be BOTH null or BOTH set. Keeping them on one LOCATIONS entry and
+// building the payload here means no call site can ever split the pair.
+export function buildRulePayload({ subject, locationKey, fieldCode, nextPriority }) {
+  const location = LOCATIONS.find(l => l.key === locationKey) ?? LOCATIONS[0];
+  return {
+    conditionSubject: subject,
+    conditionGeographyType: location.type,
+    conditionGeographyValue: location.value,
+    actionFieldCode: fieldCode,
+    priority: nextPriority,
+  };
+}
+
+// The single built-in rule that ships in code (classification/lib/edition-
+// rules.mjs), shown read-only so an editor can see why a story may route to
+// Dunia with zero admin rules. Not fetched — it isn't stored in the DB.
 const BUILT_IN_RULE_DESCRIPTION = 'Politik luar Malaysia → Dunia';
 
-export default function EditionRulesManager({ editionLabel, taxonomyFieldCodes, taxonomyFieldLabels, rules, busy, onAdd, onArchive, onRestore }) {
+// Placement rules are read by db/classify-production.js and baked into
+// edition_story_classifications; the reader only ever reads that stored
+// table. So saving a rule changes nothing a reader sees until the next
+// classification run. The 8E-A audit found the page never said so, leaving
+// an editor to assume a saved rule was already live. Stating it is the
+// whole fix — no "apply now" button, no scheduler (director's explicit
+// instruction: confirm whether an out-of-repo scheduler exists first).
+const EFFECT_NOTICE = 'Perubahan ini hanya berkuat kuasa pada pengelasan seterusnya, dan tidak mengubah paparan pembaca serta-merta.';
+
+export default function EditionRulesManager({ taxonomyFieldCodes, taxonomyFieldLabels, rules, busy, onAdd, onArchive, onRestore }) {
   const activeRules = rules?.filter(r => r.status === 'active') ?? [];
   const archivedRules = rules?.filter(r => r.status === 'archived') ?? [];
 
+  // A rule may point at a taxonomy field that has since been archived. The
+  // FK only checks the row exists, not that it is still active, so such a
+  // rule silently never fires while still listing as active here. Say so in
+  // words rather than falling through to a raw field code.
   const fieldLabelFor = code => {
     const idx = taxonomyFieldCodes.indexOf(code);
-    return idx === -1 ? code : taxonomyFieldLabels[idx];
+    // Includes the stored code: without it two broken rules are
+    // indistinguishable and neither can be diagnosed.
+    return idx === -1 ? `Kategori sasaran tidak tersedia (${code})` : taxonomyFieldLabels[idx];
   };
 
   return (
     <article className="edition-rules">
-      <h3 className="editorial-desk__placeholder-title">Paparan Edisi — {editionLabel}</h3>
       <p className="editorial-desk__placeholder-desc">
-        Tentukan bagaimana sesuatu kategori dipaparkan dalam edisi ini. Pelarasan yang awak tambah
-        di bawah diutamakan berbanding tetapan asas.
+        Tentukan jika berita daripada sesuatu kategori perlu dipaparkan dalam kategori lain.
       </p>
+
+      <p className="admin-app__status admin-app__status--notice">{EFFECT_NOTICE}</p>
 
       <div className="edition-rules__builtin">
         <span className="edition-rules__builtin-label">Tetapan asas</span>
         <p className="edition-rules__builtin-desc">{BUILT_IN_RULE_DESCRIPTION}</p>
       </div>
 
-      <h4 className="filter-rules__list-title">Pelarasan Admin</h4>
-      {activeRules.length === 0 && (
+      {activeRules.length === 0 ? (
         <p className="review-queue__empty">
-          Tiada pelarasan admin lagi. Sistem guna tetapan asas sahaja (di atas).
+          Tiada penempatan tersendiri lagi. Sistem guna tetapan asas sahaja (di atas).
         </p>
+      ) : (
+        <RuleTable rules={activeRules} fieldLabelFor={fieldLabelFor} busy={busy} onArchive={onArchive} />
       )}
-      {activeRules.map(rule => (
-        <EditionRuleRow key={rule.id} rule={rule} fieldLabelFor={fieldLabelFor} busy={busy} onArchive={onArchive} />
-      ))}
 
       {archivedRules.length > 0 && (
         <>
           <h4 className="filter-rules__list-title">Diarkibkan</h4>
-          {archivedRules.map(rule => (
-            <EditionRuleRow key={rule.id} rule={rule} fieldLabelFor={fieldLabelFor} busy={busy} onRestore={onRestore} archived />
-          ))}
+          <RuleTable rules={archivedRules} fieldLabelFor={fieldLabelFor} busy={busy} onRestore={onRestore} archived />
         </>
       )}
 
@@ -75,9 +182,39 @@ export default function EditionRulesManager({ editionLabel, taxonomyFieldCodes, 
         taxonomyFieldLabels={taxonomyFieldLabels}
         busy={busy}
         onAdd={onAdd}
-        nextPriority={activeRules.length + 1}
+        nextPriority={nextPriorityFor(rules)}
       />
     </article>
+  );
+}
+
+function RuleTable({ rules, fieldLabelFor, busy, onArchive, onRestore, archived }) {
+  return (
+    <div className="source-table-wrap">
+      <table className="source-table">
+        <thead>
+          <tr>
+            <th>Berita</th>
+            <th>Lokasi</th>
+            <th>Paparkan dalam</th>
+            <th>Tindakan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rules.map(rule => (
+            <EditionRuleRow
+              key={rule.id}
+              rule={rule}
+              fieldLabelFor={fieldLabelFor}
+              busy={busy}
+              onArchive={onArchive}
+              onRestore={onRestore}
+              archived={archived}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -85,26 +222,14 @@ function EditionRuleRow({ rule, fieldLabelFor, busy, onArchive, onRestore, archi
   const [showArchiveReason, setShowArchiveReason] = useState(false);
   const [archiveReason, setArchiveReason] = useState('');
 
-  const geographyText = rule.condition_geography_type === 'not'
-    ? `bukan dari ${rule.condition_geography_value}`
-    : rule.condition_geography_type === 'is'
-      ? `dari ${rule.condition_geography_value}`
-      : null;
-
   return (
-    <div className={`edition-rules__row${archived ? ' edition-rules__row--archived' : ''}`}>
-      <span className="edition-rules__condition">
-        {rule.condition_subject}{geographyText ? `, ${geographyText}` : ''}
-      </span>
-      <span className="edition-rules__arrow">→</span>
-      <span className="edition-rules__target">{fieldLabelFor(rule.action_field_code)}</span>
-      {archived && rule.reason && <span className="edition-rules__reason">Sebab: {rule.reason}</span>}
-
-      <div className="edition-rules__row-actions">
+    <tr className={archived ? 'source-table__row--inactive' : ''}>
+      <td>{subjectLabel(rule.condition_subject)}</td>
+      <td>{locationLabel(rule.condition_geography_type, rule.condition_geography_value)}</td>
+      <td>{fieldLabelFor(rule.action_field_code)}</td>
+      <td className="edition-rules__cell-actions">
         {!archived && !showArchiveReason && (
-          <button type="button" disabled={busy} onClick={() => setShowArchiveReason(true)}>
-            Arkibkan
-          </button>
+          <button type="button" disabled={busy} onClick={() => setShowArchiveReason(true)}>Arkibkan</button>
         )}
         {!archived && showArchiveReason && (
           <form
@@ -130,80 +255,59 @@ function EditionRuleRow({ rule, fieldLabelFor, busy, onArchive, onRestore, archi
           </form>
         )}
         {archived && (
-          <button type="button" disabled={busy} onClick={() => onRestore(rule.id)}>
-            Aktifkan Semula
-          </button>
+          <>
+            <button type="button" disabled={busy} onClick={() => onRestore(rule.id)}>Aktifkan semula</button>
+            {rule.reason && <span className="edition-rules__reason">Sebab: {rule.reason}</span>}
+          </>
         )}
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
-// Pusingan Polish 1/5: priority number no longer shown/entered by the
-// editor (ChatGPT's explicit instruction -- "jangan tunjuk nombor
-// priority", conflict resolution is a backend concern). Auto-assigned
-// from `nextPriority` (active rule count + 1) so a newly added rule wins
-// over older ones on conflict, matching the schema's own "higher number
-// wins" convention -- silent, never surfaced as a field to fill in.
-function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, busy, onAdd, nextPriority }) {
+// The priority number stays hidden from the editor (director's standing
+// instruction) — conflict resolution is a backend concern. It is assigned
+// silently from `nextPriority`; see the K2 note at the call site for why
+// that value is now a max, not a count.
+export function AddEditionRuleForm({ taxonomyFieldCodes, taxonomyFieldLabels, busy, onAdd, nextPriority }) {
   const [subject, setSubject] = useState('');
-  const [geographyType, setGeographyType] = useState('');
-  const [geographyValue, setGeographyValue] = useState('');
+  const [locationKey, setLocationKey] = useState('all');
   const [fieldCode, setFieldCode] = useState('');
 
-  const canSubmit = subject && fieldCode && (!geographyType || geographyValue) && !busy;
+  const canSubmit = subject && fieldCode && !busy;
 
   const submit = e => {
     e.preventDefault();
     if (!canSubmit) return;
-    onAdd({
-      conditionSubject: subject,
-      conditionGeographyType: geographyType || null,
-      conditionGeographyValue: geographyType ? geographyValue : null,
-      actionFieldCode: fieldCode,
-      priority: nextPriority,
-    });
+    onAdd(buildRulePayload({ subject, locationKey, fieldCode, nextPriority }));
     setSubject('');
-    setGeographyType('');
-    setGeographyValue('');
+    setLocationKey('all');
     setFieldCode('');
   };
 
   return (
     <form className="edition-rules__add" onSubmit={submit}>
-      <h4 className="filter-rules__list-title">Tambah Pelarasan</h4>
+      <h4 className="filter-rules__list-title">Tambah Penempatan</h4>
 
       <label className="edition-rules__field">
-        Jika bidang:
+        Berita kategori:
         <select value={subject} onChange={e => setSubject(e.target.value)} disabled={busy}>
           <option value="">— Pilih kategori —</option>
-          {UNIVERSAL_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+          {PLACEMENT_SUBJECTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
       </label>
 
       <label className="edition-rules__field">
-        dan lokasi (opsyenal):
-        <select value={geographyType} onChange={e => setGeographyType(e.target.value)} disabled={busy}>
-          <option value="">— Tiada syarat lokasi —</option>
-          <option value="is">Dari negara/kawasan ini:</option>
-          <option value="not">Bukan dari negara/kawasan ini:</option>
+        Jika lokasinya:
+        <select value={locationKey} onChange={e => setLocationKey(e.target.value)} disabled={busy}>
+          {LOCATIONS.map(l => <option key={l.key} value={l.key}>{l.label}</option>)}
         </select>
       </label>
 
-      {geographyType && (
-        <label className="edition-rules__field">
-          Negara/Kawasan:
-          <select value={geographyValue} onChange={e => setGeographyValue(e.target.value)} disabled={busy}>
-            <option value="">— Pilih —</option>
-            {UNIVERSAL_GEOGRAPHIES.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-        </label>
-      )}
-
       <label className="edition-rules__field">
-        paparkan dalam seksyen:
+        Paparkan dalam:
         <select value={fieldCode} onChange={e => setFieldCode(e.target.value)} disabled={busy}>
-          <option value="">— Pilih seksyen —</option>
+          <option value="">— Pilih kategori —</option>
           {taxonomyFieldCodes.map((code, i) => (
             <option key={code} value={code}>{taxonomyFieldLabels[i]}</option>
           ))}

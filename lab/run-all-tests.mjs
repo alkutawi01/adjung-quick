@@ -62,6 +62,7 @@ const TEST_FILES = [
   'db/carry-forward-personal-state.test.mjs',
   'ui/src/admin/boostV1Cleanup.test.mjs',
   'ui/src/admin/unpinWiring.test.mjs',
+  'ui/src/admin/penempatanBerita.test.mjs',
 ];
 
 const results = [];

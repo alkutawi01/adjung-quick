@@ -911,41 +911,27 @@ body {
   margin: 0;
   color: var(--ink-muted);
 }
-.edition-rules__row {
+/* Polish 8E: placement rules moved from hand-built flex rows to a real
+   table, so .edition-rules__row/__condition/__arrow/__row-actions -- and
+   the already-dead __priority/__target -- went with them. The actions cell
+   needs its OWN class: .source-table__actions is nowrap with no flex-wrap
+   (sized for the Semua Berita table), so opening the archive form inside
+   one would balloon the column instead of wrapping. */
+.edition-rules__cell-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--hairline);
-  font-size: 0.85rem;
+  gap: 6px;
   flex-wrap: wrap;
+  white-space: normal;
 }
-.edition-rules__row--archived {
-  opacity: 0.5;
-}
-.edition-rules__condition {
-  font-weight: 600;
-}
-.edition-rules__arrow {
-  color: var(--ink-muted);
-}
-.edition-rules__priority {
-  color: var(--ink-muted);
-  font-size: 0.78rem;
+.edition-rules__cell-actions button {
+  font-size: 0.75rem;
+  padding: 2px 8px;
 }
 .edition-rules__reason {
   color: var(--ink-muted);
   font-size: 0.78rem;
   flex-basis: 100%;
-}
-.edition-rules__row-actions {
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
-}
-.edition-rules__row-actions button {
-  font-size: 0.75rem;
-  padding: 2px 8px;
 }
 .edition-rules__archive-form {
   display: flex;

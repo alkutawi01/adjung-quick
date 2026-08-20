@@ -12,11 +12,13 @@
 //                           already distinguishes these, so this is NOT
 //                           split into two separate mounts of the same
 //                           component/table.
-//   3. Susunan Edisi     -- EditionRulesManager as-is (ms-MY only, matches
-//                           its existing edition-gated behaviour).
+//   3. Penempatan Berita -- EditionRulesManager (ms-MY only, matches its
+//                           existing edition-gated behaviour). Rewritten in
+//                           Polish 8E; no longer "as-is".
 //
-// No new backend, no new mutations. All 3 sections reuse existing,
-// already-wired components/adapters unchanged.
+// No new backend, no new mutations -- sections 1 and 2 reuse existing
+// components/adapters unchanged; section 3 was rewritten in Polish 8E
+// against the same adapter and RPCs.
 
 import { useEffect, useState, useMemo } from 'react';
 import { fetchAllSourcesForIngestion } from '../../../db/source-registry-adapter.mjs';
@@ -878,12 +880,15 @@ export function SemuaPelarasanPage({ supabase }) {
   );
 }
 
-export function PenempatanBeritaPage({ supabase, editionId, editionLabel, editionRules, editionRulesError, editionRulesBusy, onAddEditionRule, onArchiveEditionRule, onRestoreEditionRule, taxonomyFieldCodes, taxonomyFieldLabels }) {
+export function PenempatanBeritaPage({ editionId, editionRules, editionRulesError, editionRulesBusy, onAddEditionRule, onArchiveEditionRule, onRestoreEditionRule, taxonomyFieldCodes, taxonomyFieldLabels }) {
   return (
     <div className="bidang-panel">
-      <p className="bidang-panel__section-desc">
-        Bila sesuatu kategori patut papar berbeza untuk edisi ini (contoh Politik luar negara &rarr; Dunia).
-      </p>
+      {/* Polish 8E: the intro paragraph that used to sit here duplicated
+          EditionRulesManager's own description, and the manager additionally
+          rendered an h3 under the shell's h2 — three stacked headings/blurbs
+          for one page. The description now lives in one place, inside the
+          manager. `editionLabel` is no longer passed for the same reason:
+          the shell already names the edition. */}
       {editionId === 'ms-MY' ? (
         <>
           {editionRulesError && <p className="review-queue__error">{editionRulesError}</p>}
@@ -892,7 +897,6 @@ export function PenempatanBeritaPage({ supabase, editionId, editionLabel, editio
           )}
           {editionRules !== null && (
             <EditionRulesManager
-              editionLabel={editionLabel}
               taxonomyFieldCodes={taxonomyFieldCodes}
               taxonomyFieldLabels={taxonomyFieldLabels}
               rules={editionRules}
@@ -905,7 +909,6 @@ export function PenempatanBeritaPage({ supabase, editionId, editionLabel, editio
         </>
       ) : (
         <article className="editorial-desk__placeholder-card">
-          <h3 className="editorial-desk__placeholder-title">Penempatan Berita</h3>
           <p className="editorial-desk__placeholder-desc">
             Belum tersedia untuk edisi ini. Fasa 4 bermula dengan edisi Malaysia (ms-MY) sahaja.
           </p>

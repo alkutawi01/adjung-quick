@@ -6,6 +6,12 @@
 // is_admin(auth.uid()) server-side, so this file adds no client-side
 // admin check of its own (the RPC is the real boundary; a client check
 // would only be UI politeness, never security).
+//
+// Polish 8E: thrown messages no longer carry the JS function name. These
+// strings are rendered verbatim to the editor (BidangPanel.jsx), and
+// "fetchEditionRules: ..." told them nothing they could act on while
+// leaking an internal identifier into the product. The function name is
+// still recoverable from the stack trace when debugging.
 
 export async function fetchEditionRules(supabase, editionId) {
   const { data, error } = await supabase
@@ -13,7 +19,7 @@ export async function fetchEditionRules(supabase, editionId) {
     .select('id, edition_id, condition_subject, condition_geography_type, condition_geography_value, action_field_code, priority, status, reason, created_by, created_at')
     .eq('edition_id', editionId)
     .order('priority', { ascending: false });
-  if (error) throw new Error(`fetchEditionRules: ${error.message}`);
+  if (error) throw new Error(`Gagal memuatkan penempatan berita: ${error.message}`);
   return data;
 }
 
@@ -27,16 +33,16 @@ export async function addEditionRule(supabase, { editionId, conditionSubject, ac
     p_priority: priority ?? 0,
     p_created_by: createdBy ?? null,
   });
-  if (error) throw new Error(`addEditionRule: ${error.message}`);
+  if (error) throw new Error(`Gagal menambah penempatan berita: ${error.message}`);
   return data;
 }
 
 export async function archiveEditionRule(supabase, id, reason) {
   const { error } = await supabase.rpc('archive_edition_rule', { p_id: id, p_reason: reason });
-  if (error) throw new Error(`archiveEditionRule: ${error.message}`);
+  if (error) throw new Error(`Gagal mengarkibkan penempatan berita: ${error.message}`);
 }
 
 export async function restoreEditionRule(supabase, id) {
   const { error } = await supabase.rpc('restore_edition_rule', { p_id: id });
-  if (error) throw new Error(`restoreEditionRule: ${error.message}`);
+  if (error) throw new Error(`Gagal mengaktifkan semula penempatan berita: ${error.message}`);
 }

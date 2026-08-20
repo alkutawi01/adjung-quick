@@ -234,9 +234,12 @@ function ReviewQueue({ userId, role }) {
     }
   };
 
+  // Returns the promise (Polish 8E): runEditionRuleAction below must be able
+  // to AWAIT the refetch before clearing `busy`, or the form is re-enabled
+  // while `editionRules` is still the stale pre-write array.
   const loadEditionRules = useCallback(() => {
     setEditionRulesError(null);
-    fetchEditionRules(adminSupabase, editionId)
+    return fetchEditionRules(adminSupabase, editionId)
       .then(setEditionRules)
       .catch(err => setEditionRulesError(err.message));
   }, [editionId]);
@@ -254,7 +257,13 @@ function ReviewQueue({ userId, role }) {
     setEditionRulesBusy(true);
     try {
       await action();
-      loadEditionRules();
+      // AWAITED, not fire-and-forget (Polish 8E). The new rule's priority is
+      // computed client-side as max(existing)+1, so re-enabling the form
+      // before the refetch lands lets a quick second "+ Tambah" read the
+      // stale array and pick the SAME number. A top-priority tie makes the
+      // resolver discard both rules and fall back to the built-in default --
+      // the exact K2 failure this release fixes, reintroduced by a race.
+      await loadEditionRules();
     } catch (err) {
       setEditionRulesError(err.message);
     } finally {
@@ -443,8 +452,7 @@ function ReviewQueue({ userId, role }) {
       {activeGroup === 'kategori' && activeSection === 'penempatan' && (
         <PenempatanBeritaPage
           supabase={adminSupabase}
-          editionId={editionId}
-          editionLabel={getEdition(editionId).label}
+          editionId={editionId}
           taxonomyFieldCodes={getEdition(editionId).taxonomyFieldCodes}
           taxonomyFieldLabels={getEdition(editionId).taxonomy}
           editionRules={editionRules}
