@@ -627,10 +627,11 @@ export async function submitPinOverride(supabase, { storyId, editionId, newField
 
   // Per ChatGPT's explicit UX instruction: hide and pin must never both
   // apply to one story — if hide already exists, pin is moot (restrictive
-  // beats permissive). Checked here, at write time, since no UI currently
-  // offers a "pin" action to gate this at (per ChatGPT: Pin's surface is
-  // deferred to a future Editorial Desk, not the Review Queue) — the
-  // adapter is the only enforcement point that exists today.
+  // beats permissive). Checked here, at write time — AllStoriesPanel's
+  // "Kekalkan dalam pemilihan" action now offers pin directly (Polish
+  // 8D-A comment fix, this was stale since that UI shipped), but the
+  // adapter stays the enforcement point regardless of which surface
+  // calls it.
   const { data: activeHides, error: hideErr } = await supabase
     .from('story_overrides')
     .select('id')

@@ -113,6 +113,33 @@ const unclassified = { field_code: null, classification_status: 'unclassified' }
     r.visible === true && r.fieldCode === 'politics' && r.overrideId === 'p4' && r.pinned === true);
 }
 
+// Polish 8D-A: unpin (deactivate) must fall back to whatever reclassify/
+// classifier would have decided anyway — the resolver only ever sees
+// `active=true` overrides (the caller's WHERE clause), so a deactivated
+// pin row is simply ABSENT from `activeOverrides` here. This is the same
+// mechanism already exercised by every fallback-path test above; this
+// test just makes the "unpin restores the next-precedence decision"
+// behavior explicit and named, per ChatGPT's 8D-A audit checklist.
+{
+  const withPinActive = resolveStoryField(classified, [
+    { id: 'r5', override_type: 'reclassify', new_field_code: 'crime', created_at: '2026-08-13T01:00:00Z' },
+    { id: 'p5', override_type: 'pin', new_field_code: 'politics', created_at: '2026-08-13T02:00:00Z' },
+  ]);
+  // Simulates deactivateOverride(supabase, 'p5') -- the pin row no longer
+  // passes the caller's `active=true` filter, so it's absent here.
+  const afterUnpin = resolveStoryField(classified, [
+    { id: 'r5', override_type: 'reclassify', new_field_code: 'crime', created_at: '2026-08-13T01:00:00Z' },
+  ]);
+  assert('while pinned, pin field wins over reclassify',
+    withPinActive.fieldCode === 'politics' && withPinActive.pinned === true);
+  assert('after unpin, story falls back to the reclassify decision (not stuck on the old pin field)',
+    afterUnpin.fieldCode === 'crime' && !afterUnpin.pinned && afterUnpin.overrideId === 'r5');
+
+  const noReclassifyEither = resolveStoryField(classified, []);
+  assert('after unpin with no reclassify either, story falls back to the classifier decision',
+    noReclassifyEither.fieldCode === classified.field_code && noReclassifyEither.source === 'classifier');
+}
+
 // Every non-pin branch must leave `pinned` falsy, never explicitly false
 // on unrelated paths — reducer.js's `c.pinned` check must only ever be
 // true for an actual live pin.
