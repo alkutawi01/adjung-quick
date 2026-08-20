@@ -1,6 +1,6 @@
 # Polish 9 — Audit Kitaran Hayat, Operasi & Liputan Klasifikasi (2026-08-20)
 
-Status: `[x] 9A selesai (pagination deterministik)` `[x] 9B selesai (audit baca-sahaja)` `[x] 9C selesai (audit baca-sahaja)` `[ ] Tindakan susulan belum diputuskan`
+Status: `[x] 9A selesai (pagination deterministik)` `[x] 9B selesai (audit baca-sahaja)` `[x] 9C selesai (audit baca-sahaja)` `[x] 9C-A diguna pakai production` `[x] 9D-1A selesai (semakan kesegaran sandaran)` `[ ] 9D-1B ditangguhkan (lihat bawah)` `[ ] 9D-2 sedang berjalan`
 
 Dijalankan sejurus selepas P0 ditutup rasmi (lihat
 `docs/p0-classification-backlog-incident-v1.md`), atas arahan pengarah
@@ -223,3 +223,58 @@ ditambah pukal tanpa arahan eksplisit**.
 DAN en-global (1 setiap satu) — jumlah kecil, tidak material, tetapi patut
 disemak sebagai kemungkinan kes sempadan kelayakan edisi jika berulang pada
 skala lebih besar kelak.
+
+---
+
+## Polish 9D — Tindakan Susulan (2026-08-20)
+
+Susunan keutamaan ditetapkan pengarah teknikal: sandaran/pemulihan dahulu
+(risiko #1 paling kritikal), kemudian penunjuk `_old`, kemudian audit
+operasi manual lain.
+
+### 9D-1A — Semakan kesegaran sandaran sebelum buang `_old` (selesai)
+
+`db/drop-ingestion-old-tables.mjs` kini menolak untuk teruskan melainkan
+sandaran production tempatan (`npm run snapshot`) wujud dan berumur kurang
+60 minit — disemak sebelum gerbang `CONFIRM_OLD_TABLES_VERIFIED` sedia ada
+dan sebelum sebarang panggilan Supabase. Semasa membina ujian untuk
+pembetulan ni, ditemui SATU lagi pepijat sebenar (lebih serius): skrip ni
+sebelum ni memanggil `main()` tanpa syarat pada skop modul — sekadar
+**import** fail ni (untuk uji fungsi baharu) akan mencetuskan percubaan
+buang sebenar terhadap production. Dibaiki dengan gerbang CLI yang sama
+seperti `classify-production.js`. Semakan adversarial susulan jumpa corak
+sama TERUS wujud dalam `db/ingest-production.js` — skrip PALING
+memusnahkan dalam projek ni — dibaiki serentak, komit sama. Push `c491eb6`.
+37/37 ujian lulus.
+
+### 9D-1B — Ujian pemulihan sebenar (ditangguhkan, keputusan Izzat)
+
+Pengarah teknikal cadangkan cipta satu projek Supabase sementara (bukan
+local Postgres — tak cukup wakili persekitaran Supabase sebenar; bukan
+sekadar sah JSON — bukti terlalu lemah), pulihkan snapshot sebenar,
+sahkan boleh dibaca, kemudian padam. Disahkan wujud ruang untuk ni (org
+"Adjung NIQAB" kosong sepenuhnya, berasingan drpd org `alkutawi01` yang
+dah cecah had 2 projek percuma — Adjung + Adjung Quick).
+
+**Izzat memilih untuk TANGGUHKAN** (2026-08-20), bukan kelalaian tak
+disedari — pertimbangan eksplisit:
+- Risiko sebenar rendah sekarang: kehilangan projek Supabase secara
+  spontan jarang berlaku; risiko utama (manusia buat silap semasa buang
+  `_old`) sudah ditutup oleh 9D-1A di atas.
+- Keputusan Free Plan + Google Drive (13 Ogos 2026,
+  `docs/production-safety-decision-proposal-v1.md`) sudah pun terima
+  risiko ni secara sedar berdasarkan sifat kandungan (bukan sensitif,
+  tahan ~seminggu sahaja).
+- Ujian pemulihan penuh perlukan kerja BAHARU (skrip restore belum wujud
+  langsung dalam kod), bukan tugas 5 minit.
+
+**Cetusan untuk semak semula keputusan ni** (ikut 3 pencetus naik taraf
+yang sama dalam `production-safety-decision-proposal-v1.md`): data
+pengguna sebenar mula terkumpul dalam `saved_stories`/`history_entries`,
+trafik meningkat mendadak, ATAU sebelum keputusan Edisi Global (English/
+Arabic) dibuat — bukan tarikh tetap, semak bila salah satu daripada ni
+berlaku.
+
+### 9D-2 — Penunjuk `_old` di Admin Ringkasan (sedang berjalan)
+
+Lihat commit seterusnya.
