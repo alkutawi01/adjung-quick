@@ -1,5 +1,10 @@
 # Polish 7 — Scoring Calibration (7A–7D)
 
+**STATUS: CLOSED (2026-08-20).** ChatGPT (director) confirmed closure after
+commit `011fc3e` (the `editorial_boost` reason-gating fix caught in review).
+Next: Polish 8 — Nilai → Pemilihan 10 → Susunan, starting with 8A (read-only
+audit of the real production selection path).
+
 2026-08-20. Consolidated record of the Polish 7 "Mature Scoring V1" read-only
 audit/simulation rounds (7A–7C), the locked calibration decision, and the
 Polish 7D implementation status. Written per ChatGPT's (project director)
