@@ -121,9 +121,10 @@ export default function PemilihanPanel({ corpus, error, weights }) {
   return (
     <div className="pemilihan-panel">
       <p className="bidang-panel__intro">
-        Bagaimana Nilai Berita diterjemah kepada 10 berita aktif — guna enjin pemilihan kepelbagaian
-        SEBENAR (tidak diubah), skor sahaja berbeza antara mod. Susunan Akhir (pemeriksaan komposisi
-        selepas ini) ada di tab berasingan.
+        {isActiveProduction
+          ? 'Bagaimana Nilai Berita diterjemah kepada 10 berita aktif — guna enjin pemilihan kepelbagaian SEBENAR (tidak diubah), skor sahaja berbeza antara mod.'
+          : 'Simulasi pemilihan 10 berita — belum digunakan oleh pembaca untuk kategori ini.'}
+        {' '}Susunan Akhir (pemeriksaan komposisi selepas ini) ada di tab berasingan.
       </p>
       {activeField && !isActiveProduction && (
         <p className="admin-app__status admin-app__status--notice">
@@ -218,8 +219,7 @@ export default function PemilihanPanel({ corpus, error, weights }) {
             </table>
           </div>
           <p className="admin-app__status">
-            Had maksimum 2 pin serentak setiap kategori dikuatkuasakan pelayan
-            (reviewQueueAdapter.js::submitPinOverride) — bukan sesuatu panel ini kawal.
+            Had maksimum 2 pin serentak bagi setiap kategori.
           </p>
         </>
       )}

@@ -27,6 +27,14 @@ console.log('\nPEMILIHAN/SUSUNAN AKHIR — Admin/Reader parity test (Polish 8B)\
 const pemilihanSrc = fs.readFileSync(new URL('./PemilihanPanel.jsx', import.meta.url), 'utf8');
 const susunanSrc = fs.readFileSync(new URL('./SusunanAkhirPanel.jsx', import.meta.url), 'utf8');
 
+// Strips `//` line comments only (JSX code has none of its own '//' inside
+// string literals in these two files) -- used by the strict outside-ternary
+// checks below so a doc comment quoting the old phrase for audit context
+// doesn't false-positive as a live UI leak.
+const stripLineComments = src => src.split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
+const pemilihanCode = stripLineComments(pemilihanSrc);
+const susunanCode = stripLineComments(susunanSrc);
+
 // --- 1. getRankingVersion() is the authority RANKING_FLAGS drives, and
 // ms-MY.politics is recognised as the real active-production category. ---
 {
@@ -64,6 +72,49 @@ for (const [name, src] of [['PemilihanPanel.jsx', pemilihanSrc], ['SusunanAkhirP
     /!isActiveProduction/.test(src) && /belum diaktifkan/.test(src));
   assert(`${name} labels non-active results as "Simulasi" / "belum digunakan oleh pembaca"`,
     /Simulasi/.test(src) && /belum digunakan oleh pembaca/.test(src));
+}
+
+// --- 5. STRICT intro-conditionality check (8B.1 -- ChatGPT caught that
+// #4's loose "does the word Simulasi appear anywhere" check let
+// PemilihanPanel.jsx's intro paragraph keep an UNCONDITIONAL "SEBENAR"
+// claim even after the notice banner below it correctly said
+// "simulasi" -- a real semantic contradiction the looser check missed).
+// This verifies the specific "production truth" claim phrase for each
+// panel is the TRUE-branch of an `isActiveProduction ?` ternary, and
+// does not also appear unconditionally anywhere outside that ternary. ---
+{
+  // PemilihanPanel: the "SEBENAR (tidak diubah)" claim must live inside
+  // `isActiveProduction ? '...SEBENAR...' : '...'`.
+  const pemilihanTernary = /isActiveProduction\s*\?\s*'[^']*SEBENAR[^']*'\s*:\s*'[^']*'/.exec(pemilihanCode);
+  assert('PemilihanPanel.jsx: "SEBENAR" claim is the true-branch of an isActiveProduction ternary',
+    !!pemilihanTernary);
+  if (pemilihanTernary) {
+    const outsideTernary = pemilihanCode.slice(0, pemilihanTernary.index) + pemilihanCode.slice(pemilihanTernary.index + pemilihanTernary[0].length);
+    assert('PemilihanPanel.jsx: "SEBENAR (tidak diubah)" claim does NOT also appear unconditionally elsewhere (comments excluded)',
+      !outsideTernary.includes('SEBENAR (tidak diubah)'));
+  }
+
+  // SusunanAkhirPanel: the "yang pembaca akan lihat" claim must live
+  // inside `isActiveProduction ? '...yang pembaca akan lihat...' : '...'`.
+  const susunanTernary = /isActiveProduction\s*\?\s*'[^']*pembaca akan lihat[^']*'\s*:\s*'[^']*'/.exec(susunanCode);
+  assert('SusunanAkhirPanel.jsx: "yang pembaca akan lihat" claim is the true-branch of an isActiveProduction ternary',
+    !!susunanTernary);
+  if (susunanTernary) {
+    const outsideTernary = susunanCode.slice(0, susunanTernary.index) + susunanCode.slice(susunanTernary.index + susunanTernary[0].length);
+    assert('SusunanAkhirPanel.jsx: "yang pembaca akan lihat" claim does NOT also appear unconditionally elsewhere (comments excluded)',
+      !outsideTernary.includes('yang pembaca akan lihat'));
+  }
+}
+
+// --- 6. No backend file::function references leaked into editor-facing
+// UI copy (8B.1 -- ChatGPT caught "(reviewQueueAdapter.js::submitPinOverride)"
+// literally rendered in PemilihanPanel.jsx's pin-limit notice). Code
+// comments may still reference real file/function names; this only
+// forbids the `.js::` / `.mjs::` backend-reference shape, which never
+// belongs in rendered copy. ---
+for (const [name, src] of [['PemilihanPanel.jsx', pemilihanSrc], ['SusunanAkhirPanel.jsx', susunanSrc]]) {
+  assert(`${name} does not leak a "(file.js::function)" backend reference into UI copy`,
+    !/\(\s*[\w-]+\.m?js::\w+\s*\)/.test(src));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.\n`);
