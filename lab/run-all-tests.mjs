@@ -63,6 +63,7 @@ const TEST_FILES = [
   'ui/src/admin/boostV1Cleanup.test.mjs',
   'ui/src/admin/unpinWiring.test.mjs',
   'ui/src/admin/penempatanBerita.test.mjs',
+  'db/polish-8-acceptance.test.mjs',
 ];
 
 const results = [];
