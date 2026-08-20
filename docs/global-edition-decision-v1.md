@@ -1,6 +1,6 @@
 # Adjung Quick — Global Edition Decision v1
 
-Status: `[ ] Bahagian B menunggu keputusan Izzat` — dokumen ini BUKAN spesifikasi
+Status: `[x] Bahagian B — B1-B5 dijawab Izzat 2026-08-21` — dokumen ini BUKAN spesifikasi
 teknikal, BUKAN reka bentuk dari kosong. Ia dokumen keputusan produk selepas
 audit keadaan sebenar (kod + docs sedia ada, 2026-08-20/21), disusun ikut
 struktur yang dipersetujui ChatGPT (pengarah teknikal, thread "Baca Handoff
@@ -95,107 +95,105 @@ edisi belum dijalankan.
 
 ---
 
-## Bahagian B — Keputusan yang masih terbuka (untuk Izzat jawab)
-
-Ini soalan editorial sebenar, bukan soalan teknikal — jawapan bergantung
-pada macam mana pembaca sasaran edisi tu sebenarnya cari/faham berita,
-bukan pada struktur database. Claude/ChatGPT sengaja tidak mengesyorkan
-satu jawapan "betul" — cuma bentangkan konteks sedia ada supaya Izzat buat
-keputusan secara sedar.
+## Bahagian B — Keputusan (dijawab Izzat, 2026-08-21)
 
 ### B1. Culture + Entertainment untuk ar-global — gabung atau asing?
 
-Status sekarang: **digabung** (`edition-architecture-model.md`, 12 Ogos)
-tapi keputusan ni sandar pada bukti nipis. Doc reka bentuk taxonomy sendiri
-(`sesi2-edition-taxonomy-design.md`, hari sama) catat bukti bercanggah: Al
-Araby (satu-satunya portal Arab dalam kajian tu yang ada nav "سياسة"
-Politik berasingan) asingkan Culture dan Entertainment, bukan gabung.
-Belum pernah direvisit dengan bukti lebih luas sejak 12 Ogos.
+**KEPUTUSAN: ASING.** Culture dan Entertainment kekal dua kategori
+berasingan untuk ar-global (bukan gabung macam kunci asal
+`edition-architecture-model.md`).
 
-**Soalan untuk Izzat**: nak kekal gabung (macam sekarang), atau asingkan?
+**Syarat tambahan Izzat**: kandungan Hiburan ar-global mesti tetap
+ditapis dengan disiplin yang sama seperti versi ms-MY — prinsip Adjung
+Quick "portal berita yang bermanfaat dan tidak mengajak kepada
+kemungkaran" (CLAUDE.md) terpakai sama rata merentas edisi, bukan cuma
+ms-MY.
+
+**Disahkan dalam kod**: mekanisme penapisan (`editorial_filter_rules`,
+`state/editorialFilterResolver.mjs`) SUDAH edition-agnostic dan Unicode-
+safe untuk Arab — komen kod sendiri eksplisit sebut "Quick also processes
+Arabic (ar-global), where \b does not work correctly against non-Latin
+scripts" dan guna sempadan Unicode `\p{L}\p{N}\p{M}`, bukan ASCII `\b`.
+Jadi ni **gap kandungan sahaja** (senarai frasa tapis Arab belum wujud),
+BUKAN kerja seni bina — sama kelas dengan gap `edition_rules` en/ar
+(A5). Perlu diauthor bila edisi Arab dilancar.
 
 ### B2. Ekonomi vs Bisnes untuk ms-MY — gabung atau asing?
 
-Status sekarang: **digabung** jadi "Bisnes" (kunci dalam
-`edition-architecture-model.md`). Diflag "genuinely undecided" dalam
-`sesi2-edition-taxonomy-design.md` §3, tiada doc/commit kemudian yang
-tutup soalan ni.
-
-**Soalan untuk Izzat**: pembaca BM lebih faham Ekonomi sebagai satu payung
-besar (macam sekarang), atau Ekonomi + Bisnes sebagai dua kategori
-berasingan?
+**KEPUTUSAN: ASING**, kecuali kedua-dua kategori sebenarnya cuma ada
+sikit berita (dalam kes tu kekal gabung supaya tak ada kategori kosong/
+nipis). Ambang "sikit" tak ditetapkan sebagai nombor sekarang — ni
+keputusan operasi masa pelaksanaan (semak volum sebenar bila nak
+laksana), bukan keputusan seni bina.
 
 ### B3. Edition Relevance Layer — perlu wujud atau tidak?
 
-Ini soalan seni bina paling besar dalam senarai ni. Sekarang, aliran
-klasifikasi:
+**KEPUTUSAN: TIDAK dibina sekarang**, tapi seni bina MESTI kekal
+menyokongnya (extensible) — jangan buat keputusan/struktur kod yang akan
+menyekat penambahan lapisan ni kelak. Sistem klasifikasi sekarang
+(Classification → Field placement terus, tanpa lapisan Relevance)
+diteruskan buat masa ini.
 
-```
-Cerita -> Classification (subjek universal) -> Field placement (per edisi)
-```
-
-Cadangan lama (`edition-classification-contract.md` §4, status
-"PROPOSED, tak diimplement") tambah satu lapisan:
-
-```
-Cerita -> Classification -> Edition Relevance -> Field placement
-```
-
-Bezanya: sekarang, SETIAP cerita yang diklasifikasi akan cuba dapat
-penempatan di SETIAP edisi (kalau ada subjek/geografi sepadan). Lapisan
-Relevance akan tanya soalan berasingan dulu: "cerita ni memang LAYAK
-wujud dalam edisi ni langsung?" — sebelum cuba letak dia dalam kategori.
-Contoh: berita dasar AI China mungkin layak untuk en-global (Technology)
-dan ar-global (Science/Technology), tapi tak semestinya "layak" untuk
-ms-MY walau secara teknikal boleh diklasifikasi sebagai Teknologi.
-
-**Soalan untuk Izzat**: perlukah lapisan Relevance ni sebelum kita
-perluaskan `edition_rules` ke en-global/ar-global? Atau cukup dengan
-sistem sekarang (classification+placement terus, tanpa lapisan
-tambahan)?
+**Kesan untuk implementasi**: bila `edition_rules`/skema klasifikasi
+disentuh untuk en-global/ar-global (Fasa Global 3), jangan reka struktur
+yang andaikan "setiap cerita diklasifikasi = layak dalam SEMUA edisi
+sepadan" sebagai invariant kekal — biar ada ruang tambah gate Relevance
+kemudian tanpa migrasi besar.
 
 ### B4. Ranking per edisi — kalibrasi bila?
 
-Status sekarang: `editorial_v1` cuma live untuk `ms-MY.Politik`.
-
-**Soalan untuk Izzat**: bila en-global/ar-global patut dapat kalibrasi
-ranking sendiri — serentak dengan pelancaran, atau tunggu data sebenar
-terkumpul dulu (macam ms-MY.Politik yang dikalibrasi selepas data sebenar
-wujud)? ChatGPT cadang jangan terus aktifkan semua bidang serentak —
-persetujuan Izzat diperlukan untuk urutan ni.
+**KEPUTUSAN: SEKARANG**, bukan tunggu data terkumpul dulu. Ini
+membalikkan cadangan awal ChatGPT (audit dulu, tunggu corak data sebenar
+setiap edisi) — Izzat pilih kalibrasi serentak dengan pelancaran.
 
 ### B5. Generalisasi peraturan penempatan (macam `foreign_politics_to_world`)
 
-Status sekarang: cuma SATU rule sistem wujud —
-`foreign_politics_to_world` (Politik luar Malaysia → Dunia, bukan
-Politik). Sengaja TAK digeneralisasi ke subjek lain
-(`classification/edition-rules-resolver.mjs`, komen dalam kod tolak
-generalisasi automatik — cth "gempa bumi luar negara patut kekal Bencana
-atau jadi Dunia?" ialah soalan editorial berasingan, bukan sambungan
-automatik daripada rule politik).
+**KEPUTUSAN: berbeza ikut edisi.**
 
-**Soalan untuk Izzat**: patut ke prinsip yang sama (luar negara → Dunia)
-digeneralisasi ke Jenayah/Bencana/Alam Sekitar/dll., atau setiap subjek
-perlu keputusan berasingan (macam sekarang)?
+- **ms-MY**: prinsip macam Nasional/Utama/Mutakhir kekal — peraturan
+  editorial manual (macam `foreign_politics_to_world`) terus jadi cara
+  utama, sebab sumber ms-MY memang terhad/terkurasi dan boleh diuruskan
+  secara manual dengan yakin.
+- **en-global/ar-global**: JANGAN generalisasi peraturan penempatan
+  manual macam ms-MY. Sebaliknya, berpada dengan maklumat klasifikasi
+  yang dibekalkan oleh RSS mentah sumber tu sendiri (kategori/tag asal
+  sumber) — sebab bilangan sumber RSS dwibahasa (English+Arabic) jauh
+  lebih banyak dan pelbagai berbanding set sumber ms-MY yang terkurasi.
+  Skala tu buat peraturan manual per-subjek jadi tak boleh diurus (dan
+  tak perlu) macam ms-MY.
+
+**Kesan untuk implementasi**: mengurangkan skop kerja A5/A6 untuk
+en-global/ar-global — tak perlu bina banyak `edition_rules` manual untuk
+edisi ni, fokus lebih kepada memastikan pemetaan taxonomy terima terus
+signal kategori RSS sumber dengan betul (Tier 1/Tier 3 evidence dalam
+`classification/story-understanding.mjs`, bukan rule manual tambahan).
 
 ---
 
-## Bahagian C — Fasa Pelaksanaan (selepas B1-B5 dijawab)
+## Bahagian C — Fasa Pelaksanaan (dikemas kini selepas B1-B5 dijawab)
 
-Cadangan ChatGPT, dipersetujui: bukan "siapkan English penuh dulu, baru
-Arabic" secara automatik — tapi fasa ikut jenis kerja:
+Cadangan asal ChatGPT: bukan "siapkan English penuh dulu, baru Arabic"
+secara automatik — tapi fasa ikut jenis kerja. B4 mengubah satu urutan
+(ranking dikalibrasi SEKARANG, bukan ditangguh) — dikemas kini di bawah.
 
 **Phase Global 1 — Stabilize Existing**
-Selesaikan B1-B5 (keputusan editorial), bukan tambah ciri baharu.
+Kunci taxonomy ikut B1/B2 (Culture/Entertainment asing untuk ar-global;
+Ekonomi/Bisnes asing untuk ms-MY kecuali volum nipis) + pastikan seni
+bina klasifikasi kekal menyokong Relevance Layer masa depan (B3, tak
+dibina sekarang).
 
 **Phase Global 2 — Content Expansion**
-Tambah sumber (Reuters, AP, DW + sumber Arab tambahan) selepas keputusan
-taxonomy/relevance dikunci — supaya sumber baharu diklasifikasi ikut
-peraturan yang dah settled, bukan peraturan sementara yang akan berubah.
+Tambah sumber (Reuters, AP, DW + sumber Arab tambahan). Per B5,
+en-global/ar-global TAK perlukan banyak `edition_rules` manual seperti
+ms-MY — fokus pastikan taxonomy terima signal kategori RSS sumber asal
+dengan betul (bukan bina peraturan manual per-subjek).
 
 **Phase Global 3 — Editorial Intelligence**
-Perluaskan `edition_rules` content + ranking calibration ke en-global/
-ar-global, guna keputusan B1-B5 sebagai asas.
+Per B4, kalibrasi ranking (`editorial_v1`) untuk en-global/ar-global
+berjalan SERENTAK dengan pelancaran, bukan ditangguh sehingga data
+terkumpul. Authoring senarai `editorial_filter_rules` Hiburan untuk
+ar-global (per B1) turut masuk fasa ni — mekanisme dah siap, ni cuma
+kandungan.
 
 **Sengaja TIDAK dimasukkan dalam v1** (supaya dokumen ni tak jadi terlalu
 besar, dan sebab semua ni belum jadi bottleneck sebenar):
