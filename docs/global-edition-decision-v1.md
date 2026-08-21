@@ -127,10 +127,19 @@ sesiapa di masa depan cuba gabung semula andaikan ini keputusan asal):
 > separate. **Reason**: Editorial decision by Izzat. Unlike ms-MY, this
 > is not a temporary merged taxonomy.
 
-**Status pelaksanaan (Global Phase 1B, 2026-08-21)**: kod (fallback
-`taxonomy-registry.mjs`) dah dikemas kini, push `cff3f0f`. Baris DB
-`taxonomy_fields` production BELUM ditulis — tunggu kelulusan/tindakan
-Izzat sendiri (lihat arahan SQL di bawah).
+**Status: SELESAI (Global Phase 1B, 2026-08-21).** Kod (fallback
+`taxonomy-registry.mjs`) dikemas kini, push `cff3f0f`. Izzat jalankan SQL
+production sendiri; disahkan LIVE selepas: `culture_entertainment`
+status=archived, `culture`/`entertainment` status=active
+(display_order 13/14, tiada collision). `node db/classify-production.js
+--write` dijalankan serta-merta selepas (695 baris ditulis merentas
+semua edisi — ar-global 48, en-global 93, ms-MY 554, padan tepat output
+skrip). `edition_story_classifications` ar-global: culture=1,
+entertainment=0, culture_entertainment=0 (bersih, tiada orphan). Nota:
+1/0 nipis, tapi ni isu VOLUM SUMBER Arab (cuma BBC Arabic + AJ Arabic
+wired setakat ni, per A3), bukan isu split taxonomy — akan bertambah
+sihat lepas Phase Global 2 (tambah sumber). Tiada regresi ms-MY/
+en-global.
 
 ### B2. Ekonomi vs Bisnes untuk ms-MY — gabung atau asing?
 
