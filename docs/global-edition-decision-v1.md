@@ -427,6 +427,115 @@ Langkah seterusnya **Global Phase 2B — Source Expansion Decision**
 (putuskan: sumber mana masuk, minimum sumber, kategori wajib vs boleh
 kosong di pelancaran) — bukan terus wired sumber baharu.
 
+### Nota tambahan — RSSHub disemak, tidak diguna pakai
+
+Izzat cadang semak RSSHub (`github.com/DIYgod/RSSHub`, penjana RSS
+sumber terbuka untuk laman tiada RSS rasmi, AGPL-3.0, boleh self-host).
+Disahkan: ADA route Reuters — tapi HANYA bahagian "Investigates"
+(kewartawanan siasatan), bukan berita am, jadi tak isi jurang liputan
+sebenar. ADA route DW dan Al Jazeera juga, tapi DUA-DUA lebihan (DW
+sudah ada RSS rasmi sendiri per C2 di atas, AJ sudah wired terus).
+**Ditolak sebagai calon**: guna RSSHub untuk Reuters/AP bermakna scrape
+laman mereka tanpa kebenaran — bercanggah terus dengan Prinsip B di
+atas (mesti feed dikawal/dimiliki sumber sendiri). Reuters sengaja
+tutup RSS rasmi mereka; RSSHub cuma cara pintas sekitar keputusan
+editorial mereka sendiri, bukan penyelesaian sah.
+
+---
+
+## Global Phase 2B — Source Expansion Decision (2026-08-21)
+
+Keputusan berperingkat ikut struktur ChatGPT. Masih **tiada sumber
+diwired fasa ni** — 2B kunci APA yang diluluskan/perlu sah/skop
+pelancaran; wiring sebenar ialah Phase 2C (Source Integration Plan).
+
+### A. Prinsip pemilihan akhir
+
+1. **Nilai liputan** — isi kategori kosong, kurangkan dominasi satu sumber.
+2. **Kualiti sumber** — stabil, RSS/API rasmi, format konsisten.
+3. **Kesesuaian identiti** — en-global/ar-global kekal portal
+   antarabangsa, BUKAN terjemahan/"versi Malaysia" (per A2).
+4. **Kos penyelenggaraan** — RSS lebih baik dari scraper; elak sumber
+   perlukan penjagaan tinggi (sebab tolak RSSHub/proksi pihak ketiga
+   di atas).
+
+### B. Keputusan sumber Tier 1
+
+**B1. Masuk fasa pertama (diluluskan)**
+
+| Sumber | Edisi | Status | Sebab |
+|---|---|---|---|
+| France 24 English | en-global | **Cadangan masuk** | Disahkan hidup; tambah perspektif selain BBC/AJ/Guardian; kurangkan tumpuan Guardian |
+| France 24 Arabic | ar-global | **Cadangan masuk** | Disahkan hidup; tambah suara ketiga; kurangkan tumpuan AJ Arabic |
+
+**B2. Perlu pengesahan dahulu (BUKAN "planned source" sehingga lulus)**
+
+| Sumber | Keputusan diperlukan |
+|---|---|
+| DW English | Sah RSS sebenar (rss.dw.com tak dicapai sesi audit) + kategori per-feed |
+| Al Arabiya | Sah kestabilan RSS/akses (403 semasa audit — cuba semula server-side) |
+
+### C. Simulasi jurang selepas Tier 1
+
+**en-global selepas France 24 English**: World/Politics kekal sihat
+(dua sumber tambahan tak ubah status tu banyak). Business/Culture/
+Environment naik taraf sikit (France 24 ada tag kategori per-item).
+**Technology/Science/Education/Religion/Lifestyle MASIH kosong** — ni
+BUKAN sesuatu satu sumber tambahan lagi boleh selesaikan. Perlu sumber
+PAKAR berasingan untuk setiap satu (bukan cari "satu sumber ajaib" yang
+isi semua — per D dalam 2A).
+
+**ar-global selepas France 24 Arabic**: World muncul buat pertama kali
+(sebelum ni 0). Culture/Entertainment (baru dipisah Phase 1B) mungkin
+dapat sedikit tambahan. Economy MASIH bergantung berat pada AJ Arabic
+sehingga Al Arabiya disahkan (isi Economy + Lifestyle kalau lulus C2).
+
+### D. Keputusan launch minimum
+
+**en-global — kategori WAJIB ada bekalan sebelum pelancaran:**
+```
+Minimum:
+✓ World
+✓ Politics
+✓ Business
+✓ Culture
+
+Boleh kosong di pelancaran:
+Technology, Science, Education, Religion, Lifestyle, Entertainment
+```
+
+**ar-global — kategori WAJIB ada bekalan sebelum pelancaran:**
+```
+Minimum:
+✓ Politics
+✓ Economy
+✓ World
+✓ Sports
+✓ Culture
+
+Boleh kosong di pelancaran:
+Entertainment, Lifestyle, Education, Crime, Environment, Religion
+(kecuali sumber ceruk berkualiti ditemui sebelum tarikh pelancaran)
+```
+
+Bukan semua kategori mesti penuh sebelum "ready" — per keputusan Phase
+1C, kekosongan kategori ialah isu bekalan, bukan kegagalan taxonomy;
+Wheel kena elak nampak "rosak" bila kosong (isu UI, kerja berasingan).
+
+### E. Ranking — TAK disentuh fasa ni
+
+Formula kekal Option A (per Phase 1C): calibrated scorer sahaja, tiada
+`editorialBoost` global, tiada source-weighting schema. 2B cuma tentang
+sumber, bukan ranking.
+
+**Status: 2B SELESAI, dokumentasi sahaja.** Acceptance: senarai sumber
+diluluskan (France 24 EN+AR) + senarai perlu sah (DW English, Al
+Arabiya) + kategori sasaran setiap sumber + kriteria minimum pelancaran
+per edisi — semua direkod di atas. Langkah seterusnya **Global Phase
+2C — Source Integration Plan** (macam mana tambah sumber TANPA ganggu
+ingestion/classification/production sedia ada — bukan sumber baharu
+lagi, tapi PROSES tambah sumber).
+
 ---
 
 ## Bahagian C — Fasa Pelaksanaan (dikemas kini selepas B1-B5 dijawab)
