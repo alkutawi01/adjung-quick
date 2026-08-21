@@ -52,11 +52,15 @@ export const RSS_SOURCES = [
   // valid RSS 2.0, <language>en</language>, most items carry a real
   // <category> tag (Americas/Middle East/Africa/Europe/etc) -- closer to
   // Tier 1 evidence than BBC/AJ/Guardian's undifferentiated general feeds
-  // above. status: 'disabled' deliberately -- per Phase 2C's dry-run-first
-  // process, this source must pass a --dry-run ingestion + classification
-  // audit before Izzat flips it to 'active'. Do NOT flip this without that
-  // review happening first.
-  { id: 'rss-france24-en', name: 'France 24 English', url: 'https://www.france24.com/en/rss', language: 'en', trustScore: 88, sourceType: 'general', status: 'disabled' },
+  // above. Correction to the dry-run-first plan (2026-08-21): fetchFeed()
+  // itself (lab/rss.js:191-192) skips any non-active source before ANY
+  // network call -- a disabled source produces zero preview data, so
+  // "disabled + --dry-run" gave no real signal (confirmed live: raw item
+  // count was byte-identical across two dry-runs while these 3 sources
+  // were disabled). --dry-run's own "stage but never swap" behavior is
+  // the actual safety layer, not the source's active/disabled status.
+  // Izzat approved flipping to 'active' for a real dry-run preview.
+  { id: 'rss-france24-en', name: 'France 24 English', url: 'https://www.france24.com/en/rss', language: 'en', trustScore: 88, sourceType: 'general' },
 
   // Global Phase 3A (2026-08-21, docs/global-edition-decision-v1.md B1) --
   // approved candidate. Confirmed live 2026-08-21 via server-side fetch
@@ -69,9 +73,10 @@ export const RSS_SOURCES = [
   // guessed from search-result citations, so they are deliberately NOT
   // added here. Verify each one individually before adding -- do not
   // assume a plausible-looking rss.dw.com/xml/rss-en-* URL works just
-  // because the pattern matches this one. status: 'disabled' for the
-  // same dry-run-first reason as rss-france24-en above.
-  { id: 'rss-dw-en', name: 'Deutsche Welle (English)', url: 'https://rss.dw.com/xml/rss-en-all', language: 'en', trustScore: 85, sourceType: 'general', status: 'disabled' },
+  // because the pattern matches this one. Activated 2026-08-21 -- see
+  // rss-france24-en's comment above for why "disabled" never provided
+  // real preview safety, and --dry-run's stage-never-swap behavior does.
+  { id: 'rss-dw-en', name: 'Deutsche Welle (English)', url: 'https://rss.dw.com/xml/rss-en-all', language: 'en', trustScore: 85, sourceType: 'general' },
 
   // --- Arabic (proposed — verify before treating as permanent) ---
   { id: 'rss-bbc-arabic', name: 'BBC Arabic', url: 'https://feeds.bbci.co.uk/arabic/rss.xml', language: 'ar', trustScore: 90, sourceType: 'general' },
@@ -83,8 +88,9 @@ export const RSS_SOURCES = [
   // editorial voice from AJ Arabic/BBC Arabic (French state broadcaster,
   // heavier Africa/Francophone coverage) -- directly targets ar-global's
   // Politics/Sports/Economy concentration risk (per Phase 2A Task A, 6/7
-  // Politics items currently from Al Jazeera Arabic alone).
-  { id: 'rss-france-24-ar', name: 'France 24 Arabic', url: 'https://www.france24.com/ar/rss', language: 'ar', trustScore: 88, sourceType: 'general', status: 'disabled' },
+  // Politics items currently from Al Jazeera Arabic alone). Activated
+  // 2026-08-21 -- see rss-france24-en's comment above.
+  { id: 'rss-france-24-ar', name: 'France 24 Arabic', url: 'https://www.france24.com/ar/rss', language: 'ar', trustScore: 88, sourceType: 'general' },
 
   // --- ms-MY category feeds (added 2026-08-12, Izzat) ---
   // Directly addresses the coverage gap found when the Wheel went live: only
