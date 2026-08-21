@@ -777,6 +777,89 @@ besar, dan sebab semua ni belum jadi bottleneck sebenar):
 
 ---
 
+## Global Phase 3B — Source Expansion Execution: ScienceDaily + SCMP (2026-08-21)
+
+**Status: PASS (penuh, kedua-dua kategori).** Menutup jurang Science/
+Economy monokultur yang Phase 3A punya acceptance check jumpa. Kod tiada
+kelulusan per-langkah diperlukan lagi selepas ni (Izzat beri kelulusan
+berdiri: "takyah tunggu kelulusan saya kalau benda yg jelas dan
+terang") — sumber disahkan hidup, ditambah terus ke production aktif,
+ikut proses dry-run+audit yang sama macam 3A.
+
+### ScienceDaily — PASS
+
+**Masalah awal**: 60 artikel ScienceDaily masuk production, **SIFAR
+(0) diklasifikasi sebagai Science**. Punca BUKAN sumber gagal —
+classifier tak dapat signal kategori sebab tajuk sebenar ScienceDaily
+(cth "Schizophrenia's lost brain connections...") tak ada perkataan
+literal "science" untuk carian kata kunci (Tier 5) tangkap.
+
+**Tindakan**: tanda `known_category: 'science'` pada sumber (bukti
+Tier-1 publisher-declared, `story-understanding.mjs:79-82`) — sama
+corak macam feed per-seksyen Harian Metro/Utusan. Dikemas kini di
+production (`sources` table + backfill 60 baris `rss_items` sedia
+ada), klasifikasi dijalankan semula.
+
+| Metrik | Sebelum | Selepas |
+|---|---|---|
+| Item Science | 15 | 75 |
+| Sumber | 1 (DW) | 2 (DW + ScienceDaily) |
+| Sumbangan ScienceDaily | 0 | 60 |
+
+**Monokultur Science BENAR-BENAR hapus** (bukan sekadar dilutkan).
+
+### SCMP Global Economy — PASS
+
+| Metrik | Sebelum | Selepas |
+|---|---|---|
+| Item Economy | rendah (3) | 44 |
+| Sumber | 1 (AJ) | 2 (AJ + SCMP) |
+| Dominasi AJ | 100% | 6.8% |
+| Sumbangan SCMP | — | 93.2% |
+
+Kandungan SCMP masuk kategori Economy dengan tepat (sampel disahkan,
+cth "China and US bond markets head opposite directions").
+
+### Dedup
+
+Kedua-dua sumber: **ScienceDaily 60/60 cluster baharu, SCMP 50/50
+cluster baharu** — SIFAR diserap sebagai pendua. Sahkan kandungan
+pakar bawa nilai tambah sebenar, bukan pengulangan.
+
+### Pengajaran (untuk fasa expansion akan datang)
+
+**BUKAN** cuma "tambah known_category untuk ScienceDaily" — pengajaran
+umum: **sumber khusus dengan kategori editorial sendiri MUNGKIN
+perlukan signal kategori publisher-declared (`known_category`).
+Classifier berasaskan kandungan sahaja tak semestinya cukup untuk
+sumber ceruk (niche).** Kalau tambah sumber pakar baharu masa depan
+(cth sumber Economy/Technology tambahan), semak DULU sama ada
+`known_category` patut ditetapkan, jangan tunggu acceptance check jumpa
+kategori kosong dulu baru sedar.
+
+---
+
+## Nota operasi berasingan — generasi `_old` tertinggal (2026-08-21)
+
+**BUKAN blocker Global Phase 3B, BUKAN sebahagian verdict di atas.**
+Larian `--write` pertama Phase 3B gagal (production selamat, Postgres
+rollback automatik): generasi `_old` dari swap SEBELUM ni (tak
+berkaitan sumber ScienceDaily/SCMP) masih tertinggal, menyekat swap
+baharu — dibersihkan dengan proses standard (`snapshot-production.mjs`
+-> `drop-ingestion-old-tables.mjs`) sebelum larian kedua berjaya.
+
+**Perkara perlu dikaji berasingan** (bukan sekarang, tiket susulan):
+- Kenapa generasi `_old` boleh tertinggal SELEPAS satu ingestion
+  berjaya, sedangkan indicator Admin (9D-2) sepatutnya nampak?
+- Adakah indicator Admin mencukupi, atau perlu notifikasi lebih agresif?
+- Adakah perlu preflight check/reminder SEBELUM ingestion seterusnya
+  dijalankan, bukan cuma reaktif bila swap gagal?
+
+Indicator 9D-2 sendiri berfungsi betul (bacaan keadaan semasa, bukan
+gagal) — soalan sebenar ialah proses operator, bukan kod indicator.
+
+---
+
 ## Nota audit — staleness dokumen lama
 
 Beberapa dokumen 18 Ogos (Fasa 4 edition-rules) tertulis "not yet
