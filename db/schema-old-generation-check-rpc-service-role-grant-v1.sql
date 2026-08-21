@@ -1,0 +1,17 @@
+-- schema-old-generation-check-rpc-service-role-grant-v1.sql -- bug fix,
+-- 2026-08-21.
+--
+-- check_old_generation_exists() (schema-old-generation-check-rpc-v1.sql,
+-- Polish 9D-2) was granted EXECUTE to `authenticated` only, written for
+-- the Admin UI's browser session. The 9D-4 preflight added to
+-- db/ingest-production.js this session (2026-08-21) also calls this same
+-- RPC, but that script runs server-side with SUPABASE_SERVICE_ROLE_KEY --
+-- found live: `service_role` does NOT implicitly bypass a function's
+-- REVOKE/GRANT ACL (that is a separate mechanism from the RLS-bypass
+-- attribute service_role also has), so ingest-production.js failed with
+-- `permission denied for function check_old_generation_exists` (Postgres
+-- error 42501) on its very first real run after the 9D-4 preflight shipped.
+--
+-- PURELY ADDITIVE -- grants execute to one more role, touches no table,
+-- no column, no existing grant.
+GRANT EXECUTE ON FUNCTION check_old_generation_exists() TO service_role;
