@@ -58,6 +58,21 @@ export const RSS_SOURCES = [
   // review happening first.
   { id: 'rss-france24-en', name: 'France 24 English', url: 'https://www.france24.com/en/rss', language: 'en', trustScore: 88, sourceType: 'general', status: 'disabled' },
 
+  // Global Phase 3A (2026-08-21, docs/global-edition-decision-v1.md B1) --
+  // approved candidate. Confirmed live 2026-08-21 via server-side fetch
+  // from Izzat's own machine (this session's own WebFetch tool could not
+  // reach rss.dw.com at all -- network-level block on the audit
+  // environment, not a dead feed): HTTP 200, valid <title>Deutsche
+  // Welle</title>. This is the GENERAL feed only -- per-category DW URLs
+  // (business/sports/culture/science/environment) found during the
+  // Phase 2A source search were NEVER independently verified live, only
+  // guessed from search-result citations, so they are deliberately NOT
+  // added here. Verify each one individually before adding -- do not
+  // assume a plausible-looking rss.dw.com/xml/rss-en-* URL works just
+  // because the pattern matches this one. status: 'disabled' for the
+  // same dry-run-first reason as rss-france24-en above.
+  { id: 'rss-dw-en', name: 'Deutsche Welle (English)', url: 'https://rss.dw.com/xml/rss-en-all', language: 'en', trustScore: 85, sourceType: 'general', status: 'disabled' },
+
   // --- Arabic (proposed — verify before treating as permanent) ---
   { id: 'rss-bbc-arabic', name: 'BBC Arabic', url: 'https://feeds.bbci.co.uk/arabic/rss.xml', language: 'ar', trustScore: 90, sourceType: 'general' },
   { id: 'rss-aljazeera-ar', name: 'Al Jazeera Arabic', url: 'https://www.aljazeera.net/aljazeerarss/89b3e91e-3a0c-4622-8e5c-4c3bb2f1a340/73d0e1b4-532f-45ef-b135-bfdff8b4177f', language: 'ar', trustScore: 88, sourceType: 'general' },
