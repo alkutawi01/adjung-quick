@@ -46,9 +46,30 @@ export const RSS_SOURCES = [
   { id: 'rss-aljazeera-en', name: 'Al Jazeera English', url: 'https://www.aljazeera.com/xml/rss/all.xml', language: 'en', trustScore: 88, sourceType: 'general' },
   { id: 'rss-guardian-world', name: 'The Guardian World', url: 'https://www.theguardian.com/world/rss', language: 'en', trustScore: 88, sourceType: 'general' },
 
+  // Global Phase 3A (2026-08-21, docs/global-edition-decision-v1.md B1) —
+  // approved candidate, source-owned feed (not a scraper proxy, per
+  // Phase 2A Principle B). Confirmed live via direct fetch at wiring time:
+  // valid RSS 2.0, <language>en</language>, most items carry a real
+  // <category> tag (Americas/Middle East/Africa/Europe/etc) -- closer to
+  // Tier 1 evidence than BBC/AJ/Guardian's undifferentiated general feeds
+  // above. status: 'disabled' deliberately -- per Phase 2C's dry-run-first
+  // process, this source must pass a --dry-run ingestion + classification
+  // audit before Izzat flips it to 'active'. Do NOT flip this without that
+  // review happening first.
+  { id: 'rss-france24-en', name: 'France 24 English', url: 'https://www.france24.com/en/rss', language: 'en', trustScore: 88, sourceType: 'general', status: 'disabled' },
+
   // --- Arabic (proposed — verify before treating as permanent) ---
   { id: 'rss-bbc-arabic', name: 'BBC Arabic', url: 'https://feeds.bbci.co.uk/arabic/rss.xml', language: 'ar', trustScore: 90, sourceType: 'general' },
   { id: 'rss-aljazeera-ar', name: 'Al Jazeera Arabic', url: 'https://www.aljazeera.net/aljazeerarss/89b3e91e-3a0c-4622-8e5c-4c3bb2f1a340/73d0e1b4-532f-45ef-b135-bfdff8b4177f', language: 'ar', trustScore: 88, sourceType: 'general' },
+
+  // Global Phase 3A (2026-08-21, docs/global-edition-decision-v1.md B1) —
+  // same reasoning/status as rss-france24-en above. Confirmed live: valid
+  // RSS 2.0, <language>ar</language>, real current Arabic items. Distinct
+  // editorial voice from AJ Arabic/BBC Arabic (French state broadcaster,
+  // heavier Africa/Francophone coverage) -- directly targets ar-global's
+  // Politics/Sports/Economy concentration risk (per Phase 2A Task A, 6/7
+  // Politics items currently from Al Jazeera Arabic alone).
+  { id: 'rss-france24-ar', name: 'France 24 Arabic', url: 'https://www.france24.com/ar/rss', language: 'ar', trustScore: 88, sourceType: 'general', status: 'disabled' },
 
   // --- ms-MY category feeds (added 2026-08-12, Izzat) ---
   // Directly addresses the coverage gap found when the Wheel went live: only
