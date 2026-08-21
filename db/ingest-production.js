@@ -96,6 +96,37 @@ async function main() {
   // network call or write, if DATABASE_ENV isn't explicitly set safe.
   assertWriteAllowed();
 
+  // 9D-4 (docs/global-edition-decision-v1.md, "_old operational review",
+  // 2026-08-21): --write only. A stale *_old generation left by a PRIOR
+  // successful swap (rollback safety, per swap_ingestion_staging()'s own
+  // design -- see db/schema-ingestion-staging-functions-v1.sql) always
+  // blocks the eventual swap call at the end of this script, but before
+  // this check existed the operator only discovered that after a full
+  // RSS fetch + staging build/validate cycle had already run and been
+  // discarded -- real wasted work and wasted external-feed load, hit
+  // twice tonight (Phase 3A, 3B) plus once before P0. Fails fast here,
+  // before ANY fetch or write, using the SAME RPC the Admin Ringkasan
+  // indicator (Polish 9D-2) already reads -- one source of truth, no
+  // CLI/Admin drift. Deliberately does NOT auto-drop: dropping *_old is
+  // a human decision (per its own snapshot-freshness + verification
+  // checklist, db/drop-ingestion-old-tables.mjs), never something this
+  // script silently does on the operator's behalf. --dry-run is
+  // unaffected -- it never reaches the swap call anyway, and staying
+  // usable even with a stale *_old still lets an operator preview
+  // classification output.
+  if (!DRY_RUN) {
+    const { data: oldExists, error: oldErr } = await supabase.rpc('check_old_generation_exists');
+    if (oldErr) { console.error('check_old_generation_exists gagal:', oldErr); process.exit(1); }
+    if (oldExists) {
+      console.error(
+        '\n✗ ABORT: generasi *_old sedia ada daripada swap sebelum ini.\n' +
+        'Jalankan db/drop-ingestion-old-tables.mjs (selepas checklist pengesahannya lulus) sebelum ingestion seterusnya.\n' +
+        'Tiada RSS diambil, tiada staging dibina -- berhenti awal untuk elak kerja terbuang.\n'
+      );
+      process.exit(1);
+    }
+  }
+
   // Polish 6B.1 (docs/polish-6b1-personal-state-carry-forward-design-v1.md,
   // step A): ONE nowIso used for the whole run -- both the cleanup delete
   // below and the protected-ID read (step B) must agree on the same instant.
