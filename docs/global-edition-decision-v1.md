@@ -358,14 +358,14 @@ kebenaran guna kandungan.
 |---|---|---|---|
 | France 24 English | en | Antarabangsa umum, TIAP-TIAP ITEM ada tag `<category>` (Americas/Middle East/Africa/Europe) | Bukti Tier-1 lebih baik dari BBC/AJ/Guardian sedia ada yang tiada kategori langsung |
 | France 24 Arabic | ar | Antarabangsa/Timur Tengah | Suara editorial (penyiar negara Perancis) berbeza dari AJ Arabic/BBC Arabic, kurangkan tumpuan Politics pada AJ |
+| DW English | en | Antarabangsa umum, feed per-kategori sebenar wujud (rss.dw.com/xml/rss-en-all, +business/sports/culture/science/environment) | **Disahkan LIVE 2026-08-21** (fetch server-side terus dari mesin Izzat, Status 200, `<title>Deutsche Welle</title>` sah) — sebelum ni gagal dicapai oleh tool audit sahaja, bukan feed sendiri |
 
 **C2. Calon perlu disahkan lagi (URL sebenar wujud, belum disahkan
 langsung berfungsi sesi ni):**
 
 | Sumber | Bahasa | Status | Sebab |
 |---|---|---|---|
-| DW English | en | Perlu sah live | Feed per-kategori sebenar (business/sports/culture/science/environment) ditemui dlm carian, tapi rss.dw.com tak dapat dicapai oleh tool audit sesi ni |
-| Al Arabiya | en/ar | Perlu sah server-side | URL rasmi wujud (disebut dokumentasi MRSS Al Arabiya sendiri), tapi respons 403 semasa cuba capai — kemungkinan besar sekatan bot (User-Agent tak standard), BUKAN feed mati; perlu cuba semula dari server sebenar |
+| Al Arabiya | en/ar | Masih 403, sekatan bot sebenar | URL rasmi wujud (dokumentasi MRSS Al Arabiya sendiri), tapi fetch server-side (dgn User-Agent browser sebenar) TETAP 403 — halaman ralat bergaya laman Al Arabiya sendiri (bukan ralat generik), jadi ni sekatan bot yang disasarkan, bukan sekadar User-Agent kosong. Perlu pendekatan lain (headers tambahan/proxy sah) sebelum boleh disahkan |
 
 **C3. Calon ditolak:**
 
@@ -467,13 +467,42 @@ pelancaran; wiring sebenar ialah Phase 2C (Source Integration Plan).
 |---|---|---|---|
 | France 24 English | en-global | **Cadangan masuk** | Disahkan hidup; tambah perspektif selain BBC/AJ/Guardian; kurangkan tumpuan Guardian |
 | France 24 Arabic | ar-global | **Cadangan masuk** | Disahkan hidup; tambah suara ketiga; kurangkan tumpuan AJ Arabic |
+| DW English | en-global | **Cadangan masuk** (disahkan 2026-08-21) | Disahkan LIVE server-side (Status 200); feed per-kategori sebenar (business/sports/culture/science/environment) — isi terus jurang Technology/Science/Culture en-global |
 
 **B2. Perlu pengesahan dahulu (BUKAN "planned source" sehingga lulus)**
 
 | Sumber | Keputusan diperlukan |
 |---|---|
-| DW English | Sah RSS sebenar (rss.dw.com tak dicapai sesi audit) + kategori per-feed |
-| Al Arabiya | Sah kestabilan RSS/akses (403 semasa audit — cuba semula server-side) |
+| Al Arabiya | Sah kestabilan RSS/akses — 403 BERTERUSAN walau fetch server-side dgn User-Agent browser sebenar (2026-08-21); halaman ralat bergaya laman Al Arabiya sendiri, sekatan bot disasarkan bukan sekadar User-Agent kosong. Perlu pendekatan lain sebelum lulus |
+| ~~Global Voices~~ | **DITOLAK** (audit 2026-08-21) — Arab: semua sampel terjemahan En->Ar, bercanggah A2. English: condong opini/advocacy, bukan berita wire-style. Lihat nota audit di bawah |
+
+### Nota audit — Global Voices disemak dan ditolak (2026-08-21)
+
+Izzat cadang globalvoices.org (portal jurnalisme rakyat + rangkaian
+terjemahan, kandungan 50+ bahasa termasuk Arab) sebagai calon
+diversity-source. Diaudit khusus (BUKAN kriteria sama seperti France
+24/DW — ChatGPT tegaskan nilai GV bukan pada jumlah berita tapi
+kepelbagaian perspektif) dengan sampel sebenar 12+ item merentas 4 feed
+topik EN + feed AR penuh:
+
+- **Arab — diskualifikasi jelas.** SEMUA 8 item disemak
+  `ar.globalvoices.org/feed/` ialah terjemahan Inggeris->Arab (byline
+  eksplisit "penulis asal (English)... Diterjemah oleh [nama]"). Ni
+  model Lingua project GV sendiri (rangkaian penterjemah sukarela),
+  bukan newsroom Arab bebas. Bercanggah TERUS dengan prinsip A2 (edisi
+  mesti kandungan ASLI). Tiada satu item pun kandungan Arab tulen.
+- **English — fit kategori sebenar, tapi kos editorial tinggi.**
+  Liputan genap sepadan jurang (Environment/Culture/World/Politics/
+  sebahagian Technology), risiko pendua RENDAH (topik negara kecil/
+  sudut pandang bawah-atas yang mainstream jarang liput). TAPI
+  kebanyakan item bertanda "Feature"/"Weblog" (taksonomi jenis-pos GV
+  sendiri) — esei/temu bual/advocacy, BUKAN berita fakta wire-style.
+  Perlukan olahan editorial berat sebelum boleh jalan sebagai berita.
+
+**Keputusan**: JANGAN tambah sebagai sumber RSS terus ke mana-mana
+edisi dalam bentuk sekarang. Kalau ada minat guna English sahaja masa
+depan, perlukan pemilihan manual/kurasi (bukan RSS mentah) dan Arab
+KEKAL dikecualikan terus sebab konflik keaslian A2.
 
 ### C. Simulasi jurang selepas Tier 1
 
