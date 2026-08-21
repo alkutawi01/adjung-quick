@@ -117,3 +117,43 @@ export function extractContentEvidence(title, description) {
   }
   return hits;
 }
+
+// Global Phase 4B-C (2026-08-21, docs/global-edition-decision-v1.md) —
+// Tier 5 had a real gap, not a missing-data problem: GEOGRAPHY_VOCABULARY
+// was never checked against title/description text at all, only
+// SUBJECT_VOCABULARY (extractContentEvidence above) was. Confirmed live:
+// stories with 'الشرق الأوسط' (Middle East) literally IN the headline
+// still produced zero geography_candidates, because this lookup path
+// didn't exist -- not because the vocabulary entry was missing (it
+// already had one, per the 4B-A fix). Reuses GEOGRAPHY_VOCABULARY
+// directly (per the director's explicit "guna vocabulary sedia ada
+// dahulu sebelum tambah vocabulary baharu" instruction) -- no new phrase
+// list invented here.
+//
+// Word-boundary matching (not plain .includes(), unlike
+// extractContentEvidence above) is deliberate: several GEOGRAPHY_VOCABULARY
+// keys are short common words in their own language ('asia', 'europe',
+// 'world', 'dunia', 'global') -- a plain substring match risks false
+// positives on ANY story that merely mentions the word in passing (e.g.
+// an ms-MY politics story referencing "hubungan Malaysia-Asia Tenggara"
+// would wrongly gain a geography candidate it never had before), which
+// would violate the explicit "en-global/ms-MY tidak berubah" regression
+// requirement for this change. Same Unicode-aware boundary pattern
+// already proven correct for non-Latin scripts elsewhere in this project
+// (IstilahGlosari.tsx, editorialFilterResolver.mjs) -- \b does not work
+// correctly against Arabic script.
+function buildGeographyBoundaryRegex(phrase) {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\p{L}\\p{N}\\p{M}])${escaped}(?![\\p{L}\\p{N}\\p{M}])`, 'iu');
+}
+
+export function extractGeographyContentEvidence(title, description, geographyVocabulary) {
+  const text = `${stripHtml(title)} ${stripHtml(description)}`;
+  const hits = [];
+  for (const [phrase, geography] of Object.entries(geographyVocabulary)) {
+    if (buildGeographyBoundaryRegex(phrase).test(text)) {
+      hits.push({ geography, evidence_type: 'title_geography', value: phrase });
+    }
+  }
+  return hits;
+}

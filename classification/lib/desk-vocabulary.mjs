@@ -94,6 +94,11 @@ export const SUBJECT_VOCABULARY = {
   'رياضة': 'Sports', 'sport_ar': 'Sports',
   'علوم': 'Science', 'science_ar': 'Science',
   'تكنولوجيا': 'Technology', 'tech_ar': 'Technology',
+  // Global Phase 4B-C (2026-08-21, docs/global-edition-decision-v1.md) —
+  // France 24 Arabic's real category token, distinct from the fuller
+  // 'تكنولوجيا' already above. Confirmed real (not guessed) via the 36
+  // remaining-unclassified audit.
+  'تكنو': 'Technology',
   'فن': 'Entertainment', 'فنون': 'Entertainment', 'ثقافة': 'Culture', // AJ Arabic's single "فن" desk mixes both — real ambiguity, kept as two entries, resolved by disambiguation in mapper
   'صحة': 'Health', 'health_ar': 'Health',
   'تعليم': 'Education',
@@ -135,6 +140,19 @@ export const GEOGRAPHY_VOCABULARY = {
   'أمريكا': 'Americas',
   'آسيا': 'Southeast Asia', // matches existing 'asia' -> 'Southeast Asia' mapping above
   'أوروبا': 'Europe',
+
+  // Global Phase 4B-C (2026-08-21) — France 24 Arabic's real Maghreb desk
+  // category, confirmed real (not guessed) via the 36 remaining-
+  // unclassified audit. No dedicated "Africa"/"Maghreb" region bucket
+  // exists in the current 6-region list (Malaysia/World/Middle East/
+  // Americas/Europe/Southeast Asia) -- mapped to 'World' directly rather
+  // than inventing an untested new region label for a single observed
+  // token. For ar-global (residual.local === null), any non-Malaysia
+  // geography value already routes through the same World residual
+  // regardless of which exact label it carries, so this is functionally
+  // identical to a dedicated region label without the risk of a new,
+  // unverified bucket.
+  'الأخبار المغاربية': 'World',
 };
 
 // Structural sections/recency markers — explicitly NEVER a subject or

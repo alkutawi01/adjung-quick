@@ -40,6 +40,8 @@ const TEST_FILES = [
   'ranking/shadow-runner.test.mjs',
   'classification/content-rules.test.mjs',
   'classification/arabic-geography-fix.test.mjs',
+  'classification/tier5-geography-content.test.mjs',
+  'classification/precedence-fix-regression.test.mjs',
   'db/production-write-guard.test.mjs',
   'db/daily-observation.test.mjs',
   'db/edition-representation-eligibility.test.mjs',

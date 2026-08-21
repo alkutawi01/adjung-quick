@@ -16,7 +16,7 @@
 //   5. Title/description content rules (deliberately minimal, see content-rules.mjs)
 
 import { SUBJECT_VOCABULARY, GEOGRAPHY_VOCABULARY, STRUCTURAL_NOISE, normalizeToken } from './lib/desk-vocabulary.mjs';
-import { extractContentEvidence } from './lib/content-rules.mjs';
+import { extractContentEvidence, extractGeographyContentEvidence } from './lib/content-rules.mjs';
 import { extractBernamaPrefix } from './lib/bernama-prefix.mjs';
 
 // Tier base confidences — RANKING STRENGTH, not real probabilities. A 0.9
@@ -129,6 +129,15 @@ export function understandStory(item) {
   const titleForContent = bernamaPrefixRecognized ? bernama.strippedTitle : item.title;
   for (const hit of extractContentEvidence(titleForContent, item.description)) {
     subjectHits.push({ subject: hit.subject, tier: 'title_keyword', evidence_type: hit.evidence_type, value: hit.value });
+  }
+  // Global Phase 4B-C: geography half of Tier 5, previously nonexistent
+  // (see extractGeographyContentEvidence's own header comment for why).
+  // Subject candidates still take priority downstream (the residual-
+  // geography fallback in edition-classification.mjs only runs when no
+  // subject candidate clears the confidence gate) -- this only widens
+  // WHICH geography evidence can exist, it does not change how it's used.
+  for (const hit of extractGeographyContentEvidence(titleForContent, item.description, GEOGRAPHY_VOCABULARY)) {
+    geographyHits.push({ geography: hit.geography, tier: 'title_keyword', evidence_type: hit.evidence_type, value: hit.value });
   }
 
   return {

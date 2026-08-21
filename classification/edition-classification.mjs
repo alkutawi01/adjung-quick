@@ -13,7 +13,6 @@
 
 import { resolveDefaultPlacement, EDITION_GEOGRAPHY_RESIDUAL_LABEL } from './lib/edition-taxonomy.mjs';
 import { evaluateEditionRules } from './lib/edition-rules.mjs';
-import { checkConfidenceGate } from './lib/confidence-policy.mjs';
 import { getFieldEntryByLabel } from './lib/taxonomy-registry.mjs';
 import { resolveClassificationRule } from './lib/classification-rules-resolver.mjs';
 import { resolveAdminEditionRule } from './lib/edition-rules-resolver.mjs';
@@ -26,15 +25,17 @@ function fieldCodeFor(edition, label) {
   return getFieldEntryByLabel(edition, label)?.field_code ?? null;
 }
 
-export const RULESET_VERSION = 'v1.3.0'; // bumped: Confidence Gate (Sesi 3B.2C-1) inserted between Edition Rules and Default Placement Mapping
+export const RULESET_VERSION = 'v1.4.0'; // bumped: Global Phase 4B-D precedence fix — Default Placement Mapping (Tier 3) now always runs before geography-residual fallback, confidence gate no longer short-circuits ahead of it
 
-// Resolver order (per ChatGPT, 2026-08-12 correction):
+// Resolver order (Global Phase 4B-D, 2026-08-21 correction — supersedes the
+// 2026-08-12 order below, which the confidence-gate step no longer matches):
 // 1-2. Edition Rules (dynamic, context-aware — edition-rules.mjs)
-// 2.5  Confidence Gate (docs/resolver-confidence-policy.md) — only runs if
-//      no Edition Rule already matched; an explicit rule is never
-//      second-guessed by a confidence number.
 // 3.   Default Placement Mapping (optional fallback hint — edition-taxonomy.mjs)
-// 4.   Geography fallback / Unclassified
+//      — tried for EVERY subject candidate, regardless of confidence.
+// 4.   Geography fallback / Unclassified — only when Tier 3 found nothing.
+// A weak subject candidate with a specific default mapping always beats a
+// generic geography residual; geography residual is the last resort, not
+// an early exit for low-confidence subjects.
 // A subject with no default_mapping in a given edition is NOT a gap — that
 // edition simply hasn't (yet, or ever) chosen to surface that subject.
 //
@@ -138,46 +139,25 @@ export function classifyForEdition(understanding, edition, thresholdOverride, it
     };
   }
 
-  // Tier 2.5: Confidence Gate — per docs/resolver-confidence-policy.md §1a,
-  // this never discards the top candidate, it only decides whether Tier 3
-  // is allowed to use it as a DEFAULT placement basis. On fail, skip
-  // straight to geography fallback (the only wired-up low_confidence_action
-  // so far — see confidence-policy.mjs).
-  const gate = checkConfidenceGate(edition, subjectCandidates[0], thresholdOverride);
-  if (!gate.pass && gate.action === 'fallback_geography') {
-    const residual = EDITION_GEOGRAPHY_RESIDUAL_LABEL[edition];
-    const topGeo = geographyCandidates[0];
-    if (residual && topGeo) {
-        // residual.local is null for en-global/ar-global — those editions have
-      // no local-country concept (docs/edition-source-profile-model.md), so a
-      // Malaysia-geography story falls back to World/العالم like any other.
-      // Without the `&& residual.local` guard this would yield field=null
-      // while status='classified', violating edition_field_matches_status.
-    const label = (topGeo.value === 'Malaysia' && residual.local) ? residual.local : residual.world;
-      return {
-        edition_id: edition,
-        field: label,
-        field_code: fieldCodeFor(edition, label),
-        // Geography-residual path, by definition no subject candidate was
-        // usable — subject_code is genuinely null here, not a gap.
-        subject_code: null,
-        sub_field: null,
-        classification_status: 'classified',
-        classification_method: 'low_confidence_fallback',
-        classification_rule: `confidence_gate:${subjectCandidates[0].value}@${subjectCandidates[0].confidence}<${gate.policy.min_subject_confidence} -> story_understanding.geography:${topGeo.value} -> ${edition}.${label}`,
-        confidence: topGeo.confidence,
-        ruleset_version: RULESET_VERSION,
-        alternatives: subjectCandidates.slice(0, 3).map(c => ({
-          universal_subject: c.value, confidence: c.confidence,
-          display_field: resolveDefaultPlacement(edition, c.value),
-        })),
-      };
-    }
-    // Gate failed but there's no geography to fall back to either —
-    // continues to Tier 3 below rather than forcing unclassified, since a
-    // weak subject candidate is still better than nothing when geography
-    // itself gives us no alternative.
-  }
+  // Tier 2.5: Confidence Gate — precedence fix (Global Phase 4B-D,
+  // 2026-08-21, docs/global-edition-decision-v1.md). Per ChatGPT's
+  // regression finding: a low-confidence subject candidate that still has
+  // a specific Default Placement Mapping (Tier 3) must win over a merely-
+  // present geography candidate. The gate previously returned a
+  // geography-residual classification immediately on failure, BEFORE Tier
+  // 3 ever ran — this was invisible while geography candidates were rare
+  // (only populated by Tiers 1-3), but the Phase 4B-C Tier 5 geography
+  // extension (extractGeographyContentEvidence) started producing weak
+  // 'Malaysia' candidates from generic words ('malaysia', 'negara') in
+  // ordinary ms-MY story titles, which made this early return fire for
+  // stories that used to fall through to Tier 3 untouched — downgrading 5
+  // real stories (Sukan/Politik/Jenayah) to generic Nasional. Fix: the
+  // gate no longer short-circuits here — geography-residual fallback is
+  // only reached below, AFTER Tier 3 has had a genuine chance to find a
+  // specific mapping for every subject candidate. "A weak subject is
+  // still better than a generic geography residual" is now true
+  // unconditionally, not just in the no-geography case this comment used
+  // to describe as an edge case.
 
   // Tier 3: Default Placement Mapping (optional fallback, not a required
   // contract) — try every subject candidate in confidence order until one
