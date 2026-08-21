@@ -62,6 +62,17 @@ export const RSS_SOURCES = [
   // Izzat approved flipping to 'active' for a real dry-run preview.
   { id: 'rss-france24-en', name: 'France 24 English', url: 'https://www.france24.com/en/rss', language: 'en', trustScore: 88, sourceType: 'general' },
 
+  // Global Phase 3B (2026-08-21, docs/global-edition-decision-v1.md) --
+  // specialist sources for en-global Science/Economy, the two categories
+  // Phase 3A's acceptance check found still 100% single-source
+  // monoculture after France24/DW went live (per the project's own
+  // locked principle: specialist source > more general international
+  // feeds, once general coverage is already adequate). Both confirmed
+  // live via direct fetch at wiring time. Source-owned feeds (not
+  // scraper proxies), per Phase 2A Principle B.
+  { id: 'rss-sciencedaily', name: 'ScienceDaily', url: 'https://www.sciencedaily.com/rss/top/science.xml', language: 'en', trustScore: 82, sourceType: 'general' },
+  { id: 'rss-scmp-economy', name: 'SCMP — Global Economy', url: 'https://www.scmp.com/rss/12/feed/', language: 'en', trustScore: 85, sourceType: 'general' },
+
   // Global Phase 3A (2026-08-21, docs/global-edition-decision-v1.md B1) --
   // approved candidate. Confirmed live 2026-08-21 via server-side fetch
   // from Izzat's own machine (this session's own WebFetch tool could not
