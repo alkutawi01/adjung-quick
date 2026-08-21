@@ -199,6 +199,115 @@ signal kategori RSS sumber dengan betul (Tier 1/Tier 3 evidence dalam
 
 ---
 
+## Global Phase 1C — Ranking Readiness Audit (2026-08-21, baca-sahaja)
+
+Menjawab B4 secara empirik: adakah enjin ranking (bukan sekadar prinsip
+"kalibrasi sekarang") sebenarnya sedia untuk en-global/ar-global? Audit
+guna pipeline scoring SEBENAR (`ranking/candidate-scoring.mjs`) terhadap
+data production langsung.
+
+**Dapatan utama: TIADA penghadang enjin ranking.** Formula (freshness +
+sourceTrust + confidenceModifier + editorialBoost) berfungsi betul untuk
+kedua-dua edisi. Setiap jurang yang wujud jejak balik ke **bekalan
+sumber**, bukan kecacatan logik skor.
+
+**Peraturan penting (ditegaskan ChatGPT)**: Bezakan **Ranking Readiness**
+(adakah enjin sedia) daripada **Content Readiness** (adakah cukup
+kandungan). Jangan tafsir corpus kecil sekarang sebagai kesimpulan
+tentang saiz pasaran/permintaan pembaca — corpus semasa cuma
+menggambarkan sumber yang DAH disambungkan, bukan potensi pasaran
+sebenar. Cth: "ar-global cuma 18 berita, jadi pasaran Arab kurang
+potensi" ialah kesimpulan yang data ni TAK SOKONG.
+
+### Ranking Engine — status per edisi
+
+| Edisi | Ranking Engine | Status |
+|---|---|---|
+| ms-MY | Calibrated scorer + `editorial_v1` terhad (Politik sahaja) | Aktif |
+| en-global | Calibrated scorer | Sedia |
+| ar-global | Calibrated scorer | Sedia secara teknikal |
+
+### Content Readiness — verdict per kategori
+
+Ambang: **READY** = liputan sihat merentas sumber; **THIN** = ada
+kandungan tapi bergantung 1-2 sumber/kiraan rendah; **NOT ENOUGH DATA**
+= 0-2 item, tak cukup untuk ranking bermakna.
+
+**en-global** (61 calon, sumber: BBC World, Al Jazeera English, Guardian
+World):
+
+| Kategori | Status | Kiraan |
+|---|---|---|
+| World | READY | 22 |
+| Politics | READY | 10 |
+| Crime | THIN | 4 |
+| Business | THIN | 6 |
+| Disaster | THIN | 5 |
+| Sports | THIN | 4 |
+| Environment | THIN | 3 |
+| Culture | THIN | 3 |
+| Economy | NOT ENOUGH DATA | 2 |
+| Health | NOT ENOUGH DATA | 2 |
+| Education / Technology / Science / Entertainment / Religion / Lifestyle | NOT ENOUGH DATA | 0 setiap satu |
+
+**ar-global** (18 calon, sumber: BBC Arabic, Al Jazeera Arabic — cuma 2
+sumber jumlahnya):
+
+| Kategori | Status | Kiraan |
+|---|---|---|
+| Politics | THIN | 7 (sempadan) |
+| Economy | THIN | 3 (tie-density 66.7%, punca tetap 1 sumber sahaja) |
+| Sports | THIN | 4 |
+| Disaster / Health-Science / Technology / Culture | NOT ENOUGH DATA | 1 setiap satu |
+| Crime / Environment / Education / Entertainment / Religion / Lifestyle | NOT ENOUGH DATA | 0 setiap satu |
+
+Tiada kategori ar-global capai READY lagi — semua jurang jejak balik ke
+pendaftaran 2-sumber (per nota di atas, BUKAN pernyataan tentang saiz
+pasaran).
+
+### Keputusan: `editorialBoost` — Option A dikunci
+
+`editorialBoost` sekarang **BOOST_WEIGHT = 0** — no-op merentas SEMUA
+kombinasi edisi/kategori, termasuk ms-MY.Politik sendiri
+(`state/rankingFlags.js:14-18`). Input boost datang dari baris
+`story_overrides` tulisan editor — aliran kerja yang, ikut B5, tak wujud
+untuk edisi global.
+
+**KEPUTUSAN (dipersetujui ChatGPT selepas semakan bebas, bukan cuma
+ikut kecenderungan awal)**: en-global/ar-global lancar dengan **Option
+A — calibrated scorer sahaja, tiada editorial composition, tiada manual
+boost**. Sebab: mengaktifkan `editorial_v1` hari ni sifar kesan skor
+(berat=0) dan tiada proses editorial yang isi ia untuk edisi global —
+Option B cuma cipta risiko coupling masa depan bila berat boost ms-MY
+akhirnya dilaras naik.
+
+```
+Ranking Global v1:
+
+ms-MY:
+  - editorial_v1 untuk kategori yang sudah diaktifkan sahaja
+  - kategori lain ikut skor standard
+
+en-global:
+  - calibrated scorer
+  - tiada editorial composition
+  - tiada manual boost
+
+ar-global:
+  - calibrated scorer
+  - tiada editorial composition
+  - tiada manual boost
+```
+
+**Status: 1C SELESAI, dokumentasi sahaja.** Tiada kod ranking diubah
+fasa ni. Langkah seterusnya bukan tambah sumber terus, tapi **Global
+Phase 2A — Source Expansion Audit** (jawab dulu: sumber mana paling
+bernilai, sumber mana isi kategori kosong, sumber mana bertindih,
+minimum sumber diperlukan supaya en-global/ar-global tak nampak kosong
+— sebelum tambah sumber sebenar).
+
+---
+
 ## Bahagian C — Fasa Pelaksanaan (dikemas kini selepas B1-B5 dijawab)
 
 Cadangan asal ChatGPT: bukan "siapkan English penuh dulu, baru Arabic"
