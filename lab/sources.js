@@ -70,7 +70,18 @@ export const RSS_SOURCES = [
   // feeds, once general coverage is already adequate). Both confirmed
   // live via direct fetch at wiring time. Source-owned feeds (not
   // scraper proxies), per Phase 2A Principle B.
-  { id: 'rss-sciencedaily', name: 'ScienceDaily', url: 'https://www.sciencedaily.com/rss/top/science.xml', language: 'en', trustScore: 82, sourceType: 'general' },
+  // knownCategory added post-launch (2026-08-21) -- Phase 3B's acceptance
+  // check found ScienceDaily's items were NOT landing in en-global
+  // Science at all (0/60), instead scattering into Health/Disaster/
+  // unclassified, because /rss/top/science.xml's real headlines
+  // ("Schizophrenia's lost brain connections...") don't contain the
+  // literal word "science" for Tier 5 content-keyword matching to catch.
+  // This IS a publisher-declared category feed (Tier 1 evidence,
+  // story-understanding.mjs:79-82's sourceKnownCategory path) -- should
+  // have been tagged from the start, same pattern as Harian Metro's
+  // per-section feeds. 'science' -> 'Science' confirmed in
+  // desk-vocabulary.mjs:85.
+  { id: 'rss-sciencedaily', name: 'ScienceDaily', url: 'https://www.sciencedaily.com/rss/top/science.xml', language: 'en', trustScore: 82, knownCategory: 'science', sourceType: 'specialised' },
   { id: 'rss-scmp-economy', name: 'SCMP — Global Economy', url: 'https://www.scmp.com/rss/12/feed/', language: 'en', trustScore: 85, sourceType: 'general' },
 
   // Global Phase 3A (2026-08-21, docs/global-edition-decision-v1.md B1) --
