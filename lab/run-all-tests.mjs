@@ -39,6 +39,7 @@ const TEST_FILES = [
   'ranking/editorial-composition.test.mjs',
   'ranking/shadow-runner.test.mjs',
   'classification/content-rules.test.mjs',
+  'classification/arabic-geography-fix.test.mjs',
   'db/production-write-guard.test.mjs',
   'db/daily-observation.test.mjs',
   'db/edition-representation-eligibility.test.mjs',

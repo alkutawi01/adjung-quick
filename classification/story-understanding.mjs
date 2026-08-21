@@ -44,7 +44,22 @@ const TIER_CONFIDENCE = {
 function deskFromUrl(link) {
   try {
     const segs = [];
-    for (const s of new URL(link).pathname.split('/').filter(Boolean)) {
+    for (const raw of new URL(link).pathname.split('/').filter(Boolean)) {
+      // Global Phase 4B (2026-08-21, docs/global-edition-decision-v1.md) —
+      // decodeURIComponent() was never called here, so any non-ASCII path
+      // segment (Arabic desk names in France 24 Arabic's /ar/{desk}/...
+      // URLs, e.g. الشرق-الأوسط) arrived percent-encoded
+      // (%D8%A7%D9%84%D8%B4...) and could never match GEOGRAPHY_VOCABULARY/
+      // SUBJECT_VOCABULARY even with complete Arabic entries -- confirmed
+      // live during the Phase 4B audit. Decode BEFORE the length/hyphen
+      // filters below, not after: a short real Arabic word inflates to
+      // 30-40+ ASCII chars once percent-encoded, so checking length on the
+      // still-encoded string risks false-filtering legitimate short desks,
+      // not just failing to match them. Malformed encoding falls back to
+      // the raw segment rather than throwing, same fail-open posture as
+      // this function's own outer try/catch.
+      let s;
+      try { s = decodeURIComponent(raw); } catch { s = raw; }
       if (/^\d+$/.test(s)) break;
       if (s.length > 40) break;
       if (s.split('-').length > 4) break;

@@ -118,6 +118,23 @@ export const GEOGRAPHY_VOCABULARY = {
   'uk-news': 'Europe', 'europe': 'Europe',
   'australia-news': 'Southeast Asia', // Australia isn't SEA geographically, but closest bucket in v1 6-region list; flag as a future refinement, not corrected silently
   'asia': 'Southeast Asia',
+
+  // Global Phase 4B (2026-08-21, docs/global-edition-decision-v1.md) —
+  // GEOGRAPHY_VOCABULARY had ZERO Arabic-script entries before this,
+  // confirmed the root cause of ar-global's World field sitting at 0/0
+  // despite clear Gaza/Ukraine/Sudan/Syria items already in the corpus:
+  // the geography-residual fallback code itself (edition-classification.mjs
+  // ~148-168) is correct and untouched -- it was structurally unreachable
+  // with topGeo always undefined, since no Arabic token ever populated
+  // geographyCandidates. Real tokens below are the ones actually observed
+  // in the live ar-global rss_items.categories corpus during the Phase 4B
+  // audit (not a bulk world-atlas translation, per the director's explicit
+  // "jangan terjemah senarai tempat dunia secara besar-besaran" scope):
+  // الشرق الأوسط ×5, أمريكا ×2, آسيا ×1, أوروبا ×1.
+  'الشرق الأوسط': 'Middle East',
+  'أمريكا': 'Americas',
+  'آسيا': 'Southeast Asia', // matches existing 'asia' -> 'Southeast Asia' mapping above
+  'أوروبا': 'Europe',
 };
 
 // Structural sections/recency markers — explicitly NEVER a subject or
