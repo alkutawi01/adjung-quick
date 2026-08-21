@@ -538,6 +538,90 @@ lagi, tapi PROSES tambah sumber).
 
 ---
 
+## Global Phase 2C — Source Integration Plan (2026-08-21)
+
+Reka bentuk PROSES sahaja — **tiada sumber diwired fasa ni.** Tujuan:
+elak ulang insiden P0 (sumber masuk → klasifikasi tertinggal → pembaca
+nampak kosong, lihat `docs/p0-classification-backlog-incident-v1.md`).
+
+### A. Prinsip integrasi
+
+Sumber baharu MESTI masuk melalui Source Registry (`lab/sources.js` +
+`sources` table), bukan terus ke kod classifier/ranking. Sumber MESTI
+lalui kitaran PENUH sebelum dianggap "aktif":
+
+```
+sources -> ingestion -> classification -> edition_story_classifications
+        -> ranking -> reader
+```
+
+**Tiada sumber dianggap "aktif" hanya kerana RSS berjaya dibaca** —
+RSS boleh dibaca tak semestinya bermakna sumber tu SESUAI (bahasa
+betul, kategori sepadan, tiada duplicate berlebihan).
+
+### B. Urutan integrasi sumber baharu
+
+1. **Tambah sumber** — checklist: URL RSS disahkan, bahasa ditetapkan,
+   edition target ditetapkan, `source_type` betul, trust/source
+   profile disemak (cth France 24 English: `language: en, edition:
+   en-global`).
+2. **Dry-run ingestion** (sebelum aktif) — periksa jumlah item masuk,
+   kadar duplicate, metadata, tarikh penerbitan, bahasa, kategori
+   dijangka.
+3. **Audit klasifikasi** (selepas masuk) — ukur % berjaya diklasifikasi,
+   kategori terhasil, adakah terlalu banyak jatuh ke World (fallback
+   generik), adakah `desk-vocabulary.mjs` perlu diperbaiki. **Jangan
+   terus tambah keyword hanya kerana satu sumber gagal** — semak punca
+   dulu.
+4. **Pengesahan pembaca** — Wheel kategori, jumlah berita, susunan,
+   **tiada leakage ke edisi lain** (cth France 24 Arabic TAK BOLEH
+   tiba-tiba isi ms-MY).
+
+### C. Peraturan rollout — satu sumber setiap kali
+
+Jangan tambah banyak serentak — kalau 5 sumber ditambah sekali gus,
+sukar kenal pasti sumber mana MEMBANTU, mana MEROSAKKAN klasifikasi,
+mana hasilkan duplicate.
+
+```
+en-global: France 24 English -> ukur kesan -> DW English (lepas sah)
+           -> sumber pakar kemudian
+ar-global: France 24 Arabic -> ukur kesan -> Al Arabiya (lepas sah)
+           -> sumber pakar kemudian
+```
+
+### D. Source Quality Gate — sebelum sumber jadi kekal
+
+| Pemeriksaan | Wajib lulus |
+|---|---|
+| RSS stabil | ✓ |
+| Tiada duplicate berlebihan | ✓ |
+| Klasifikasi boleh diterima | ✓ |
+| Kategori sasaran bertambah (bukan static) | ✓ |
+| Tiada cross-edition leakage | ✓ |
+
+### E. Selepas integrasi — audit susulan
+
+en-global: Business/Culture cukup? Technology masih kosong?
+ar-global: World stabil? Economy tak lagi bergantung satu sumber?
+Culture bertambah?
+
+### F. Sengaja TAK dibuat fasa ni
+
+Elak skop berkembang: TIADA source-weighting schema, TIADA AI summary,
+TIADA translation layer, TIADA `editorialBoost` global, TIADA manual
+ranking global, TIADA scraper (RSSHub-jenis, per nota di atas).
+
+**Status: 2C SELESAI, dokumentasi sahaja.** Acceptance: proses tambah
+sumber ditetapkan; France 24 boleh masuk dengan risiko terkawal
+(mekanisme dry-run+audit+gate sedia); DW/Al Arabiya kekal lalu
+verification gate; tiada perubahan ranking; tiada perubahan taxonomy.
+Langkah seterusnya **Global Phase 3 — Source Integration Execution**
+(wiring France 24 sebenar, ikut proses B-D di atas) — fasa PERTAMA yang
+betul-betul sentuh kod/data sumber.
+
+---
+
 ## Bahagian C — Fasa Pelaksanaan (dikemas kini selepas B1-B5 dijawab)
 
 Cadangan asal ChatGPT: bukan "siapkan English penuh dulu, baru Arabic"
