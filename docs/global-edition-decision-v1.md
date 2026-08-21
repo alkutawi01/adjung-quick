@@ -308,6 +308,127 @@ minimum sumber diperlukan supaya en-global/ar-global tak nampak kosong
 
 ---
 
+## Global Phase 2A — Source Expansion Audit (2026-08-21, baca-sahaja)
+
+Audit sahaja — **tiada kod diubah, tiada sumber ditambah fasa ni.**
+Data production live (snapshot 2026-08-21): en-global 93 baris
+diklasifikasi (34% belum diklasifikasi), ar-global 48 baris (63% belum
+diklasifikasi — nisbah tinggi ni flag kualiti data BERASINGAN, bukan
+isu liputan kategori dalam skop dokumen ni).
+
+### A. Jurang bekalan semasa
+
+**en-global** (sumber: BBC News World, Al Jazeera English, Guardian
+World, ketiga-tiganya `sourceType: 'general'`, TIADA `knownCategory` —
+liputan sepenuhnya bergantung tafsiran classifier):
+
+| Kategori | Status | Punca |
+|---|---|---|
+| World | Sihat (22) | Hampir semua dari Guardian sahaja — risiko tumpuan |
+| Politics | Memadai (10) | Tersebar 3 sumber — kategori paling sihat |
+| Business, Disaster, Crime, Culture, Environment | Nipis (3-6) | Setiap satu bergantung ~100% pada SATU sumber |
+| Economy, Health | Sangat nipis (2) | Sama |
+| Education, Technology, Science, Entertainment, Religion, Lifestyle | **Kosong (0)** | Tiada sumber wired liputi bidang ni langsung |
+
+**ar-global** (sumber: BBC Arabic, Al Jazeera Arabic sahaja, kedua-dua
+`general`, tiada `knownCategory`):
+
+| Kategori | Status | Punca |
+|---|---|---|
+| Politics (سياسة) | Memadai (7) | 6/7 dari Al Jazeera Arabic — risiko tumpuan tinggi |
+| Sports, Economy | Nipis (3-4) | Economy 100% dari satu sumber |
+| Culture, Disaster, Health-Science, Technology | Sangat nipis (1 setiap satu) | Satu item, satu sumber — anekdot, bukan liputan sebenar |
+| Crime, Environment, Education, Entertainment, Religion, Lifestyle, World | **Kosong (0)** | Tiada sumber Arab wired liputi 7 bidang ni langsung |
+
+### B. Prinsip penilaian sumber
+
+Bukan "mesti label rasmi" secara rigid — kriteria sebenar: **mesti feed
+yang dikawal/dimiliki sumber itu sendiri, bukan proksi pihak ketiga yang
+scrape/tiru mereka.** Sama disiplin yang dipakai kesemua sumber ms-MY
+sedia ada (Utusan/RTM/Astro Awani — feed terus dari portal sendiri).
+Proksi pihak ketiga ditolak sebab boleh rosak senyap bila-bila masa,
+tiada jaminan ketepatan daripada sumber asal, dan bermasalah dari segi
+kebenaran guna kandungan.
+
+### C. Calon sumber
+
+**C1. Calon disahkan (RSS langsung disahkan hidup, carian web sebenar):**
+
+| Sumber | Bahasa | Kategori | Nota |
+|---|---|---|---|
+| France 24 English | en | Antarabangsa umum, TIAP-TIAP ITEM ada tag `<category>` (Americas/Middle East/Africa/Europe) | Bukti Tier-1 lebih baik dari BBC/AJ/Guardian sedia ada yang tiada kategori langsung |
+| France 24 Arabic | ar | Antarabangsa/Timur Tengah | Suara editorial (penyiar negara Perancis) berbeza dari AJ Arabic/BBC Arabic, kurangkan tumpuan Politics pada AJ |
+
+**C2. Calon perlu disahkan lagi (URL sebenar wujud, belum disahkan
+langsung berfungsi sesi ni):**
+
+| Sumber | Bahasa | Status | Sebab |
+|---|---|---|---|
+| DW English | en | Perlu sah live | Feed per-kategori sebenar (business/sports/culture/science/environment) ditemui dlm carian, tapi rss.dw.com tak dapat dicapai oleh tool audit sesi ni |
+| Al Arabiya | en/ar | Perlu sah server-side | URL rasmi wujud (disebut dokumentasi MRSS Al Arabiya sendiri), tapi respons 403 semasa cuba capai — kemungkinan besar sekatan bot (User-Agent tak standard), BUKAN feed mati; perlu cuba semula dari server sebenar |
+
+**C3. Calon ditolak:**
+
+| Sumber | Sebab |
+|---|---|
+| Reuters | Tiada RSS rasmi yang ditemui/disahkan sejak ~2020; sumber tidak rasmi (proksi pihak ketiga) TIDAK digunakan (per prinsip B) |
+| AP (Associated Press) | Sama seperti Reuters — tiada RSS rasmi ditemui/disahkan |
+| DW Arabic | Tiada RSS teks rasmi yang sesuai ditemui dalam audit ini |
+| NHK World | Tiada RSS teks rasmi yang sesuai ditemui dalam audit ini (kewujudan cuma podcast/audio) |
+
+### D. Simulasi kesan liputan
+
+**en-global** — France 24 English + DW English (lepas sah) boleh angkat
+Business/Culture/Environment/Science daripada nipis/kosong ke lebih
+sihat, DAN kurangkan tumpuan Guardian pada World. Tapi **Technology,
+Education, Religion, Lifestyle, Entertainment MASIH kekal kosong**
+selepas kedua-dua sumber ni — jurang ni perlukan **sumber pakar bidang**
+(specialist source), BUKAN sumber umum antarabangsa lagi. Sama corak
+keputusan ms-MY: Amanz (teknologi), IKIM (agama), KPM (pendidikan) — ni
+bukan liputan umum yang boleh diisi BBC/AJ-jenis, ia perlukan portal
+khusus bidang tu sendiri.
+
+**ar-global** — France 24 Arabic tambah suara ketiga (kurangkan
+tumpuan AJ Arabic pada Politics/Sports/Economy). Al Arabiya (lepas
+sah) boleh isi Lifestyle (kosong sekarang) dan tambah Economy.
+**Crime, Environment, Education, Entertainment, Religion, World MASIH
+tiada calon ditemui langsung dalam audit ni** — sama ada terima kosong
+buat masa pelancaran, atau cari sumber ceruk Arab (cth hal-ehwal agama,
+sama corak JAKIM/IKIM ms-MY) sebagai kerja susulan berasingan.
+
+### E. Susunan cadangan (untuk 2B putuskan, bukan dikunci di sini)
+
+```
+en-global:
+1. France 24 English (disahkan)
+2. DW English (selepas sah live)
+3. Sumber pakar bidang: Technology / Science / Education /
+   Religion-Lifestyle (kerja susulan berasingan, bukan skop
+   Reuters/AP/DW yang diaudit sesi ni)
+
+ar-global:
+1. France 24 Arabic (disahkan)
+2. Al Arabiya (selepas sah server-side)
+3. Sumber pakar Arab ikut jurang sebenar (Crime/Environment/
+   Education/Entertainment/Religion/World — belum ada calon)
+```
+
+**Kesediaan pelancaran ar-global TAK bermakna 13/13 kategori mesti ada
+berita.** Kategori kosong bukan tanda taxonomy gagal — Culture/
+Entertainment baru dipisah (Phase 1B), jumlah sumber Arab masih rendah.
+Kategori WAJIB ada bekalan sebelum pelancaran: Politics, Economy,
+World, Sports, Culture (+ Religion kalau sumber berkualiti ditemui).
+Entertainment/Lifestyle boleh menyusul. Wheel sendiri kena pastikan
+tak nampak "rosak" bila kategori kosong (isu UI, kerja berasingan
+daripada isu bekalan sumber ni).
+
+**Status: 2A SELESAI, dokumentasi sahaja.** Tiada kod/sumber diubah.
+Langkah seterusnya **Global Phase 2B — Source Expansion Decision**
+(putuskan: sumber mana masuk, minimum sumber, kategori wajib vs boleh
+kosong di pelancaran) — bukan terus wired sumber baharu.
+
+---
+
 ## Bahagian C — Fasa Pelaksanaan (dikemas kini selepas B1-B5 dijawab)
 
 Cadangan asal ChatGPT: bukan "siapkan English penuh dulu, baru Arabic"
