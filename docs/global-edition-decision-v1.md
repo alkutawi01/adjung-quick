@@ -693,11 +693,49 @@ Izzat, disahkan langsung terhadap DB: `rss_items`=925, `story_clusters`=869,
 item sebenar dari `rss-dw-en`/`rss-france24-en`/`rss-france-24-ar`
 wujud dalam jadual production (bukan staging).
 
-**Langkah seterusnya (belum dimulakan)**: acceptance check
-sebelum/selepas per-kategori (bilangan sumber unik setiap kategori
-en-global/ar-global naik atau tidak — bandingkan terhadap baseline
-Phase 1C/2A), kemudian Global Classification Coverage Audit v2
-(berasingan, isu classifier bukan sumber).
+### Acceptance check (sebelum/selepas, 2026-08-21) — PENUTUP RASMI
+
+**Status: COMPLETE (Teknikal) / CONDITIONAL PASS (Kepelbagaian
+Editorial).** Klasifikasi disahkan dah jalan (`edition_story_classifications`
+869 baris, `created_at` terkini). 183 cluster jejak balik ke 3 sumber
+baharu (160 en-global, 23 ar-global).
+
+**Kesan positif terukur:**
+
+| Kategori | Sebelum | Selepas |
+|---|---|---|
+| en-global World | 22 item, 2 sumber, Guardian 92% | 45 item, 4 sumber, Guardian 58% |
+| en-global Politics | 10 item, 3 sumber | 12 item, 4 sumber |
+| en-global Crime | — | naik ke 5 sumber |
+| ar-global سياسة Politics | AJ Arabic 86% | AJ Arabic 60%, 3 sumber |
+| ar-global رياضة Sports | AJ Arabic 75% | AJ Arabic 56% |
+
+**Tapi belum lengkap sepenuhnya:**
+- en-global **Science** (15 item) MASIH 100% satu sumber (DW).
+- en-global **Economy** (3 item) MASIH 100% AJ.
+- ar-global **Economy** MASIH 100% AJ.
+- ar-global **Culture/Technology**: sifar item diklasifikasi lagi.
+- Culture/Business en-global "bertambah baik" cuma tukar sumber
+  dominan (masih ~80-85% satu sumber).
+
+**Nota bahasa penting (ChatGPT tegaskan)**: statistik dry-run
+(176/185, 95.1% cluster baharu) **TAK boleh dianggap keputusan
+production final** — log dry-run tak dipersist, tiada rekod
+production run untuk sahkan angka sama. Bahasa betul: "Dry-run
+menunjukkan potensi tinggi sumber baharu bawa kandungan unik, tapi
+kadar tu tak dapat disahkan semula selepas production run sebab
+metrik dedup tak disimpan kekal." **JANGAN tulis "95.1% production
+value".**
+
+**Sahkan bersih**: SIFAR kebocoran silang-bahasa/edisi (183 cluster
+disemak — France 24 Arabic tak bocor ke ms-MY/en-global, sumber
+English tak bocor ke ar-global).
+
+**Tiada penghadang pelancaran.** Baki isu (Science/Economy/Culture
+monokultur) dipindah ke fasa seterusnya: **bukan lagi "kurang sumber
+umum", tapi "kategori tertentu perlukan sumber PAKAR"** (Science →
+sumber sains khusus, Economy → sumber ekonomi khusus, sama prinsip
+"sumber pakar > banyak sumber umum" yang dah dipersetujui di Phase 2A).
 
 ---
 
