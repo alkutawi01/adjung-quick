@@ -868,3 +868,84 @@ dilaksanakan. Sesiapa baca doc lama sahaja (tanpa semak kod/commit sebenar)
 akan overstate berapa banyak kerja yang belum siap. Dokumen ni cuba
 betulkan staleness tu dengan sengaja rujuk kod sebenar (bukan doc lain)
 untuk setiap tuntutan dalam Bahagian A.
+
+---
+
+## Global Phase 4 — Arabic Global Readiness & Classification Hardening (2026-08-21) — DITUTUP
+
+Fasa payung untuk siri 4B/4C di bawah. Verdict keseluruhan (dikunci
+ChatGPT selepas dua kaedah audit bebas): **tiada bukti mana-mana kategori
+Arab yang disiasat gagal kerana classifier tidak mengenali kandungan yang
+tersedia.** Kategori kosong = supply gap tulen, bukan classifier gap.
+
+### 4B-C — Tier 5 geography + vocabulary sebenar (commit 6709b52, b0d6d3d)
+- `extractGeographyContentEvidence()` (content-rules.mjs) — geografi
+  separuh Tier 5 yang tidak pernah wujud: GEOGRAPHY_VOCABULARY tidak
+  pernah disemak terhadap teks tajuk/perihalan, hanya SUBJECT_VOCABULARY.
+  Padanan word-boundary Unicode (bukan `.includes()`) — kunci geografi
+  pendek ('asia'/'world') tidak boleh false-positive dalam perkataan lain.
+- Vocabulary baharu daripada bukti sebenar sahaja: `تكنو` → Technology
+  (token kategori France 24), `الأخبار المغاربية` → World (mapping produk,
+  bukan fakta geografi — taxonomy 6-region tiada bucket Maghreb, residual
+  ar-global menghala semua non-Malaysia ke العالم tanpa mengira label).
+
+### 4B-D — Precedence fix (RULESET_VERSION v1.4.0, commit b0d6d3d)
+**"Placement precedence hardening: geography residual fallback no longer
+overrides subject-based placement."** Confidence Gate dahulu return awal
+ke geografi-residual SEBELUM Tier 3 (Default Placement Mapping) sempat
+cuba semua subject candidate — tak kelihatan selagi geography candidate
+jarang, tapi Tier 5 baharu (4B-C) mula hasilkan candidate 'Malaysia'
+lemah daripada perkataan generik, menurunkan 5 cerita ms-MY sebenar
+(Sukan/Politik/Jenayah) ke Nasional generik. Fix: Tier 3 SENTIASA
+berjalan dahulu; geografi-residual hanya last resort. Ujian regresi
++ mutation test sebenar: `precedence-fix-regression.test.mjs`.
+Disahkan LIVE selepas `--write`: kelima-lima cerita pulih ke kategori
+asal via default_mapping.
+
+### 4B-E — Audit kategori kosong ar-global — DITUTUP
+Dua kaedah bebas, keputusan sama:
+1. Audit metadata/kandungan (71 item ar, word-boundary): Religion/
+   Lifestyle/Education/Entertainment/Environment = 0 kandungan tulen.
+2. Keyword validation cadangan Izzat (الحج/رمضان/عيد/فتوى/جامعة/مدرسة/
+   التعليم dll. terhadap korpus sebenar): 0 padanan tulen — 2 padanan
+   `التعليم` disahkan false positive (perkataan generik, bukan berita
+   sektor pendidikan).
+Culture/Entertainment: kandungan yang wujud (2 item) SUDAH diklasifikasi
+betul (ثقافة via default_mapping) — menolak hipotesis "kategori kosong =
+classifier rosak". **Keputusan: tiada patch classifier; penambahan
+vocabulary tidak dibenarkan tanpa bukti kandungan sebenar.**
+
+### 4C-1 — AITNews (Technology ar-global) — CLOSED PASS
+Sumber pakar teknologi Arab (aitnews.com/feed/, Dubai 2005, dipetik Al
+Jazeera/Al Arabiya). Didaftar terus dalam registry produksi `sources`:
+`rss-aitnews`, language=ar, known_category=technology,
+source_type=specialised (corak sama ScienceDaily). Disahkan LIVE:
+10/10 item masuk & diklasifikasi تكنولوجيا betul via default_mapping —
+ar-global Technology 1 → 10. Corak "sumber pakar > classifier kompleks"
+kini terbukti DUA kali (ScienceDaily, AITNews).
+
+**Operational hardening ditemui semasa deployment 4C-1** (commit 8373b4c):
+`check_old_generation_exists()` (RPC 9D-2) hanya di-GRANT kepada
+`authenticated` — preflight 9D-4 memanggilnya dengan service_role key dan
+gagal 42501 pada larian sebenar pertama. `service_role` TIDAK bypass ACL
+GRANT/REVOKE fungsi (mekanisme berasingan daripada RLS bypass). Fix:
+`GRANT EXECUTE ... TO service_role`
+(schema-old-generation-check-rpc-service-role-grant-v1.sql).
+
+### 4C-2 — Religion Source Evaluation — CLOSED DEFERRED
+Keputusan strategik, bukan "belum siasat": dinilai calon sebenar
+(Dar Al-Ifta Mesir — tiada RSS, format fatwa Q&A bukan berita; MOIA Saudi
+— tak boleh diakses; AJ دين — seksyen editorial, bukan feed berasingan;
+shuounislamiya/ABNA — risiko neutraliti/mazhab) DAN Izzat sendiri turut
+mencari tanpa jumpa calon layak. Kriteria kekal terbuka: feed rasmi +
+institusi kredibel + kandungan berita/pengetahuan + tidak bergantung satu
+aliran + sesuai pembaca umum. **Lebih baik kategori kosong daripada satu
+sumber yang membentuk persepsi keseluruhan edisi.**
+
+### Roadmap dikemas kini (keputusan Izzat, 2026-08-21)
+Phase 5 — Reader Experience & UI/UX kini DIREKODKAN sebagai fasa formal
+selepas Phase 1-4 (mobile-first jadi titik mula; UX spec; Global Edition
+visual/RTL). **Belum dilaksanakan** — arahan eksplisit Izzat: siapkan
+Phase 1-4 dahulu, rekod sahaja; satu teguran bukan arahan tukar keutamaan
+pelaksanaan. Phase 6 Editorial Intelligence, Phase 7 Advanced features
+menyusul selepasnya.
