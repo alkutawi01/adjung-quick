@@ -84,7 +84,7 @@ export const RSS_SOURCES = [
   // heavier Africa/Francophone coverage) -- directly targets ar-global's
   // Politics/Sports/Economy concentration risk (per Phase 2A Task A, 6/7
   // Politics items currently from Al Jazeera Arabic alone).
-  { id: 'rss-france24-ar', name: 'France 24 Arabic', url: 'https://www.france24.com/ar/rss', language: 'ar', trustScore: 88, sourceType: 'general', status: 'disabled' },
+  { id: 'rss-france-24-ar', name: 'France 24 Arabic', url: 'https://www.france24.com/ar/rss', language: 'ar', trustScore: 88, sourceType: 'general', status: 'disabled' },
 
   // --- ms-MY category feeds (added 2026-08-12, Izzat) ---
   // Directly addresses the coverage gap found when the Wheel went live: only
