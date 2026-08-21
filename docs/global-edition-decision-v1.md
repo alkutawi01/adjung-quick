@@ -645,9 +645,59 @@ ranking global, TIADA scraper (RSSHub-jenis, per nota di atas).
 sumber ditetapkan; France 24 boleh masuk dengan risiko terkawal
 (mekanisme dry-run+audit+gate sedia); DW/Al Arabiya kekal lalu
 verification gate; tiada perubahan ranking; tiada perubahan taxonomy.
-Langkah seterusnya **Global Phase 3 — Source Integration Execution**
-(wiring France 24 sebenar, ikut proses B-D di atas) — fasa PERTAMA yang
-betul-betul sentuh kod/data sumber.
+
+---
+
+## Global Phase 3A — Source Integration Execution: France 24 + DW English (2026-08-21)
+
+**Status: SELESAI, LIVE PRODUCTION.** France 24 English, France 24
+Arabic, dan DW English (feed am sahaja) diwired sepenuhnya, disahkan
+menambah nilai sebenar, dan sekarang aktif dalam production.
+
+### Ralat reka bentuk ditemui + dibetulkan semasa pelaksanaan
+
+Rancangan asal 2C ("tambah sumber sebagai `disabled` dulu, `--dry-run`
+untuk preview selamat, baru aktifkan") **tidak berfungsi seperti
+disangka** — `fetchFeed()` (`lab/rss.js:191-192`) sendiri SKIP terus
+mana-mana sumber status bukan `active` SEBELUM cuba capaian rangkaian
+langsung. Disahkan live: dua `--dry-run` berturutan semasa sumber
+`disabled` beri jumlah item mentah SAMA PERSIS (1027) — sumber baharu
+tak pernah cuba diambil langsung, bukan diambil-tapi-tak-diguna.
+**Keselamatan sebenar `--dry-run` datang daripada sifat "stage tapi
+tak pernah swap" ITU SENDIRI, bukan status aktif/tidak-aktif sumber.**
+Izzat luluskan pertukaran ke status `active` untuk dapat preview
+sebenar — production tetap selamat sepanjang masa sebab `--dry-run`
+berhenti sebelum swap tak kira status sumber.
+
+### Hasil audit (Phase 2C Step B3, data staging sebenar)
+
+185 item disumbang 3 sumber baharu: **176 (95.1%) jadi cluster baharu
+tersendiri**, cuma **9 (4.9%) diserap sebagai pendua** cerita sedia ada
+BBC/AJ/Guardian — kesemua 9 pendua disahkan betul secara semantik
+(cerita SAMA, bukan gabungan silap). France 24 Arabic: 23/23 item
+(100%) betul ditanda bahasa Arab. **Verdict: liputan genuinely baharu,
+bukan sekadar URL tambahan untuk cerita sama** — melepasi Source
+Quality Gate (2C bahagian D) dengan jelas.
+
+Nota berasingan (BUKAN penghadang keputusan ni): ~49% cluster yang
+disentuh 3 sumber baharu tak diklasifikasi lagi — ChatGPT sahkan ini
+tingkah laku classifier SEDIA ADA (bukan disebabkan sumber baharu),
+disyorkan jadi tiket audit berasingan ("Global Classification Coverage
+Audit v2") supaya isu source-expansion tak bercampur dengan isu
+classifier-coverage.
+
+### Pengesahan LIVE production
+
+Ingestion SEBENAR (`node db/ingest-production.js --write`) dijalankan
+Izzat, disahkan langsung terhadap DB: `rss_items`=925, `story_clusters`=869,
+item sebenar dari `rss-dw-en`/`rss-france24-en`/`rss-france-24-ar`
+wujud dalam jadual production (bukan staging).
+
+**Langkah seterusnya (belum dimulakan)**: acceptance check
+sebelum/selepas per-kategori (bilangan sumber unik setiap kategori
+en-global/ar-global naik atau tidak — bandingkan terhadap baseline
+Phase 1C/2A), kemudian Global Classification Coverage Audit v2
+(berasingan, isu classifier bukan sumber).
 
 ---
 
