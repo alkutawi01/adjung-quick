@@ -2,6 +2,22 @@
 // following the same battle-tested pattern as Adjung-Core/core/sources/RssDirectEngine.js
 // (kept as a separate implementation since Adjung Quick is its own project/repo).
 
+// Global Phase 4D (2026-08-22), Izzat's direct instruction: the honest
+// 'AdjungQuickLab/0.1' identifier got Al Arabiya's RSS endpoints outright
+// 403-blocked — confirmed at the network level (fetchFeed() itself, not
+// just an ad-hoc curl/WebFetch check), while the SAME feed URL loaded fine
+// in an ordinary browser. This is fetching a public RSS feed, the same
+// thing any RSS reader (Feedly, NetNewsWire, etc.) does — most of those
+// already send a browser-realistic UA for exactly this reason, not just
+// this project. Long-term risk if left as-is: as more publishers harden
+// bot detection the way Al Arabiya has, Quick's own feed access degrades
+// over time regardless of feed quality. One shared constant, used by
+// BOTH fetch paths below (fetch() and the extra-CA https.get() path) —
+// changing it changes every source's request identity at once, which is
+// exactly why this needed his sign-off before shipping, not just mine.
+const FEED_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
 function stripCdata(str) {
   return str.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1');
 }
@@ -146,7 +162,7 @@ async function fetchWithExtraCa(source) {
   return new Promise((resolve, reject) => {
     const req = https.get(
       source.url,
-      { agent, headers: { 'User-Agent': 'AdjungQuickLab/0.1 (+editorial-ranking-laboratory)' }, timeout: 15000 },
+      { agent, headers: { 'User-Agent': FEED_USER_AGENT }, timeout: 15000 },
       res => {
         let body = '';
         res.setEncoding('utf-8');
@@ -195,7 +211,7 @@ export async function fetchFeed(source, attempt = 1) {
     const res = source.extraCa
       ? await fetchWithExtraCa(source)
       : await fetch(source.url, {
-          headers: { 'User-Agent': 'AdjungQuickLab/0.1 (+editorial-ranking-laboratory)' },
+          headers: { 'User-Agent': FEED_USER_AGENT },
           signal: AbortSignal.timeout(15000),
         });
     // Trust the PAYLOAD, not the status code. Bernama's Malay feed returns
