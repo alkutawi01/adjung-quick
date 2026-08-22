@@ -168,6 +168,18 @@ export const GEOGRAPHY_VOCABULARY = {
   // identical to a dedicated region label without the risk of a new,
   // unverified bucket.
   'الأخبار المغاربية': 'World',
+
+  // Global Phase 4D (2026-08-22) — Asharq Al-Awsat's regional-desk feeds
+  // (aawsat.com/feed/{america,asia,europe,africa}) are organized by
+  // GEOGRAPHY, not subject — Izzat's direct correction after finding the
+  // America desk had been wired to known_category='politics' (a subject
+  // token) instead. 'americas'/'asia'/'europe' already match existing
+  // English keys above; 'africa' has no dedicated bucket in the 6-region
+  // model, same situation as المغاربية above — mapped straight to 'World'
+  // for the same reason (ar-global's residual routes every non-Malaysia
+  // geography to World regardless of label, so this is functionally
+  // identical to a dedicated bucket without inventing an unverified one).
+  'africa': 'World',
 };
 
 // Structural sections/recency markers — explicitly NEVER a subject or
