@@ -11,6 +11,12 @@ import Brief from './components/Brief.jsx';
 import EditionSwitcher from './components/EditionSwitcher.jsx';
 import { t } from './i18n.js';
 
+// A Bidang only appears in the Wheel once it can actually fill a full
+// Active Set — see the `topics` useMemo below for the full rationale
+// (2026-08-21, Izzat's direct instruction after the Global Edition v1
+// audit). Same number as activeSetCapacity (state/model.js) by design.
+const MIN_TOPIC_STORIES = 10;
+
 // Phase 2A/Candidate-B Core Reading Shell. Per Izzat's visual-direction
 // correction (2026-08-11): ONE composition, not a desktop-specific
 // 3-permanent-column layout — the Bidang Wheel + bounded Active Set render
@@ -97,7 +103,27 @@ export default function App() {
         // before React re-renders from the setRankedQueue() call above.
         const activeEdition = getEdition(state.editionContext.activeEdition);
         // field_code, not label — see topics useMemo below for why.
-        const firstTopic = activeEdition.taxonomyFieldCodes[0];
+        //
+        // MIN_TOPIC_STORIES filtering (2026-08-21) means taxonomyFieldCodes[0]
+        // is no longer guaranteed to be a visible Bidang — the wheel now
+        // hides thin categories, so cold start must pick the first field
+        // that ACTUALLY clears the threshold against the just-fetched
+        // queue, the same count the topics useMemo below computes. Falls
+        // back to taxonomyFieldCodes[0] only if literally every field is
+        // under threshold (a near-empty edition), so this never dispatches
+        // a field code that doesn't exist in the taxonomy at all.
+        const countByCode = new Map();
+        for (const c of queue) {
+          if (!c.topic) continue;
+          countByCode.set(c.topic, (countByCode.get(c.topic) ?? 0) + 1);
+        }
+        // 'entertainment' excluded here too — see the topics useMemo below,
+        // same 2026-08-21 instruction. Cold start must never land on a
+        // Bidang the Wheel itself won't offer.
+        const firstTopic = activeEdition.taxonomyFieldCodes.find(
+          code => code !== 'entertainment' && (countByCode.get(code) ?? 0) >= MIN_TOPIC_STORIES,
+        ) ?? activeEdition.taxonomyFieldCodes.find(code => code !== 'entertainment')
+          ?? activeEdition.taxonomyFieldCodes[0];
         setState(s => reduce(s, selectTopic(firstTopic), {
           rankedQueue: queue,
           control: controlRef.current,
@@ -121,22 +147,42 @@ export default function App() {
   };
 
   // UI-1.1 Wheel Taxonomy Source Migration (2026-08-12, per
-  // docs/edition-state-model.md). The Wheel reads its field list from the
-  // ACTIVE EDITION's taxonomy, never from whatever topics happen to exist
-  // in today's stories. Previously this was
-  // `[...new Set(rankedQueue.map(c => c.topic))]`, which meant a Bidang
-  // with no stories today silently vanished from the Wheel, and the labels
-  // came from the old classifier's `c.topic` rather than the edition's own
-  // taxonomy. The Wheel is the edition's editorial map, not a filter over
-  // available content — stories determine how MUCH is in each Bidang, never
-  // WHICH Bidang exist.
+  // docs/edition-state-model.md) established that the Wheel reads its
+  // field list from the ACTIVE EDITION's taxonomy, never from whatever
+  // topics happen to exist in today's stories — the Wheel was meant as
+  // the edition's editorial map, not a filter over available content.
+  //
+  // REVERSED 2026-08-21, per Izzat's explicit, direct instruction after
+  // the Global Edition v1 audit surfaced thin categories (ar-global had
+  // several Bidang sitting at 0-4 stories): "kalau kategori tidak ada
+  // berita atau kurang daripada 10, kategori itu disembunyikan." A Bidang
+  // a reader can select into and find almost nothing is worse than a
+  // Bidang that isn't offered at all — so story SUPPLY now decides WHICH
+  // Bidang appear, not just how much is in each one. MIN_TOPIC_STORIES is
+  // the same number as activeSetCapacity (state/model.js) — a Bidang
+  // should only appear once it can actually fill a full Active Set.
+  //
   // Taxonomy Stable Field-ID V1 (2026-08-16): TopicWheel needs both the
   // stable code (dispatch/matching) and the label (display) — paired here
   // from editions.js's parallel `taxonomy`/`taxonomyFieldCodes` arrays.
   const topics = useMemo(() => {
     const edition = getEdition(state.editionContext.activeEdition);
-    return edition.taxonomyFieldCodes.map((code, i) => ({ code, label: edition.taxonomy[i] }));
-  }, [state.editionContext.activeEdition]);
+    const countByCode = new Map();
+    for (const c of rankedQueue) {
+      if (!c.topic) continue;
+      countByCode.set(c.topic, (countByCode.get(c.topic) ?? 0) + 1);
+    }
+    return edition.taxonomyFieldCodes
+      .map((code, i) => ({ code, label: edition.taxonomy[i] }))
+      // Entertainment hidden in every edition, 2026-08-21, Izzat's direct
+      // instruction — field_code is the same literal 'entertainment' in
+      // all three editions' taxonomy_fields rows (confirmed, not assumed).
+      // Not a MIN_TOPIC_STORIES case: this is a full editorial exclusion,
+      // independent of story count, until an explicit "bermanfaat" quality
+      // rule is defined — deliberately not invented here.
+      .filter(t => t.code !== 'entertainment')
+      .filter(t => (countByCode.get(t.code) ?? 0) >= MIN_TOPIC_STORIES);
+  }, [state.editionContext.activeEdition, rankedQueue]);
 
   // There is no "Semua"/All Bidang (removed 2026-08-12 per Izzat — he never
   // decided to have one). The reader is always inside exactly one real
@@ -145,8 +191,19 @@ export default function App() {
   // immediately at cold start — and re-resolves after SWITCH_EDITION drops
   // a field that doesn't exist in the new edition (reducer sets it to null,
   // per docs/core-reading-ui-contract.md §11a).
+  //
+  // Extended 2026-08-21 for MIN_TOPIC_STORIES/entertainment filtering: the
+  // reducer's own SWITCH_EDITION "field survives" check only asks whether
+  // the field_code exists in the new edition's RAW taxonomy — 'entertainment'
+  // always does, in every edition, so a reader who switches edition while
+  // Entertainment is selected would otherwise land on a Bidang the Wheel no
+  // longer lists at all, with no arrow-button path back to a visible one.
+  // Checking membership in the already-filtered `topics` (not just
+  // non-null) closes that gap the same way the null case is already
+  // handled, without touching the reducer's own survival contract.
   useEffect(() => {
-    if (state.userContext.selectedTopic == null && topics.length > 0) {
+    const stillVisible = topics.some(t => t.code === state.userContext.selectedTopic);
+    if (!stillVisible && topics.length > 0) {
       dispatch(selectTopic(topics[0].code));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
