@@ -95,6 +95,13 @@ export const SUBJECT_VOCABULARY = {
   'health': 'Health', 'global health': 'Health',
   'football': 'Sports', 'sport': 'Sports',
   'travel': 'Lifestyle', 'food': 'Lifestyle',
+  // Global Phase 4D (2026-08-22) — 'education' (English token) added for
+  // sourceKnownCategory (Tier 1), same gap as 'religion' above: Al-Madina's
+  // student-olympiad/tech-in-education feed is the first Arabic Education
+  // source found this project's whole search history. 'pendidikan'/
+  // 'akademia' (ms-MY section below) are Malay-only tokens, no plain-
+  // English key existed for a non-Malay source's known_category to match.
+  'education': 'Education',
 
   // --- Arabic ---
   'سياسة': 'Politics', 'politics_ar': 'Politics',
