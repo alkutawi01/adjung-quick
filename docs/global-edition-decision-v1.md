@@ -949,3 +949,44 @@ visual/RTL). **Belum dilaksanakan** — arahan eksplisit Izzat: siapkan
 Phase 1-4 dahulu, rekod sahaja; satu teguran bukan arahan tukar keutamaan
 pelaksanaan. Phase 6 Editorial Intelligence, Phase 7 Advanced features
 menyusul selepasnya.
+
+---
+
+## Baseline Fasa 5 — kecacatan pembaca yang SUDAH diukur (2026-08-21)
+
+Direkod semasa semakan sepintas lalu sebelum Fasa 5, atas arahan Izzat
+("masukkan dalam pelan"). **Sengaja TIDAK dibaiki** — Fasa 5 belum dibuka.
+Diukur pada laman produksi sebenar (bukan anggaran/pembacaan kod semata),
+supaya sesiapa yang buka Fasa 5 nanti tidak perlu mencari semula.
+
+### 5-BUG-1 — Tarikh Bahasa Melayu bocor ke SEMUA edisi
+`ui/src/components/StoryCard.jsx:7` hardcode
+`d.toLocaleString('ms-MY', {...})` tanpa mengambil kira edisi semasa.
+Kesan pada pembaca: edisi Inggeris papar "21 **Ogo**, 02:06 **PTG**"
+(Ogos/petang), edisi Arab pun sama — bulan dan penanda waktu Melayu dalam
+edisi bukan-Melayu. Locale sepatutnya terbit daripada edisi aktif
+(`ms-MY` / `en` / `ar`), bukan pemalar.
+
+### 5-BUG-2 — Tajuk berita terpotong separuh ayat (bukan hiasan)
+`.story-card__title` ada tinggi tetap + `overflow: hidden`. Diukur live
+(`scrollHeight` vs `clientHeight`, bukan agakan):
+- Mobile 375px: **10 daripada 10** tajuk terpotong, sehingga **22px**
+  tersembunyi (hampir satu baris penuh hilang).
+- Desktop 907px: 3 daripada 10 terpotong, 10px setiap satu.
+Contoh sebenar: "UK reports unexpected deficit of £1.8bn as John Healey
+prepares for…" — baris kedua terkerat di tengah.
+
+**Nota prinsip:** ini betul-betul corak "selesaikan limpahan dengan CSS
+clipping" yang ditolak dalam projek adik-beradik (Adjung Brief, CLAUDE.md
+peraturan #1: kad tak boleh overflow, dan JANGAN diselesaikan dengan
+`overflow-hidden`/`line-clamp` selepas fakta). Pembetulan Fasa 5 patut
+melaraskan ruang/saiz supaya tajuk MUAT, bukan menambah `line-clamp` atau
+memotong teks editorial.
+
+### Bukan pepijat (disahkan, supaya tidak dilaporkan semula)
+- "No stories meeting today's editorial standard yet" pada en-global =
+  kategori yang memang kosong (cth Alam Sekitar), bukan kegagalan.
+- Tiada limpahan mendatar halaman pada 375px mahupun 907px
+  (`scrollWidth === clientWidth` kedua-duanya).
+- RTL edisi Arab berfungsi; navigasi wheel kategori berfungsi melalui
+  butang anak panah.
