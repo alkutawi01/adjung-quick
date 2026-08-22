@@ -1,5 +1,39 @@
 # Adjung Quick — Editorial Ranking Laboratory
 
+## Current v1 status (2026-08-21)
+
+Single source of truth for "what is done and what is not". Full detail:
+[`docs/global-edition-decision-v1.md`](docs/global-edition-decision-v1.md).
+
+```
+✓ Global Edition ready
+✓ Manual ingestion accepted
+✓ Automatic classification after ingestion
+
+Pending:
+- Scheduler
+- Monitoring
+- UI/UX redesign
+- Empty-category copy refinement
+```
+
+Stated precisely — these are two separate facts, do not collapse them into
+"READY + fully automated":
+
+```
+Global Edition v1:      READY
+Operational automation: PENDING (Track B)
+```
+
+Checkpoint tag: `global-edition-v1-ready`.
+
+> **Note:** the product description immediately below predates the Edition
+> architecture (it says "no per-language Editions"). Three separate editions
+> — `ms-MY`, `en-global`, `ar-global` — have shipped since. Treat
+> `docs/global-edition-decision-v1.md` as authoritative where the two differ.
+
+---
+
 Not the production app. This is the Phase A "prove the engine before building
 the UI" step from the 2026-08-11 design session (Claude + ChatGPT as project
 director, with Grok/Gemini/DeepSeek consulted on specific failure modes).
