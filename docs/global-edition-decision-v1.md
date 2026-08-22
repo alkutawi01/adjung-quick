@@ -990,3 +990,102 @@ memotong teks editorial.
   (`scrollWidth === clientWidth` kedua-duanya).
 - RTL edisi Arab berfungsi; navigasi wheel kategori berfungsi melalui
   butang anak panah.
+
+---
+
+## Global Edition v1 — Release Readiness Audit (2026-08-21) — DITUTUP
+
+Langkah penutupan sebelum Fasa 5, atas arahan ChatGPT. Bukan tambah
+ciri — pastikan setiap keputusan Global Edition sudah lengkap dan
+disahkan terhadap sistem SEBENAR, bukan andaian.
+
+### Status rasmi (nyatakan TEPAT begini — jangan ringkaskan)
+
+```
+Global Edition v1:      READY
+Operational automation: PENDING (Track B)
+```
+
+BUKAN "READY + fully automated". Dua fakta berasingan; menggabungkannya
+menyembunyikan limitasi operasi yang sebenarnya masih wujud.
+
+### 1. Source state — PASS
+48 sumber aktif (4 ar / 8 en / 36 ms), 1 disabled (`rss-kpm`, feed
+kementerian yang memang mati — keadaan lama, bukan penemuan baharu).
+Sifar sumber eksperimen tertinggal (imbasan nama test/demo/tmp/sample
+= kosong). Satu-satunya sumber sifar-item ialah `rss-kpm` yang sama.
+
+### 2. Edition separation — PASS (bersih sepenuhnya)
+0 placement tanpa ahli dalam locale sendiri, ketiga-tiga edisi.
+Campuran bahasa yang menyuap setiap edisi 100% tulen:
+`ms-MY={ms:596}`, `en-global={en:376}`, `ar-global={ar:80}`.
+Tiada Arabic bocor ke en-global, tiada English bocor ke ar-global,
+tiada kandungan global bocor ke ms-MY.
+
+### 3. Reader acceptance — BLOCKER DIJUMPAI, DIBAIKI, DITUTUP
+
+**Ini penemuan paling penting audit ini** (commit 79bf730).
+
+`ui/src/adapter/productionAdapter.js` membaca `story_clusters` dan
+`rss_items` dengan `.select()` biasa tanpa pagination. PostgREST hadkan
+satu `.select()` pada ~1000 baris. Diukur terhadap produksi guna anon key
+(persis client pelayar): `rss_items` DB = 1052, pembaca terima TEPAT
+1000. **52 item hilang senyap, dan 52 cluster yang ahlinya jatuh selepas
+sempadan itu sampai kepada pembaca dengan SIFAR ahli** — kehilangan
+kandungan sepenuhnya untuk setiap pembaca.
+
+Gejala yang mendedahkannya: ar-global `تكنولوجيا` memaparkan 4 daripada
+10 cerita sebenarnya, kerana AITNews (sumber terbaharu) duduk selepas
+potongan itu. `story_clusters` ketika itu 996 — **empat baris** daripada
+turut terpotong senyap.
+
+**Projek ini sudah membaiki pepijat IDENTIK tiga kali** sebelum ini
+(`ingest-production.js` protectedStoryIds, `reviewQueueAdapter.js`
+classification backlog, `classify-production.js`). Laluan PEMBACA ialah
+satu-satunya yang tidak pernah disemak sesiapa.
+
+Pembetulan: pagination untuk tiga query yang berskala dengan korpus
+(`story_clusters`, `rss_items`, `edition_story_classifications`), setiap
+satu diorder ikut primary key sebenar supaya `range()` merentas request
+berasingan kekal stabil (Polish 9A). Disahkan lawan produksi: 1052/1052
+`rss_items`, 10/10 AITNews, 0 cluster yatim, 0 duplikat. Disahkan HIDUP
+selepas deploy: `تكنولوجيا` kini 10 cerita. Dijaga oleh
+`db/reader-adapter-pagination-static-audit.test.mjs` (15 assertion,
+dibukti dengan mutation test sebenar).
+
+**Peraturan am:** mana-mana bacaan Supabase pada jadual yang berkembang
+mengikut saiz korpus MESTI dipaginate. Jadual yang sudah diketahui
+berskala: `story_clusters`, `rss_items`, `edition_story_classifications`.
+Jangan andaikan "kecil sekarang" bermakna selamat — `rss_items` melepasi
+had itu tanpa sebarang ralat, mesej, atau amaran.
+
+Kategori kosong ar-global (`بيئة`/`تعليم`/`دين`/`منوعات`/`ترفيه`)
+memaparkan mesej yang dilokalkan dengan betul dalam Bahasa Arab dan
+TIDAK merosakkan pengalaman. Namun teksnya
+("لا توجد أخبار تستوفي المعايير التحريرية اليوم" — tiada berita memenuhi
+standard editorial hari ini) mengelirukan untuk kategori yang sebenarnya
+memang tiada bekalan, bukan gagal standard. Direkod sebagai isu copy
+Fasa 5 — TIDAK disentuh.
+
+### 4. Operational readiness — DITERIMA DENGAN LIMITASI
+
+```
+Ingestion:      Manual trigger
+Classification: Automatic after ingestion
+Scheduler:      Not implemented
+Reason:         Manual operation accepted for v1
+```
+
+Classification hook (P0-B) wujud dan disahkan berfungsi hidup. Proses
+snapshot/drop `*_old` berfungsi. Penjadual ingestion TIDAK wujud — tiada
+cron, tiada GitHub Actions, `vercel.json` tiada `crons`.
+
+**Kenapa ini BUKAN blocker** (keputusan ChatGPT): perkara yang lebih asas
+baru sahaja diselesaikan — classification backlog, reader pagination,
+edition leakage, source quality. Membina penjadual sekarang bermakna
+mengautomasi sistem yang masih berubah. *Automate a stable process, not
+a moving target.*
+
+### Track B — Production Operations (roadmap, selepas v1)
+Skop: scheduled ingestion; failure alert; retry handling; monitoring;
+operator notification.
