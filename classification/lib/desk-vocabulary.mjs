@@ -29,6 +29,14 @@ export const SUBJECT_VOCABULARY = {
   'budaya': 'Culture',
   'hiburan': 'Entertainment', 'gaya/hiburan': 'Entertainment', 'berita-hiburan': 'Entertainment', 'rap': 'Entertainment',
   'agama': 'Religion', 'addin': 'Religion',
+  // Global Phase 4D (2026-08-22) — 'religion' (English token) added for
+  // sourceKnownCategory (Tier 1): Masrawy's إسلاميات feed is the first
+  // Arabic Religion source found in this project's history (docs/
+  // global-edition-decision-v1.md 4C-2 closed dozens of candidates
+  // deferred/rejected before this one passed). 'agama'/'addin' above are
+  // Malay-only tokens; this is the plain-English key a non-Malay source's
+  // known_category can actually match.
+  'religion': 'Religion',
   'gaya hidup': 'Lifestyle', 'gaya-hidup': 'Lifestyle', 'santai': 'Lifestyle',
 
   // Polish 9C (2026-08-20, docs/polish-9-audit-v1.md): RTM's site serves
