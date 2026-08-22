@@ -42,6 +42,7 @@ const TEST_FILES = [
   'classification/arabic-geography-fix.test.mjs',
   'classification/tier5-geography-content.test.mjs',
   'classification/precedence-fix-regression.test.mjs',
+  'db/reader-adapter-pagination-static-audit.test.mjs',
   'db/production-write-guard.test.mjs',
   'db/daily-observation.test.mjs',
   'db/edition-representation-eligibility.test.mjs',

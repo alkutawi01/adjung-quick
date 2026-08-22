@@ -30,6 +30,43 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, storageKey: 'adjung-quick-reader-auth' },
 });
 
+// PostgREST caps a single .select() at ~1000 rows. This project has now hit
+// that cap FOUR times: ingest-production.js's protectedStoryIds read,
+// ui/src/admin/reviewQueueAdapter.js's classification backlog, and
+// db/classify-production.js (all three already carry this same fix) — and
+// then, found live on 2026-08-21 during the Global Edition v1 Release
+// Readiness Audit, HERE, in the reader path itself. rss_items had grown to
+// 1052 rows, so the reader silently received only 1000: 52 items vanished,
+// and the 52 clusters those items belonged to arrived with ZERO members —
+// losing their content entirely for every reader. Symptom that exposed it:
+// ar-global's تكنولوجيا showed 4 of its 10 real stories, because AITNews
+// (the newest source) sat past the 1000-row boundary. story_clusters was at
+// 996 — four rows from silently truncating too.
+//
+// orderBy must name a column set that makes each row's identity total and
+// stable, because range() pagination across SEPARATE HTTP requests has no
+// ordering guarantee otherwise (Polish 9A). Every call below passes a real
+// PRIMARY KEY: story_clusters.id, rss_items.id, and — since the
+// edition_story_classifications query is already .eq()-filtered to one
+// edition — story_id, which is unique within that filter (its full PK is
+// (story_id, edition_id)).
+const CHUNK_PAGE = 1000;
+async function selectAllChunked(query, orderBy = 'id') {
+  const orderCols = Array.isArray(orderBy) ? orderBy : [orderBy];
+  const rows = [];
+  let from = 0;
+  while (true) {
+    let q = query();
+    for (const col of orderCols) q = q.order(col, { ascending: true });
+    const { data, error } = await q.range(from, from + CHUNK_PAGE - 1);
+    if (error) return { data: null, error };
+    rows.push(...data);
+    if (data.length < CHUNK_PAGE) break;
+    from += CHUNK_PAGE;
+  }
+  return { data: rows, error: null };
+}
+
 // Fetches the current Ranked Queue from Supabase and reshapes it into the
 // cluster array state/reducer.js's `context.rankedQueue` expects.
 // `editionId` selects WHICH edition's placement each cluster carries as its
@@ -41,15 +78,15 @@ export async function fetchRankedQueue(editionId = 'ms-MY') {
   const [{ data: sources, error: sourcesErr }, { data: clusters, error: clustersErr }, { data: items, error: itemsErr }, { data: placements, error: placementsErr }, { data: overrides, error: overridesErr }, { data: filterRules, error: filterRulesErr }] =
     await Promise.all([
       supabase.from('sources').select('id, trust_score'),
-      supabase.from('story_clusters').select('id, topic, editorial_score, workspace_state'),
-      supabase.from('rss_items').select('id, source_id, cluster_id, rss_guid, title, description, link, normalized_url, language, published_at'),
+      selectAllChunked(() => supabase.from('story_clusters').select('id, topic, editorial_score, workspace_state'), 'id'),
+      selectAllChunked(() => supabase.from('rss_items').select('id, source_id, cluster_id, rss_guid, title, description, link, normalized_url, language, published_at'), 'id'),
       // Per-edition placement, written by db/classify-production.js from the
       // frozen classification engine. Replaces story_clusters.topic (the OLD
       // classifier's Politics/Economy/Sports/World vocabulary, which has ZERO
       // overlap with any edition's real taxonomy).
-      supabase.from('edition_story_classifications')
+      selectAllChunked(() => supabase.from('edition_story_classifications')
         .select('story_id, field, field_code, classification_status, classification_confidence')
-        .eq('edition_id', editionId),
+        .eq('edition_id', editionId), 'story_id'),
       // FASA 3.6.3a — Resolver Integration: this is the ONE place a human
       // editorial decision (ui/src/admin's Review Queue) actually reaches a
       // reader. Without this query, story_overrides rows exist in the
